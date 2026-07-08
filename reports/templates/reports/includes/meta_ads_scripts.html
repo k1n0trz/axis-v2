@@ -1,0 +1,241 @@
+<script>
+function toNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const raw = String(value ?? '').trim();
+  if (!raw) return 0;
+  let normalized = raw.replace(/\s/g, '').replace(/[^\d,.-]/g, '');
+  if (!normalized) return 0;
+  const hasComma = normalized.includes(',');
+  const hasDot = normalized.includes('.');
+
+  if (hasComma && hasDot) {
+    if (normalized.lastIndexOf(',') > normalized.lastIndexOf('.')) {
+      normalized = normalized.replace(/\./g, '').replace(',', '.');
+    } else {
+      normalized = normalized.replace(/,/g, '');
+    }
+  } else if (hasComma) {
+    if (/^-?\d{1,3}(,\d{3})+$/.test(normalized)) {
+      normalized = normalized.replace(/,/g, '');
+    } else {
+      normalized = normalized.replace(',', '.');
+    }
+  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(normalized)) {
+    normalized = normalized.replace(/\./g, '');
+  }
+
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function fullMoney(value) {
+  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(toNumber(value));
+}
+
+function fullNumber(value) {
+  return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(toNumber(value));
+}
+
+function decimalNumber(value, digits = 2) {
+  return new Intl.NumberFormat('es-CO', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(toNumber(value));
+}
+
+function setMetaModalKpi(key, value) {
+  const target = document.querySelector(`[data-meta-kpi="${key}"]`);
+  if (target) target.textContent = value;
+}
+
+function setMetaDetail(target, label, value) {
+  if (!target) return;
+  target.textContent = '';
+  if (!value) return;
+  const strong = document.createElement('strong');
+  strong.textContent = `${label}: `;
+  target.appendChild(strong);
+  target.appendChild(document.createTextNode(value));
+}
+
+const maturityRank = { unknown: 0, low: 1, medium: 2, high: 3 };
+
+function setMetaMaturity(data) {
+  const label = document.querySelector('[data-meta-modal-maturity-label]');
+  const age = document.querySelector('[data-meta-modal-maturity-age]');
+  const description = document.querySelector('[data-meta-modal-maturity-description]');
+  const level = data.maturityLevel || 'unknown';
+  if (label) {
+    label.className = `meta-ad-maturity-label ${level}`;
+    label.textContent = `Madurez ${data.maturityLabel || 'Sin dato'}`;
+  }
+  if (age) age.textContent = data.maturityAgeDays ? `${fullNumber(data.maturityAgeDays)} dias activo` : '';
+  if (description) description.textContent = data.maturityDescription || 'Meta no devolvio fecha de activacion para este anuncio.';
+}
+
+document.querySelectorAll('[data-meta-ad-trigger]').forEach(card => {
+  card.addEventListener('click', () => {
+    const data = card.dataset;
+    const title = data.title || data.name || 'Anuncio activo';
+    const headlineText = data.headline || title;
+    const media = document.querySelector('[data-meta-modal-media]');
+    const modalTitle = document.getElementById('metaAdModalTitle');
+    const headline = document.querySelector('[data-meta-modal-headline]');
+    const copy = document.querySelector('[data-meta-modal-copy]');
+    const status = document.querySelector('[data-meta-modal-status]');
+    const url = document.querySelector('[data-meta-modal-url]');
+    const campaign = document.querySelector('[data-meta-modal-campaign]');
+    const adset = document.querySelector('[data-meta-modal-adset]');
+    const cta = document.querySelector('[data-meta-modal-cta]');
+
+    if (modalTitle) modalTitle.textContent = data.name || title;
+    if (headline) headline.textContent = headlineText;
+    if (copy) copy.textContent = data.body || 'Creatividad activa sin copy disponible desde Meta.';
+    if (status) status.textContent = data.status || 'ACTIVE';
+    if (media) {
+      media.classList.toggle('is-preview', Boolean(data.previewUrl));
+      media.textContent = '';
+      if (data.previewUrl) {
+        const frameShell = document.createElement('div');
+        frameShell.className = 'meta-ad-preview-shell';
+        const iframe = document.createElement('iframe');
+        iframe.src = data.previewUrl;
+        iframe.title = `Preview Meta Ads - ${title}`;
+        iframe.loading = 'lazy';
+        iframe.scrolling = 'no';
+        iframe.setAttribute('allowfullscreen', 'true');
+        iframe.setAttribute('allow', 'autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share');
+        frameShell.appendChild(iframe);
+        media.appendChild(frameShell);
+      } else if (data.image) {
+        const img = document.createElement('img');
+        img.src = data.image;
+        img.alt = title;
+        media.appendChild(img);
+      } else {
+        const placeholder = document.createElement('span');
+        placeholder.textContent = (data.name || title).trim().slice(0, 1).toUpperCase();
+        media.appendChild(placeholder);
+        if (data.mediaKind === 'video') {
+          const fallback = document.createElement('div');
+          fallback.className = 'meta-ad-modal-fallback';
+          fallback.textContent = 'Meta no devolvió un preview reproducible para este video.';
+          media.appendChild(fallback);
+        }
+      }
+    }
+    if (url) {
+      if (data.url) {
+        url.href = data.url;
+        url.style.display = '';
+      } else {
+        url.removeAttribute('href');
+        url.style.display = 'none';
+      }
+    }
+    setMetaDetail(campaign, 'Campaña', data.campaign);
+    setMetaDetail(adset, 'Conjunto', data.adset);
+    setMetaDetail(cta, 'CTA', data.cta);
+    setMetaMaturity(data);
+
+    setMetaModalKpi('spend', fullMoney(data.spend));
+    setMetaModalKpi('roas', decimalNumber(data.roas));
+    setMetaModalKpi('purchases', fullNumber(data.purchases));
+    setMetaModalKpi('cpa', fullMoney(data.cpa));
+    setMetaModalKpi('impressions', fullNumber(data.impressions));
+    setMetaModalKpi('reach', fullNumber(data.reach));
+    setMetaModalKpi('clicks', fullNumber(data.clicks));
+    setMetaModalKpi('ctr', `${decimalNumber(data.ctr)}%`);
+    setMetaModalKpi('cpc', fullMoney(data.cpc));
+    setMetaModalKpi('cpm', fullMoney(data.cpm));
+    setMetaModalKpi('frequency', decimalNumber(data.frequency));
+    setMetaModalKpi('purchaseValue', fullMoney(data.purchaseValue));
+  });
+});
+
+function setupMetaAdsSection(section) {
+  const grid = section.querySelector('[data-meta-ads-grid]');
+  if (!grid) return;
+  const cards = Array.from(section.querySelectorAll('[data-meta-card]'));
+  const sortSelect = section.querySelector('[data-meta-sort]');
+  const filterSelect = section.querySelector('[data-meta-filter]');
+  const visibleCount = section.querySelector('[data-meta-visible-count]');
+  const totalCount = section.querySelector('[data-meta-total-count]');
+  const pageSummary = section.querySelector('[data-meta-page-summary]');
+  const emptyState = section.querySelector('[data-meta-empty]');
+  const pagination = section.querySelector('[data-meta-pagination]');
+  const prevButton = section.querySelector('[data-meta-prev]');
+  const nextButton = section.querySelector('[data-meta-next]');
+  const pageLabel = section.querySelector('[data-meta-pagination-label]');
+  const pageSize = Math.max(1, Number(section.dataset.pageSize || 12));
+  let page = 1;
+
+  const metric = (card, key) => toNumber(card.dataset[key]);
+  const created = card => Date.parse(card.dataset.createdTime || '') || 0;
+  const originalIndex = card => Number(card.dataset.index || 0);
+
+  function filteredCards() {
+    const filter = filterSelect?.value || 'all';
+    return cards.filter(card => {
+      if (filter === 'purchases') return metric(card, 'purchases') > 0;
+      if (filter === 'roas') return metric(card, 'roas') > 0;
+      if (filter === 'maturity_low') return card.dataset.maturityLevel === 'low';
+      if (filter === 'maturity_medium') return card.dataset.maturityLevel === 'medium';
+      if (filter === 'maturity_high') return card.dataset.maturityLevel === 'high';
+      return true;
+    });
+  }
+
+  function sortCards(items) {
+    const sort = sortSelect?.value || 'created_desc';
+    return [...items].sort((a, b) => {
+      if (sort === 'roas_desc') {
+        return metric(b, 'roas') - metric(a, 'roas') || metric(b, 'purchases') - metric(a, 'purchases') || created(b) - created(a) || originalIndex(a) - originalIndex(b);
+      }
+      if (sort === 'purchases_desc') {
+        return metric(b, 'purchases') - metric(a, 'purchases') || metric(b, 'roas') - metric(a, 'roas') || created(b) - created(a) || originalIndex(a) - originalIndex(b);
+      }
+      if (sort === 'spend_desc') {
+        return metric(b, 'spend') - metric(a, 'spend') || metric(b, 'purchases') - metric(a, 'purchases') || created(b) - created(a) || originalIndex(a) - originalIndex(b);
+      }
+      if (sort === 'maturity_desc') {
+        return (maturityRank[b.dataset.maturityLevel] || 0) - (maturityRank[a.dataset.maturityLevel] || 0) || created(b) - created(a) || originalIndex(a) - originalIndex(b);
+      }
+      if (sort === 'maturity_asc') {
+        return (maturityRank[a.dataset.maturityLevel] || 0) - (maturityRank[b.dataset.maturityLevel] || 0) || created(a) - created(b) || originalIndex(a) - originalIndex(b);
+      }
+      return created(b) - created(a) || originalIndex(a) - originalIndex(b);
+    });
+  }
+
+  function render() {
+    const ordered = sortCards(filteredCards());
+    const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
+    page = Math.min(Math.max(page, 1), totalPages);
+    const start = (page - 1) * pageSize;
+    const pageCards = new Set(ordered.slice(start, start + pageSize));
+
+    ordered.forEach(card => grid.appendChild(card));
+    cards.forEach(card => {
+      card.hidden = !pageCards.has(card);
+    });
+
+    if (visibleCount) visibleCount.textContent = fullNumber(ordered.length);
+    if (totalCount) totalCount.textContent = fullNumber(cards.length);
+    if (emptyState) emptyState.hidden = ordered.length > 0;
+    if (pageSummary) {
+      const end = ordered.length ? Math.min(start + pageSize, ordered.length) : 0;
+      pageSummary.textContent = ordered.length ? `${fullNumber(start + 1)}-${fullNumber(end)} de ${fullNumber(ordered.length)}` : '0 anuncios';
+    }
+    if (pagination) pagination.hidden = totalPages <= 1;
+    if (pageLabel) pageLabel.textContent = `Pagina ${fullNumber(page)} de ${fullNumber(totalPages)}`;
+    if (prevButton) prevButton.disabled = page <= 1;
+    if (nextButton) nextButton.disabled = page >= totalPages;
+  }
+
+  sortSelect?.addEventListener('change', () => { page = 1; render(); });
+  filterSelect?.addEventListener('change', () => { page = 1; render(); });
+  prevButton?.addEventListener('click', () => { page -= 1; render(); });
+  nextButton?.addEventListener('click', () => { page += 1; render(); });
+  render();
+}
+
+document.querySelectorAll('[data-meta-ads-section]').forEach(setupMetaAdsSection);
+</script>

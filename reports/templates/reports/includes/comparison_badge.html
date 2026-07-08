@@ -1,0 +1,6 @@
+{% load report_extras %}
+{% if comparison.has_previous and comparison.delta_pct != None %}
+<div class="bali-comparison {{ comparison.direction }}">
+  {{ comparison.delta_pct|signed_percent }} vs. periodo anterior
+</div>
+{% endif %}

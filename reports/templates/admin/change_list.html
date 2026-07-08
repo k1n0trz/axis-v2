@@ -1,0 +1,10 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+    <li>
+        <a href="exportar-excel-universal/?{{ request.GET.urlencode }}" class="viewlink">
+            Exportar Excel (Filtros)
+        </a>
+    </li>
+    {{ block.super }}
+{% endblock %}

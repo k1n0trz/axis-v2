@@ -1,0 +1,40 @@
+﻿.git
+.gitignore
+.gcloudignore
+.dockerignore
+.codex_*
+.tools/
+
+# Local env/secrets
+.env
+.env.*
+*.env
+docs/env-proceso.txt
+
+# Local databases/data dumps/tokens
+db.sqlite3
+*.sqlite3
+*.sqlite
+*.db
+data/
+
+# Virtualenvs and generated Python files
+.venv/
+venv/
+env/
+axis/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+
+# Generated/static/local files
+staticfiles/
+media/
+uploads/
+img-tempo/
+*.log
+*.tmp
+tmp_write_probe.txt

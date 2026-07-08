@@ -1,0 +1,226 @@
+<style>
+  .agenda-shell {
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(154, 168, 194, 0.14);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(21, 31, 48, .94), rgba(15, 23, 37, .98));
+    box-shadow: 0 16px 36px rgba(0, 0, 0, .18);
+    overflow: hidden;
+  }
+  .agenda-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid rgba(154, 168, 194, 0.12);
+  }
+  .agenda-eyebrow {
+    color: #7cf3ad;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .agenda-title {
+    color: #f4f8ff;
+    font-size: 1.02rem;
+    font-weight: 800;
+    margin-top: .1rem;
+  }
+  .agenda-caption {
+    color: #94a6c7;
+    font-size: .84rem;
+    margin-top: .15rem;
+  }
+  .agenda-action {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    border-radius: 8px;
+    border: 1px solid rgba(124, 243, 173, .24);
+    background: rgba(124, 243, 173, .1);
+    color: #e9fff1;
+    padding: .55rem .78rem;
+    text-decoration: none;
+    font-size: .82rem;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .agenda-action:hover { color: #fff; background: rgba(124, 243, 173, .16); }
+  .agenda-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .7rem;
+    padding: 1rem;
+    border-bottom: 1px solid rgba(154, 168, 194, .1);
+  }
+  .agenda-metric {
+    border: 1px solid rgba(154, 168, 194, .1);
+    border-radius: 8px;
+    background: rgba(12, 19, 31, .62);
+    padding: .75rem;
+  }
+  .agenda-metric span {
+    color: #8fa1bf;
+    display: block;
+    font-size: .72rem;
+    font-weight: 700;
+  }
+  .agenda-metric strong {
+    color: #f6fbff;
+    display: block;
+    font-size: 1.2rem;
+    line-height: 1.1;
+    margin-top: .25rem;
+  }
+  .agenda-board {
+    padding: 1rem;
+    display: grid;
+    gap: 1rem;
+    overflow-x: auto;
+  }
+  .agenda-week {
+    min-width: 980px;
+    border: 1px solid rgba(154, 168, 194, .12);
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(8, 13, 23, .48);
+  }
+  .agenda-month {
+    text-align: center;
+    color: #f7fbff;
+    background: linear-gradient(90deg, rgba(57, 16, 68, .88), rgba(22, 77, 100, .9));
+    border-bottom: 1px solid rgba(124, 243, 173, .22);
+    padding: .34rem .6rem;
+    font-size: .78rem;
+    font-weight: 900;
+    letter-spacing: .02em;
+  }
+  .agenda-days {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .agenda-day {
+    min-height: 190px;
+    border-right: 1px solid rgba(154, 168, 194, .12);
+    background: rgba(13, 20, 32, .56);
+  }
+  .agenda-day:last-child { border-right: 0; }
+  .agenda-day-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    min-height: 30px;
+    padding: .38rem .55rem;
+    color: #f7fbff;
+    background: rgba(64, 14, 42, .92);
+    font-size: .77rem;
+    font-weight: 900;
+    text-align: center;
+  }
+  .agenda-hours {
+    color: #d9ffe8;
+    font-size: .68rem;
+    white-space: nowrap;
+  }
+  .agenda-task {
+    border-top: 1px solid rgba(154, 168, 194, .12);
+    background: rgba(215, 157, 185, .18);
+    padding: .48rem .55rem;
+    color: #edf4ff;
+    font-size: .77rem;
+    line-height: 1.28;
+  }
+  .agenda-task:nth-child(odd) { background: rgba(244, 206, 225, .08); }
+  .agenda-task.done {
+    color: #c8d4e8;
+    background: rgba(154, 168, 194, .07);
+  }
+  .agenda-task-title {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .agenda-task-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-top: .34rem;
+    color: #9fb0ca;
+    font-size: .68rem;
+    font-weight: 700;
+  }
+  .agenda-link {
+    color: #93c5fd;
+    text-decoration: none;
+  }
+  .agenda-link:hover { color: #bfdbfe; }
+  .agenda-empty-day {
+    padding: .7rem;
+    color: #7f8da8;
+    font-size: .76rem;
+  }
+  @media (max-width: 960px) {
+    .agenda-header { grid-template-columns: 1fr; }
+    .agenda-metrics { grid-template-columns: 1fr; }
+    .agenda-week { min-width: 860px; }
+  }
+</style>
+
+<section class="agenda-shell">
+  <div class="agenda-header">
+    <div>
+      <div class="agenda-eyebrow">Tareas</div>
+      <div class="agenda-title">Agenda semanal</div>
+      <div class="agenda-caption">Vista tipo calendario con jornadas ajustadas a 8 horas por dia.</div>
+    </div>
+    <a class="agenda-action" href="{% url 'admin:reports_usertask_changelist' %}">Gestionar tareas</a>
+  </div>
+
+  <div class="agenda-metrics">
+    <div class="agenda-metric"><span>Pendientes</span><strong>{{ user_task_summary.pending }}</strong></div>
+    <div class="agenda-metric"><span>Realizadas</span><strong>{{ user_task_summary.completed }}</strong></div>
+    <div class="agenda-metric"><span>Horas registradas</span><strong>{{ user_task_summary.hours|floatformat:1 }}</strong></div>
+  </div>
+
+  <div class="agenda-board">
+    {% for week in user_task_agenda_weeks %}
+    <div class="agenda-week">
+      <div class="agenda-month">{{ week.month_label }}</div>
+      <div class="agenda-days">
+        {% for day in week.days %}
+        <div class="agenda-day">
+          <div class="agenda-day-head">
+            <span>{{ day.label }}</span>
+            <span class="agenda-hours">{{ day.hours|floatformat:2 }} h</span>
+          </div>
+          {% for task in day.tasks %}
+          <article class="agenda-task {% if task.status == 'completed' %}done{% endif %}">
+            <div class="agenda-task-title">{{ task.title }}</div>
+            <div class="agenda-task-meta">
+              <span>{{ task.registered_hours|floatformat:2 }} h</span>
+              <span>{{ task.get_status_display }}</span>
+              {% if task.attachments.count %}<span>{{ task.attachments.count }} adj.</span>{% endif %}
+              {% if task.task_links.count %}<span>{{ task.task_links.count }} link</span>{% endif %}
+            </div>
+            {% if task.links %}
+            <div class="agenda-task-meta">
+              {% for link in task.links.splitlines %}
+                {% if link %}<a class="agenda-link" href="{{ link }}" target="_blank" rel="noopener">Enlace</a>{% endif %}
+              {% endfor %}
+            </div>
+            {% endif %}
+          </article>
+          {% empty %}
+          <div class="agenda-empty-day">Sin tareas registradas.</div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="empty-state p-4 text-muted">No hay tareas para mostrar en la agenda.</div>
+    {% endfor %}
+  </div>
+</section>

@@ -1,0 +1,27 @@
+{
+  "rules": [
+    { "match": "21/06/2024 | ventas | search | co", "category": "copa-menstrual" },
+    { "match": "21/06/2024 | ventas | pmax | co", "category": "copa-menstrual" },
+    { "match": "13/03/2025 | ventas | pmax | ciudades | co", "category": "copa-menstrual" },
+    { "match": "pmax | ciudades | co", "category": "copa-menstrual" },
+    { "match": "copa menstrual", "category": "copa-menstrual" },
+    { "match": "copa menstrusl", "category": "copa-menstrual" },
+    { "match": "copa", "category": "copa-menstrual" },
+    { "match": "disco menstrual", "category": "disco-menstrual" },
+    { "match": "disco", "category": "disco-menstrual" },
+    { "match": "panties menstruales", "category": "panties-menstruales" },
+    { "match": "panty menstrual", "category": "panties-menstruales" },
+    { "match": "panties", "category": "panties-menstruales" },
+    { "match": "bolas kegel", "category": "bolas-kegel-uva" },
+    { "match": "kegel", "category": "bolas-kegel-uva" },
+    { "match": "hidratante intimo", "category": "hidratante-intimo-uva" },
+    { "match": "hidratante", "category": "hidratante-intimo-uva" },
+    { "match": "lubricante", "category": "lubricantes" },
+    { "match": "higiene intima", "category": "higiene-intima" },
+    { "match": "cubrepezones sin adhesivo", "category": "cubrepezones-sin-adhesivo" },
+    { "match": "cubrepezones sin adhesivos", "category": "cubrepezones-sin-adhesivo" },
+    { "match": "sin adhesivo", "category": "cubrepezones-sin-adhesivo" },
+    { "match": "sin adhesivos", "category": "cubrepezones-sin-adhesivo" },
+    { "match": "cubrepezones", "category": "cubrepezones" }
+  ]
+}

@@ -1,0 +1,180 @@
+{% extends "reports/base.html" %}
+{% load report_extras %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="kpi-card p-3"><small class="text-muted">Ventas del periodo</small><div class="kpi-value">{{ snapshot.kpis.sales_total|cop }}</div></div></div>
+  <div class="col-md-3"><div class="kpi-card p-3"><small class="text-muted">Inversion</small><div class="kpi-value">{{ snapshot.kpis.ad_spend|cop }}</div></div></div>
+  <div class="col-md-3"><div class="kpi-card p-3"><small class="text-muted">ROAS</small><div class="kpi-value">{{ snapshot.kpis.roas|floatformat:2 }}</div></div></div>
+  <div class="col-md-3"><div class="kpi-card p-3"><small class="text-muted">Registros pauta</small><div class="kpi-value">{{ spend_row_count }}</div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-8">
+    <div class="surface-card p-3 p-lg-4 h-100">
+      <div class="section-title mb-1">Ventas, inversion y ROAS</div>
+      <div class="text-muted small mb-3">Comparacion diaria para detectar dias con gasto sin retorno o ventas sin pauta asociada.</div>
+      <div class="chart-box chart-box-lg"><canvas id="salesSpendRoasChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="surface-card p-3 p-lg-4 h-100">
+      <div class="section-title mb-1">Fuentes de pauta</div>
+      <div class="text-muted small mb-3">Meta Ads y Google Ads segun el pais seleccionado.</div>
+      <div class="chart-box"><canvas id="adPlatformShareChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-6">
+    <div class="surface-card p-3 p-lg-4 h-100">
+      <div class="section-title mb-1">ROAS diario</div>
+      <div class="text-muted small mb-3">Linea de rentabilidad por fecha del periodo filtrado.</div>
+      <div class="chart-box"><canvas id="roasDailyChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="surface-card p-3 p-lg-4 h-100">
+      <div class="section-title mb-3">Insights de pauta</div>
+      <div class="status-list">
+        {% include "reports/includes/insights.html" with insight_rows=snapshot.insight_cards %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+const salesByDay = {{ sales_by_day_json|safe }};
+const spendByDay = {{ spend_by_day_json|safe }};
+const roasByDay = {{ roas_by_day_json|safe }};
+const adPlatformPerformance = {{ ad_platform_performance_json|default:"[]"|safe }};
+
+function formatCop(value) {
+  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value || 0);
+}
+
+function compactMoney(value) {
+  return new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0);
+}
+
+function empty(canvas, message) {
+  const box = canvas.closest('.chart-box');
+  if (box) box.innerHTML = `<div class="empty-state p-4 text-muted">${message}</div>`;
+}
+
+function baseOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 450, easing: 'easeOutQuart' },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { position: 'bottom', labels: { color: '#cbd7ee', usePointStyle: true } },
+      tooltip: {
+        backgroundColor: 'rgba(9,14,24,.96)',
+        borderColor: 'rgba(96,165,250,.22)',
+        borderWidth: 1,
+        titleColor: '#f7fbff',
+        bodyColor: '#dce8ff'
+      }
+    },
+    scales: {
+      x: { ticks: { color: '#95a6c4', maxRotation: 0, autoSkip: true }, grid: { display: false } },
+      y: { ticks: { color: '#95a6c4', callback: compactMoney }, grid: { color: 'rgba(154,168,194,.12)' } }
+    }
+  };
+}
+
+function renderCombo() {
+  const canvas = document.getElementById('salesSpendRoasChart');
+  if (!canvas) return;
+  const labels = [...new Set([...salesByDay.map(item => item.label), ...spendByDay.map(item => item.label), ...roasByDay.map(item => item.label)])].sort();
+  if (!labels.length) return empty(canvas, 'Sin ventas o inversion para graficar.');
+  const salesMap = Object.fromEntries(salesByDay.map(item => [item.label, item.value]));
+  const spendMap = Object.fromEntries(spendByDay.map(item => [item.label, item.value]));
+  const roasMap = Object.fromEntries(roasByDay.map(item => [item.label, item.value]));
+  const options = baseOptions();
+  options.scales.y1 = {
+    position: 'right',
+    ticks: { color: '#fca5a5', callback: value => Number(value).toFixed(1) },
+    grid: { drawOnChartArea: false },
+    title: { display: true, text: 'ROAS', color: '#fca5a5' }
+  };
+  options.plugins.tooltip.callbacks = {
+    label(context) {
+      const label = context.dataset.label || '';
+      return label === 'ROAS' ? `${label}: ${Number(context.raw || 0).toFixed(2)}` : `${label}: ${formatCop(context.raw)}`;
+    }
+  };
+  new Chart(canvas, {
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar', label: 'Ventas', data: labels.map(label => salesMap[label] || 0), backgroundColor: 'rgba(124,243,173,.72)', borderRadius: 7, yAxisID: 'y' },
+        { type: 'bar', label: 'Inversion', data: labels.map(label => spendMap[label] || 0), backgroundColor: 'rgba(96,165,250,.72)', borderRadius: 7, yAxisID: 'y' },
+        { type: 'line', label: 'ROAS', data: labels.map(label => roasMap[label] || 0), borderColor: '#f87171', backgroundColor: '#f87171', borderWidth: 3, pointRadius: 3, tension: .32, yAxisID: 'y1' }
+      ]
+    },
+    options
+  });
+}
+
+function renderPlatformShare() {
+  const canvas = document.getElementById('adPlatformShareChart');
+  if (!canvas) return;
+  if (!adPlatformPerformance.length) return empty(canvas, 'Sin pauta para el filtro actual.');
+  new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: adPlatformPerformance.map(item => item.label),
+      datasets: [{
+        data: adPlatformPerformance.map(item => item.spend),
+        backgroundColor: ['#60a5fa', '#c084fc', '#fbbf24'],
+        borderColor: 'rgba(13,20,32,.96)',
+        borderWidth: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#cbd7ee', usePointStyle: true } },
+        tooltip: { callbacks: { label: context => `${context.label}: ${formatCop(context.raw)}` } }
+      }
+    }
+  });
+}
+
+function renderRoas() {
+  const canvas = document.getElementById('roasDailyChart');
+  if (!canvas) return;
+  if (!roasByDay.length) return empty(canvas, 'Sin ROAS diario para graficar.');
+  const options = baseOptions();
+  options.plugins.legend.display = false;
+  options.plugins.tooltip.callbacks = { label: context => `ROAS: ${Number(context.raw || 0).toFixed(2)}` };
+  new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: roasByDay.map(item => item.label),
+      datasets: [{
+        data: roasByDay.map(item => item.value),
+        borderColor: '#f87171',
+        backgroundColor: 'rgba(248,113,113,.12)',
+        borderWidth: 3,
+        pointRadius: 3,
+        tension: .32,
+        fill: true
+      }]
+    },
+    options
+  });
+}
+
+renderCombo();
+renderPlatformShare();
+renderRoas();
+})();
+</script>
+{% endblock %}

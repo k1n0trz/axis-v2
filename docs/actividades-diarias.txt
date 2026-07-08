@@ -1,0 +1,55 @@
+Esto es lo que hago diariamente:
+
+___________________________________________________________________________________________________________________________________________________________
+
+Etapa 1:
+
+1. Ventas diarias: accedo al WordPress a la sección Análisis/Resumen, filtro la fecha del día que necesito y registro en Axis las ventas de tal día, los pedidos y las unidades.
+
+2. Voy al documento compartido por el área comercial en one drive (Excel) y reviso las ventas de dicha fecha que se generaron por WhatsApp, y lo guardo en Axis como las ventas de esa fecha generadas por WhatsApp.
+
+3. Repito puntos 1 y 2 para los días que falten hasta la fecha del día anterior al momento en que estoy registrando los datos (ayer).
+
+4. Ecuador es un caso diferente. Las ventas de web y de whatsapp las debo tomar de un archivo del área del comercial de Excel en one drive y generar los registros en el axis.
+
+5. Tanto con méxico como con ecuador, me toca usar una calculadora para traducir los precios de USD (Ecuador) y de MXN a COP para poder registrar los datos en axis.
+
+6. Después de registrar las ventas diarias por categoría de Uva para Colombia, México y Ecuador, me dirijo a la sección de Inversiones diarias (del Axis) y a la vez accedo al administrador de anuncios de Meta. Filtro por Colombia, filtro las campañas que no son de Comfama, filtro la fecha, tomo los datos de gastos (inversión) y con eso creo el registro de inversión Colombia en Meta Ads.
+
+7. Luego hago lo mismo pero filtrando las campañas de Comfama para Colombia Comfama porque se debe llevar por aparte.
+
+8. Hago lo mismo para Ecuador y México; en Ecuador tenemos los datos en COP en Meta Ads, pero en México están en MXN. México y Ecuador no tienen Comfama.
+
+9. Luego hago lo mismo para Colombia pero con los datos de Google Ads. En Google ads no hay campañas para Comfama.
+
+10. Luego hago los mismo con los Google ads de México y Ecuador; en Ecuador está en COP, en México en MXN.
+
+__________________________________________________________________________________________________________________________________________________________
+
+Etapa 2:
+
+11. Luego me dirijo a la sección "Ventas diarias por categoría y canal", para registrar los datos de ventas de woocommerce pero por producto; entonces accedo al wocommerce de Colombia a la seción Análisis/Producto y empiezo a tomar los datos por producto filtrando por fecha. Por ejemplo, filtro Copa Menstrual, tomo las ventas realizadas, la cantidad de artículos y los registro en el axis como una nueva fecha y así sucesivamente con cada producto.
+
+12. Luego procedo a hacer lo mismo con cada país, México desde el Woocommerce, Ecuador desde el archivo de Excel que lleva la comercial, y claro haciendo las conversiones de USD y MXN a Cop a punta de calculadora.
+
+(aunque ya habíamos puesto el totalizado de las ventas hasta el punto 5).
+
+___________________________________________________________________________________________________________________________________________________________
+
+Etapa 3:
+
+13. Voy a las "Métricas diarias por categoría", a la par abro el meta ads, agrego una nueva métrica en el axis por cada producto, donde por cada uno agrego el CPA (del día anterior) por plataforma y la inversión (aunque ya habíamos puesto el totalizado del gasto en los puntos 6 a 10); así, filtro en el administrado de Meta por ejemplo las campañas de Copa menstrual, miro cuánto gastaron y ese dato lo pongo en el axis junto con el cpa y guardo, luego creo otro, digamos Disco, filtro las campañas de disco en meta ads, miro el gasto y el cpa, guardo la info en el axis y creo otro y así sucesivamente; también tomo los datos de las campañas de Google Ads correspondientes cada categoría.
+
+14. Procedo a hacer lo mismo con cada país (México, Ecuador); en el caso de México debo hacer el cambio de MXN a Cop en ambas plataformas, en Ecuador el dato está en COP en ambas plataformas.
+
+15. Accedo a la sección "Sguidores Awn Internacional" donde tomo los datos de las campañas de visitas al perfil de Instagram, seguidores y CPA por cada país (México y Ecuador), el costo por seguidor lo estoy calculando manualmente y guardo los datos con la fecha especificada.
+___________________________________________________________________________________________________________________________________________________________
+
+Estapa 4:
+
+16. Accedo al whatsapp para revisar el grupo de "Comunidad Webcam" y revisar cuántos seguidores nuevos tenemos. Luego voy a la sección "Comunidad Webcam Bali" y agrego un nuevo registro con los nuevos suscritos, aunque siempre me toca poner en cuánto queda el total ahora (cosa que no debería ser necesaria)…
+
+17. Voy a la sección de "Métricas diarias Bali" y abro una nueva ventana en el navegador para ingresar al Shopify, filtro la fecha que necesito y tomo: visitantes, las ventas realizadas, la cantidad de pedidos. Luego abro Google ads (sólo tenemos Google ads para Bali), filtro la fecha y tomo el gasto (inversión), las conversiones por compras realizadas y las conversiones de WhatsApp registradas desde la etiqueta y finalmente el CPA Global de todas las campañas.
+_____________________________________________________________________________________________________________________________________________________________
+
+De las ventas a WhatsApp, Tienda Física y Marketplaces se encargan otras personas; así que no lo toquemos. Las tareas habrá que arreglarlas en el futuro pero por ahora está todo bien.

@@ -1,0 +1,9 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+  <li><a href="importar-excel/" class="addlink">Importar Excel</a></li>
+  <li><a href="exportar-excel/" class="viewlink">Exportar datos</a></li>
+  <li><a href="exportar-excel-universal/?{{ request.GET.urlencode }}" class="viewlink">Exportar Excel (Filtros)</a></li>
+  <li><a href="plantilla-excel/" class="viewlink">Descargar plantilla</a></li>
+  {{ block.super }}
+{% endblock %}

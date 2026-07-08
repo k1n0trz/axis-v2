@@ -1,0 +1,57 @@
+﻿{% extends "reports/base.html" %}
+{% block content %}
+<div class="row g-4 mb-4">
+  <div class="col-lg-5">
+    <div class="surface-card p-3 h-100">
+      <div class="section-title mb-3">Cargar archivos</div>
+      <form method="post" enctype="multipart/form-data" class="row g-3">
+        {% csrf_token %}
+        {% for field in upload_form %}
+        <div class="col-12">
+          <label class="form-label">{{ field.label }}</label>
+          {{ field }}
+          {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="col-12">
+          <button class="btn btn-primary">Subir archivos</button>
+        </div>
+      </form>
+      <div class="small text-muted mt-3">Formatos permitidos: PDF, PPT, PNG, JPG, XLSX y documentos de apoyo.</div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="surface-card p-3 h-100">
+      <div class="section-title mb-3">Archivos cargados</div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead><tr><th>Nombre</th><th>Tipo</th><th>Unidad</th><th>Canal</th><th>Pais</th><th>Periodo</th><th>Descripcion</th><th>Etiquetas</th><th>Archivo</th></tr></thead>
+          <tbody>
+            {% for attachment in attachments %}
+            <tr>
+              <td>{{ attachment.file_name }}</td>
+              <td>{{ attachment.get_file_type_display }}</td>
+              <td>{{ attachment.business_unit.name|default:"-" }}</td>
+              <td>{{ attachment.channel.name|default:"-" }}</td>
+              <td>{{ attachment.country.name|default:"-" }}</td>
+              <td>{{ attachment.period_label|default:"-" }}</td>
+              <td>{{ attachment.description|default:attachment.comment|default:"-" }}</td>
+              <td>{{ attachment.tags|default:"-" }}</td>
+              <td>
+                {% if attachment.file_link %}
+                  <a href="{{ attachment.file_link }}" target="_blank" rel="noreferrer">Abrir</a>
+                {% else %}
+                  <span class="text-muted">Sin enlace</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="9" class="text-center text-muted py-4">No hay archivos para este filtro.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

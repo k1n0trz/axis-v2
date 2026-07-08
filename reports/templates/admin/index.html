@@ -1,0 +1,22 @@
+{% extends "admin/index.html" %}
+{% load admin_dashboard %}
+
+{% block content %}
+  {% if user.groups.all.0.name == 'Marketplace' %}
+    <div class="module">
+      <table width="100%">
+        <tr><th colspan="2" style="background:rgba(124,243,173,0.15);padding:12px;border-radius:8px;text-align:left;font-size:1.1em;">Ventas Marketplace</th></tr>
+        <tr><td><a href="/admin/reports/dailychannelsale/add/"><b>+ Registrar ventas</b></a></td><td>Agregar fecha, canal, ventas, gasto, ordenes, unidades</td></tr>
+        <tr><td><a href="/admin/reports/dailychannelsale/">Ventas</a></td><td>Ver/editar ventas registradas</td></tr>
+        <tr><td><a href="/admin/reports/dailyadspend/">Inversion</a></td><td>Gasto por plataforma</td></tr>
+        <tr><td><a href="/admin/reports/salestransaction/">Transacciones</a></td><td>Ventas individuales</td></tr>
+        <tr><td><a href="/admin/reports/attachment/">Archivos</a></td><td>Soportes</td></tr>
+        <tr><td><a href="/admin/reports/businessunit/">Marcas</a></td><td>Gestion marcas</td></tr>
+        <tr><td><a href="/admin/reports/channel/">Canales</a></td><td>Gestion canales</td></tr>
+      </table>
+    </div>
+  {% else %}
+    {% axis_admin_dashboard %}
+    {{ block.super }}
+  {% endif %}
+{% endblock %}

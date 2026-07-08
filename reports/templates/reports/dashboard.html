@@ -1,0 +1,2565 @@
+{% extends "reports/base.html" %}
+{% load report_extras l10n %}
+{% block content %}
+<style>
+  .dashboard-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .dashboard-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem 1rem;
+    border-radius: 99px;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    background: rgba(16, 185, 129, 0.05);
+    color: var(--axis-success);
+    font-size: .75rem;
+    font-weight: 700;
+  }
+  .dashboard-action-btn {
+    background: var(--axis-surface);
+    border: 1px solid var(--axis-border);
+    color: var(--axis-text);
+    padding: 0.6rem 1.25rem;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-decoration: none;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dashboard-action-btn:hover {
+    background: var(--axis-surface-2);
+    border-color: var(--axis-accent);
+    color: #fff;
+    transform: translateY(-2px);
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .panel-caption {
+    color: #94a6c7;
+    font-size: .84rem;
+  }
+  .kpi-grid-compact {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+  }
+  .kpi-card.compact {
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--axis-border);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .kpi-card.compact small {
+    color: var(--axis-text-muted) !important;
+    text-transform: uppercase;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+  .kpi-card.compact .kpi-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #fff;
+    margin: 0;
+  }
+  .mini-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .category-summary-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .category-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  .category-country-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+  .category-country-card {
+    border: 1px solid var(--axis-border);
+    border-radius: 18px;
+    background: rgba(255,255,255,.02);
+    padding: 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .category-country-header {
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+  }
+  .category-country-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #fff;
+  }
+  .category-country-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .75rem;
+  }
+  .category-country-stat {
+    border-radius: 12px;
+    background: rgba(255,255,255,.025);
+    padding: .8rem;
+  }
+  .category-country-stat-label {
+    font-size: .65rem;
+    font-weight: 700;
+    color: var(--axis-text-muted);
+    text-transform: uppercase;
+  }
+  .category-country-stat-value {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #fff;
+    margin-top: .2rem;
+  }
+  .category-country-rows {
+    display: grid;
+    gap: .7rem;
+  }
+  .category-country-row {
+    border-radius: 14px;
+    background: rgba(255,255,255,.02);
+    border: 1px solid rgba(255,255,255,.04);
+    padding: .85rem;
+  }
+  .category-country-row-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .5rem;
+  }
+  .category-country-row-label {
+    font-size: .82rem;
+    font-weight: 800;
+    color: #d8e4f8;
+  }
+  .category-country-row-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+  }
+  .mini-metric {
+    border: 1px solid var(--axis-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.01);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    transition: all 0.2s;
+    min-width: 0;
+  }
+  .mini-metric:hover {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: var(--axis-accent);
+  }
+  .mini-metric-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--axis-text-muted);
+    letter-spacing: 0.05em;
+  }
+  .mini-metric-value {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #fff;
+    margin: 0;
+    line-height: 1.18;
+    overflow-wrap: anywhere;
+  }
+  .home-priority-grid {
+    display: grid;
+    grid-template-columns: 1.6fr 0.9fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .home-summary-card {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .home-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .8rem;
+    margin-bottom: 1rem;
+  }
+  .country-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: .85rem;
+  }
+  .country-metric {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--axis-border);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.02);
+    padding: 1.15rem;
+    transition: all 0.3s;
+    min-width: 0;
+  }
+  .country-metric:hover {
+    border-color: var(--axis-accent);
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .country-metric::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: 3px;
+    background: var(--axis-accent);
+    opacity: 0.5;
+  }
+  .country-metric.country-co::before { background: var(--axis-accent); }
+  .country-metric.country-ec::before { background: var(--axis-success); }
+  .country-metric.country-mx::before { background: var(--axis-danger); }
+  .country-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 0.5rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 800;
+  }
+  .country-metric-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .75rem;
+  }
+  .country-metric-label {
+    color: #d8e4f8;
+    font-weight: 800;
+    line-height: 1.18;
+  }
+  .country-metric-value {
+    color: #fff;
+    font-weight: 850;
+    font-size: clamp(1.05rem, 1.2vw, 1.34rem);
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+    margin-bottom: .75rem;
+  }
+  .country-metric-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+  }
+  .country-metric-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .28rem;
+    max-width: 100%;
+    border-radius: 999px;
+    padding: .28rem .5rem;
+    background: rgba(255, 255, 255, .045);
+    color: #aebdd4;
+    font-size: .72rem;
+    font-weight: 700;
+    line-height: 1.15;
+  }
+  .whatsapp-country-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .85rem;
+    margin-top: 1rem;
+  }
+  .whatsapp-country-card {
+    border: 1px solid var(--axis-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .018);
+    padding: .95rem;
+  }
+  .whatsapp-country-title {
+    color: #d8e4f8;
+    font-size: .82rem;
+    font-weight: 800;
+    margin-bottom: .55rem;
+  }
+  .whatsapp-country-stats {
+    display: grid;
+    gap: .45rem;
+  }
+  .whatsapp-country-stat {
+    display: flex;
+    justify-content: space-between;
+    gap: .8rem;
+    color: #9fb0cd;
+    font-size: .78rem;
+  }
+  .whatsapp-country-stat strong {
+    color: #f4f8ff;
+    font-size: .8rem;
+    text-align: right;
+  }
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--axis-border);
+    transition: all 0.2s;
+  }
+  .status-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--axis-border-hover);
+  }
+  .status-pill {
+    min-width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--axis-accent);
+    font-weight: 800;
+    font-size: 0.85rem;
+  }
+
+  /* Category Carousel & Premium Cards */
+  .category-carousel-wrapper {
+    position: relative;
+    margin: 0 -0.5rem;
+  }
+  .category-carousel {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    gap: 1.5rem;
+    padding: 1rem 0.5rem 2rem;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .category-carousel::-webkit-scrollbar { display: none; }
+  
+  .category-slide {
+    flex: 0 0 calc(33.333% - 1rem);
+    scroll-snap-align: start;
+    min-width: 340px;
+  }
+  
+  .category-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--axis-border);
+    border-radius: 20px;
+    padding: 1.5rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  .category-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--axis-accent);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+  }
+  
+  .cat-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .cat-img-wrapper {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--axis-surface-2);
+    border: 1px solid var(--axis-border);
+    flex-shrink: 0;
+  }
+  .cat-img { width: 100%; height: 100%; object-fit: cover; }
+  .cat-placeholder {
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, var(--axis-accent), #6366f1);
+    color: #fff; font-weight: 800; font-size: 1.2rem;
+  }
+  
+  .cat-info h3 {
+    margin: 0; font-size: 1.1rem; font-weight: 800; color: #fff;
+    letter-spacing: -0.01em;
+  }
+  .cat-info p {
+    margin: 0; font-size: 0.75rem; color: var(--axis-text-muted);
+    font-weight: 500;
+  }
+  
+  .cat-main-kpi {
+    background: rgba(59, 130, 246, 0.05);
+    border-radius: 14px;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .cat-main-val { font-size: 1.5rem; font-weight: 800; color: #fff; letter-spacing: -0.03em; }
+  .cat-main-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: var(--axis-accent); letter-spacing: 0.05em; }
+  
+  .cat-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  .cat-stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .cat-stat-label { font-size: 0.65rem; font-weight: 700; color: var(--axis-text-muted); text-transform: uppercase; }
+  .cat-stat-val { font-size: 0.95rem; font-weight: 700; color: #fff; }
+  
+  .cat-channels {
+    border-top: 1px solid var(--axis-border);
+    padding-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .cat-chan-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+  }
+  .cat-chan-label { color: var(--axis-text-muted); font-weight: 500; }
+  .cat-chan-val { color: #fff; font-weight: 700; }
+  
+  .carousel-nav {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .carousel-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--axis-surface);
+    border: 1px solid var(--axis-border);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .carousel-btn:hover:not(:disabled) {
+    background: var(--axis-surface-2);
+    border-color: var(--axis-accent);
+    transform: scale(1.05);
+  }
+  .carousel-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  
+  .carousel-indicator-wrapper {
+    height: 3px;
+    background: var(--axis-border);
+    border-radius: 10px;
+    margin-top: 1rem;
+    overflow: hidden;
+    position: relative;
+  }
+  .carousel-indicator-bar {
+    position: absolute;
+    top: 0; left: 0; height: 100%;
+    background: var(--axis-accent);
+    width: 0%;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 10px var(--axis-accent-glow);
+  }
+
+  .meta-ads-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+  .meta-ads-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: .75rem;
+    margin: 1rem 0;
+  }
+  .meta-ads-toolbar label {
+    display: grid;
+    gap: .28rem;
+    min-width: min(100%, 180px);
+    color: var(--axis-text-muted);
+    font-size: .66rem;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .meta-ads-toolbar select {
+    border: 1px solid var(--axis-border);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, .78);
+    color: #e5edf8;
+    min-height: 2.35rem;
+    padding: .45rem .75rem;
+    font-size: .82rem;
+    font-weight: 750;
+  }
+  .meta-ads-page-summary {
+    margin-left: auto;
+    color: var(--axis-text-muted);
+    font-size: .78rem;
+    font-weight: 700;
+    padding-bottom: .45rem;
+  }
+  .meta-pacing-insights {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .9rem;
+    margin: .85rem 0 1.15rem;
+  }
+  .meta-pacing-column {
+    border: 1px solid rgba(148,163,184,.16);
+    border-radius: 14px;
+    background: rgba(15, 23, 42, .48);
+    padding: 1rem;
+    min-width: 0;
+  }
+  .meta-pacing-column-positive {
+    background: linear-gradient(180deg, rgba(16,185,129,.08), rgba(15,23,42,.42));
+  }
+  .meta-pacing-column-negative {
+    background: linear-gradient(180deg, rgba(245,158,11,.08), rgba(15,23,42,.42));
+  }
+  .meta-pacing-column-head {
+    display: flex;
+    align-items: flex-start;
+    gap: .65rem;
+    margin-bottom: .85rem;
+  }
+  .meta-pacing-signal {
+    width: .62rem;
+    height: .62rem;
+    border-radius: 999px;
+    margin-top: .24rem;
+    flex: 0 0 auto;
+    background: var(--axis-success);
+    box-shadow: 0 0 0 .28rem rgba(16,185,129,.1);
+  }
+  .meta-pacing-column-negative .meta-pacing-signal {
+    background: #f59e0b;
+    box-shadow: 0 0 0 .28rem rgba(245,158,11,.1);
+  }
+  .meta-pacing-title {
+    color: #f8fafc;
+    font-size: .88rem;
+    font-weight: 850;
+    line-height: 1.2;
+  }
+  .meta-pacing-caption {
+    color: var(--axis-text-muted);
+    font-size: .72rem;
+    margin-top: .18rem;
+  }
+  .meta-pacing-list {
+    display: grid;
+    gap: .65rem;
+  }
+  .meta-pacing-item {
+    border-top: 1px solid rgba(148,163,184,.12);
+    padding-top: .65rem;
+  }
+  .meta-pacing-item:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .meta-pacing-item-title {
+    color: #e5edf8;
+    font-size: .78rem;
+    font-weight: 850;
+    margin-bottom: .18rem;
+  }
+  .meta-pacing-item-message {
+    color: #cbd5e1;
+    font-size: .76rem;
+    line-height: 1.42;
+  }
+  .meta-pacing-recommendation {
+    color: #9aa8bd;
+    font-size: .72rem;
+    line-height: 1.42;
+    margin-top: .28rem;
+  }
+  .meta-pacing-empty {
+    color: var(--axis-text-muted);
+    font-size: .76rem;
+    line-height: 1.4;
+  }
+  .meta-ads-empty {
+    border: 1px dashed var(--axis-border);
+    border-radius: 12px;
+    color: var(--axis-text-muted);
+    padding: 1.25rem;
+    text-align: center;
+  }
+  .meta-ads-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: .75rem;
+    margin-top: 1rem;
+    color: var(--axis-text-muted);
+    font-size: .82rem;
+    font-weight: 750;
+  }
+  .meta-ads-pagination button {
+    border: 1px solid var(--axis-border);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, .78);
+    color: #e5edf8;
+    padding: .45rem .8rem;
+    font-weight: 800;
+  }
+  .meta-ads-pagination button:disabled {
+    opacity: .42;
+    cursor: not-allowed;
+  }
+  .meta-ad-card {
+    border: 1px solid var(--axis-border);
+    border-radius: 18px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.03);
+    transition: transform .25s ease, border-color .25s ease, background .25s ease;
+    min-height: 100%;
+    display: block;
+    width: 100%;
+    padding: 0;
+    color: inherit;
+    text-align: left;
+  }
+  .meta-ad-card:hover,
+  .meta-ad-card:focus-visible {
+    transform: translateY(-3px);
+    border-color: rgba(59, 130, 246, .42);
+    background: rgba(255, 255, 255, 0.05);
+    outline: none;
+  }
+  .meta-ad-media {
+    position: relative;
+    height: 160px;
+    background: linear-gradient(135deg, rgba(59,130,246,.18), rgba(16,185,129,.12));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 900;
+    font-size: 2rem;
+    overflow: hidden;
+  }
+  .meta-ad-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .meta-ad-media-badge {
+    position: absolute;
+    right: .7rem;
+    bottom: .7rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .35rem .55rem;
+    border-radius: 999px;
+    background: rgba(2, 6, 23, .78);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,.16);
+    font-size: .68rem;
+    font-weight: 850;
+    line-height: 1;
+    backdrop-filter: blur(10px);
+  }
+  .meta-ad-media-badge::before {
+    content: "";
+    width: 0;
+    height: 0;
+    border-top: .3rem solid transparent;
+    border-bottom: .3rem solid transparent;
+    border-left: .46rem solid currentColor;
+  }
+  .meta-ad-body { padding: 1rem; }
+  .meta-ad-kicker {
+    color: var(--axis-success);
+    font-size: .66rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: .45rem;
+  }
+  .meta-ad-title {
+    color: #fff;
+    font-weight: 850;
+    line-height: 1.2;
+    margin-bottom: .35rem;
+  }
+  .meta-ad-copy {
+    color: var(--axis-text-muted);
+    font-size: .78rem;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 3.35rem;
+  }
+  .meta-ad-meta {
+    border-top: 1px solid var(--axis-border);
+    margin-top: .85rem;
+    padding-top: .85rem;
+    display: grid;
+    gap: .35rem;
+    color: #cbd5e1;
+    font-size: .72rem;
+  }
+  .meta-ad-pill {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: .25rem .55rem;
+    border-radius: 999px;
+    background: rgba(16,185,129,.1);
+    color: var(--axis-success);
+    border: 1px solid rgba(16,185,129,.18);
+    font-size: .68rem;
+    font-weight: 850;
+  }
+  .meta-ad-maturity {
+    display: grid;
+    gap: .18rem;
+    margin: .72rem 0 .15rem;
+  }
+  .meta-ad-maturity-row {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    flex-wrap: wrap;
+  }
+  .meta-ad-maturity-label {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    border-radius: 999px;
+    padding: .24rem .56rem;
+    font-size: .66rem;
+    font-weight: 900;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    border: 1px solid rgba(148,163,184,.18);
+  }
+  .meta-ad-maturity-label.low {
+    color: #93c5fd;
+    background: rgba(59,130,246,.12);
+    border-color: rgba(59,130,246,.24);
+  }
+  .meta-ad-maturity-label.medium {
+    color: #fbbf24;
+    background: rgba(245,158,11,.12);
+    border-color: rgba(245,158,11,.24);
+  }
+  .meta-ad-maturity-label.high {
+    color: #7cf3ad;
+    background: rgba(16,185,129,.12);
+    border-color: rgba(16,185,129,.24);
+  }
+  .meta-ad-maturity-label.unknown {
+    color: var(--axis-text-muted);
+    background: rgba(148,163,184,.08);
+  }
+  .meta-ad-maturity-age {
+    color: #cbd5e1;
+    font-size: .68rem;
+    font-weight: 800;
+  }
+  .meta-ad-maturity-help {
+    color: var(--axis-text-muted);
+    font-size: .7rem;
+    line-height: 1.35;
+  }
+  .meta-ad-kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .4rem;
+    margin-top: .85rem;
+  }
+  .meta-ad-kpi {
+    border-radius: 10px;
+    background: rgba(15, 23, 42, .72);
+    border: 1px solid rgba(255,255,255,.06);
+    padding: .48rem .5rem;
+    min-width: 0;
+  }
+  .meta-ad-kpi small {
+    display: block;
+    color: var(--axis-text-muted);
+    font-size: .56rem;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: .12rem;
+  }
+  .meta-ad-kpi strong {
+    display: block;
+    color: #fff;
+    font-size: .78rem;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+  }
+  .meta-ad-modal .modal-content {
+    background: #0b1220;
+    color: #e5edf8;
+    border: 1px solid rgba(148,163,184,.18);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .meta-ad-modal-media {
+    min-height: 360px;
+    max-height: 70vh;
+    background: radial-gradient(circle at 20% 0%, rgba(59,130,246,.18), transparent 32%), rgba(15,23,42,.86);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 3rem;
+    font-weight: 900;
+    overflow: hidden;
+  }
+  .meta-ad-modal-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .meta-ad-modal-media iframe,
+  .meta-ad-modal-media video {
+    border: 0;
+    display: block;
+    background: #020617;
+  }
+  .meta-ad-modal-media iframe {
+    width: 100%;
+    height: min(70vh, 720px);
+    min-height: 520px;
+  }
+  .meta-ad-modal-media video {
+    width: 100%;
+    height: min(70vh, 720px);
+    min-height: 520px;
+    object-fit: contain;
+  }
+  .meta-ad-modal-media.is-preview {
+    padding: 1rem;
+    background: #020617;
+  }
+  .meta-ad-preview-shell {
+    width: min(100%, 320px);
+    height: min(68vh, 660px);
+    min-height: 560px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 18px 50px rgba(0,0,0,.38);
+  }
+  .meta-ad-preview-shell iframe {
+    width: 390px;
+    max-width: none;
+    height: 100%;
+    min-height: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .meta-ad-modal-fallback {
+    color: #cbd5e1;
+    font-size: .9rem;
+    line-height: 1.45;
+    max-width: 28rem;
+    padding: 1rem;
+    text-align: center;
+  }
+  .meta-ad-modal-panel {
+    padding: 1.25rem;
+  }
+  .meta-ad-modal-title {
+    color: #fff;
+    font-weight: 850;
+    line-height: 1.2;
+    margin-bottom: .55rem;
+  }
+  .meta-ad-modal-copy {
+    color: #cbd5e1;
+    font-size: .88rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+  }
+  .meta-ad-modal-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .65rem;
+    margin-top: 1rem;
+  }
+  .meta-ad-modal-kpi {
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 12px;
+    background: rgba(255,255,255,.035);
+    padding: .75rem;
+  }
+  .meta-ad-modal-kpi small {
+    display: block;
+    color: #8ea2c0;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-size: .6rem;
+    font-weight: 850;
+    margin-bottom: .25rem;
+  }
+  .meta-ad-modal-kpi strong {
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 850;
+    overflow-wrap: anywhere;
+  }
+  .meta-ad-modal-meta {
+    display: grid;
+    gap: .45rem;
+    margin-top: 1rem;
+    color: #b7c5d9;
+    font-size: .78rem;
+  }
+  @media (max-width: 991px) {
+    .meta-pacing-insights { grid-template-columns: 1fr; }
+    .meta-ad-modal-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .meta-ad-modal-media { min-height: 260px; }
+    .meta-ad-modal-media iframe,
+    .meta-ad-modal-media video {
+      min-height: 420px;
+      height: 62vh;
+    }
+    .meta-ad-preview-shell {
+      width: min(100%, 320px);
+      min-height: 500px;
+      height: 62vh;
+    }
+    .meta-ad-preview-shell iframe {
+      height: 100%;
+      min-height: 0;
+    }
+  }
+
+  @media (max-width: 1200px) {
+    .category-slide { flex: 0 0 calc(50% - 0.75rem); }
+  }
+  @media (max-width: 768px) {
+    .category-slide { flex: 0 0 100%; }
+    .category-carousel { gap: 1rem; }
+  }
+
+  @media (max-width: 1400px) {
+    .kpi-grid-compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (max-width: 992px) {
+    .kpi-grid-compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .category-summary-grid, .category-kpi-grid, .home-priority-grid { grid-template-columns: 1fr; }
+    .home-metric-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .kpi-grid-compact, .mini-metric-grid, .category-kpi-grid, .whatsapp-country-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="dashboard-heading">
+  <div class="dashboard-badge">Dashboard Ejecutivo</div>
+</div>
+
+{% if active_nav != "dashboard" %}
+{% include "reports/includes/operational_tasks.html" %}
+{% endif %}
+
+{% if active_nav == "dashboard" or active_nav == "uva" %}
+<div class="home-priority-grid">
+  <div class="surface-card p-3 p-lg-4">
+    <div class="panel-header">
+      <div>
+        {% if active_nav == "uva" and summary.filters.country %}
+        <div class="section-title">Ventas, inversion, ROAS y ticket promedio</div>
+        <div class="panel-caption">
+          Serie filtrada para
+          {% if summary.filters.country == "CO" %}Colombia{% elif summary.filters.country == "EC" %}Ecuador{% elif summary.filters.country == "MX" %}Mexico{% else %}el pais seleccionado{% endif %}
+          {% if summary.filters.country == "CO" %}. Comfama se conserva como bloque independiente dentro de Uva.{% endif %}
+        </div>
+        {% elif active_nav == "uva" %}
+        <div class="section-title">Ventas, inversion, ROAS y ticket promedio</div>
+        <div class="panel-caption">Comparativa consolidada de Colombia, Ecuador y Mexico para el rango filtrado. No incluye Comfama.</div>
+        {% else %}
+        <div class="section-title">Ventas generales de Copa Uva</div>
+        <div class="panel-caption">Comparacion por pais entre Colombia, Ecuador y Mexico segun el filtro seleccionado: ventas totales, inversion, ROAS y ticket promedio. No incluye Comfama.</div>
+        {% endif %}
+      </div>
+    </div>
+    {% if active_nav == "uva" and summary.filters.country %}
+    <div class="chart-box chart-box-lg"><canvas id="uvaCountryPerformanceChart"></canvas></div>
+    {% else %}
+    <div class="chart-box chart-box-lg"><canvas id="copaUvaCountryComparisonChart"></canvas></div>
+    {% endif %}
+
+    {% if active_nav == "dashboard" and not summary.filters.country %}
+    <div class="mt-4 pt-4 border-top border-secondary border-opacity-10">
+      <div class="section-title mb-2">Participacion por pais</div>
+      <div class="panel-caption mb-3">Vista separada por Colombia, Ecuador y Mexico para no mezclar lecturas entre operaciones.</div>
+      <div class="chart-box" style="min-height: 280px;"><canvas id="countryMixChart"></canvas></div>
+      <div class="whatsapp-country-grid">
+        <div class="whatsapp-country-card">
+          <div class="whatsapp-country-title">WhatsApp Colombia</div>
+          <div class="whatsapp-country-stats">
+            <div class="whatsapp-country-stat"><span>Ventas</span><strong>{{ home_colombia_snapshot.kpis.sales_whatsapp|cop }}</strong></div>
+            <div class="whatsapp-country-stat"><span>Pedidos</span><strong>{{ home_colombia_snapshot.kpis.whatsapp_order_count|floatformat:0 }}</strong></div>
+            <div class="whatsapp-country-stat"><span>Ticket promedio</span><strong>{{ home_colombia_snapshot.kpis.whatsapp_average_ticket|cop }}</strong></div>
+          </div>
+        </div>
+        <div class="whatsapp-country-card">
+          <div class="whatsapp-country-title">WhatsApp Ecuador</div>
+          <div class="whatsapp-country-stats">
+            <div class="whatsapp-country-stat"><span>Ventas</span><strong>{{ home_ecuador_sales_snapshot.kpis.sales_whatsapp|cop }}</strong></div>
+            <div class="whatsapp-country-stat"><span>Pedidos</span><strong>{{ home_ecuador_sales_snapshot.kpis.whatsapp_order_count|floatformat:0 }}</strong></div>
+            <div class="whatsapp-country-stat"><span>Ticket promedio</span><strong>{{ home_ecuador_sales_snapshot.kpis.whatsapp_average_ticket|cop }}</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if active_nav == "uva" and summary.filters.country %}
+    <div class="mt-5 pt-4 border-top border-secondary border-opacity-10">
+      <div class="section-title mb-2">Rentabilidad por producto</div>
+      <div class="panel-caption mb-3">Distribucion segun ROAS por categoria en el filtro seleccionado.</div>
+      <div class="chart-box" style="min-height: 280px;"><canvas id="categoryProfitabilityChart"></canvas></div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="surface-card p-3 p-lg-4 home-summary-card">
+    <div class="panel-header">
+      <div>
+        <div class="section-title">Indicadores clave</div>
+        <div class="panel-caption">Cambian segun fecha, marca y pais seleccionado.</div>
+      </div>
+    </div>
+    <div class="home-metric-grid">
+      {% if summary.filters.country %}
+      <div class="mini-metric">
+        <div class="mini-metric-label">Ventas filtradas</div>
+        <div class="mini-metric-value">{{ summary.kpis.sales_total|cop }}</div>
+        {% if summary.filters.business_unit == "uva" and summary.filters.country == "CO" %}
+        <div class="category-compare text-muted">Web {{ summary.kpis.sales_web|cop }} | WhatsApp {{ summary.kpis.sales_whatsapp|cop }}</div>
+        {% endif %}
+      </div>
+      {% if summary.filters.business_unit == "uva" and summary.filters.country == "CO" %}
+      <div class="mini-metric">
+        <div class="mini-metric-label">Ventas web Colombia</div>
+        <div class="mini-metric-value">{{ summary.kpis.sales_web|cop }}</div>
+      </div>
+      <div class="mini-metric">
+        <div class="mini-metric-label">Ventas WhatsApp Colombia</div>
+        <div class="mini-metric-value">{{ summary.kpis.sales_whatsapp|cop }}</div>
+      </div>
+      {% endif %}
+      <div class="mini-metric">
+        <div class="mini-metric-label">Inversion filtrada</div>
+        <div class="mini-metric-value">{{ summary.kpis.ad_spend|cop }}</div>
+      </div>
+      <div class="mini-metric">
+        <div class="mini-metric-label">ROAS filtrado</div>
+        <div class="mini-metric-value {{ summary.kpis.roas|roas_value_class }}">{{ summary.kpis.roas|floatformat:2 }} <span class="{{ summary.kpis.roas|roas_signal_class }}"></span></div>
+      </div>
+      <div class="mini-metric">
+        <div class="mini-metric-label">Ordenes / unidades</div>
+        <div class="mini-metric-value">{{ summary.kpis.orders|floatformat:0 }}</div>
+        {% if summary.kpis.units %}
+        <div class="category-compare text-muted">{{ summary.kpis.units|floatformat:0 }} unidades de producto</div>
+        {% endif %}
+      </div>
+      <div class="mini-metric">
+        <div class="mini-metric-label">Ticket promedio web</div>
+        <div class="mini-metric-value">{{ summary.kpis.web_average_ticket|cop }}</div>
+        {% if summary.kpis.web_order_count %}
+        <div class="category-compare text-muted">{{ summary.kpis.web_order_count|floatformat:0 }} pedidos web</div>
+        {% endif %}
+      </div>
+      <div class="mini-metric">
+        <div class="mini-metric-label">Ticket promedio WhatsApp</div>
+        <div class="mini-metric-value">{{ summary.kpis.whatsapp_average_ticket|cop }}</div>
+        {% if summary.kpis.whatsapp_order_count %}
+        <div class="category-compare text-muted">{{ summary.kpis.whatsapp_order_count|floatformat:0 }} pedidos WhatsApp</div>
+        {% endif %}
+      </div>
+      {% else %}
+        {% for country in home_country_comparison %}
+        <div class="country-metric {% if country.label == 'Colombia' %}country-co{% elif country.label == 'Ecuador' %}country-ec{% elif country.label == 'Mexico' %}country-mx{% endif %}">
+          <div class="country-metric-label-row">
+            <div class="country-metric-label">Uva {{ country.label }}</div>
+            <span class="country-badge">{{ country.label|slice:":2"|upper }}</span>
+          </div>
+        <div class="country-metric-value">{{ country.sales|cop }}</div>
+        <div class="country-metric-meta">
+            <span class="country-metric-chip">Pauta {{ country.spend|cop }}</span>
+            <span class="country-metric-chip">ROAS <strong class="{{ country.roas|roas_value_class }}">{{ country.roas|floatformat:2 }}</strong><span class="{{ country.roas|roas_signal_class }}"></span></span>
+            <span class="country-metric-chip">Ticket {{ country.average_ticket|cop }}</span>
+            {% if country.is_partial_coverage %}
+            <span class="country-metric-chip">Cobertura {{ country.loaded_days }}/{{ country.expected_days }} dias</span>
+            {% endif %}
+        </div>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+    {% if not summary.filters.country %}
+    <div class="country-kpi-grid mb-3">
+      <div class="country-metric country-fx">
+        <div class="country-metric-label-row">
+          <div class="country-metric-label">Ecuador en USD</div>
+          <span class="country-badge">USD</span>
+        </div>
+        <div class="country-metric-value">USD {{ home_ecuador_snapshot.kpis.usd_total|floatformat:2 }}</div>
+        <div class="country-metric-meta">
+          <span class="country-metric-chip">TRM {{ home_ecuador_snapshot.kpis.average_exchange_rate|floatformat:0 }}</span>
+          <span class="country-metric-chip">{{ home_ecuador_snapshot.kpis.units|floatformat:0 }} und.</span>
+          <span class="country-metric-chip">Ticket {{ home_ecuador_snapshot.kpis.average_ticket|cop }}</span>
+        </div>
+      </div>
+    </div>
+    {% elif active_nav == "uva" and summary.filters.country == "EC" %}
+    <div class="country-kpi-grid mb-3">
+      <div class="country-metric country-fx">
+        <div class="country-metric-label-row">
+          <div class="country-metric-label">Ecuador en USD</div>
+          <span class="country-badge">USD</span>
+        </div>
+        <div class="country-metric-value">USD {{ home_ecuador_snapshot.kpis.usd_total|floatformat:2 }}</div>
+        <div class="country-metric-meta">
+          <span class="country-metric-chip">TRM {{ home_ecuador_snapshot.kpis.average_exchange_rate|floatformat:0 }}</span>
+          <span class="country-metric-chip">{{ home_ecuador_snapshot.kpis.units|floatformat:0 }} und.</span>
+          <span class="country-metric-chip">Ticket {{ home_ecuador_snapshot.kpis.average_ticket|cop }}</span>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    {% if not is_uva_all_countries %}
+    <div class="insight-block-title">Insights automaticos</div>
+    {% if not summary.filters.country %}
+    {% if home_colombia_snapshot.coverage.is_partial or home_ecuador_sales_snapshot.coverage.is_partial or home_mexico_snapshot.coverage.is_partial %}
+    <div class="empty-state p-3 mb-3">
+      Los acumulados del home reflejan solo los dias que ya fueron cargados para el rango filtrado.
+    </div>
+    {% endif %}
+    {% endif %}
+    <div class="status-list">
+      {% if summary.filters.country == "CO" %}
+        {% include "reports/includes/insights.html" with insight_rows=home_colombia_snapshot.insight_cards|slice:":2" badge="CO" %}
+        {% if not home_colombia_snapshot.insight_cards %}
+        <div class="empty-state p-4">No hay insights para el filtro actual.</div>
+        {% endif %}
+      {% elif summary.filters.country == "EC" %}
+        {% include "reports/includes/insights.html" with insight_rows=home_ecuador_snapshot.insight_cards|slice:":3" badge="EC" %}
+      {% elif summary.filters.country == "MX" %}
+        {% include "reports/includes/insights.html" with insight_rows=home_mexico_snapshot.insight_cards|slice:":3" badge="MX" %}
+      {% else %}
+        {% include "reports/includes/insights.html" with insight_rows=home_colombia_snapshot.insight_cards|slice:":2" badge="CO" %}
+        {% include "reports/includes/insights.html" with insight_rows=home_ecuador_snapshot.insight_cards|slice:":2" badge="EC" %}
+        {% include "reports/includes/insights.html" with insight_rows=home_mexico_snapshot.insight_cards|slice:":2" badge="MX" %}
+        {% if not home_colombia_snapshot.insight_cards and not home_ecuador_snapshot.insight_cards and not home_mexico_snapshot.insight_cards %}
+        <div class="empty-state p-4">No hay insights para el filtro actual.</div>
+        {% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if active_nav != "dashboard" and active_nav != "uva" %}
+<div class="kpi-grid-compact">
+  <div class="kpi-card compact">
+    <small>Ventas totales</small>
+    <div class="kpi-value">{{ summary.kpis.sales_total|cop }}</div>
+  </div>
+  <div class="kpi-card compact">
+    <small>Inversion total</small>
+    <div class="kpi-value">{{ summary.kpis.ad_spend|cop }}</div>
+  </div>
+  <div class="kpi-card compact">
+    <small>ROAS</small>
+    <div class="kpi-value {{ summary.kpis.roas|roas_value_class }}">{{ summary.kpis.roas|floatformat:2 }} <span class="{{ summary.kpis.roas|roas_signal_class }}"></span></div>
+  </div>
+  <div class="kpi-card compact">
+    <small>Ventas web</small>
+    <div class="kpi-value">{{ summary.kpis.sales_web|cop }}</div>
+  </div>
+  <div class="kpi-card compact">
+    <small>Ventas WhatsApp</small>
+    <div class="kpi-value">{{ summary.kpis.sales_whatsapp|cop }}</div>
+  </div>
+</div>
+{% endif %}
+
+{% if active_nav == "dashboard" or active_nav == "uva" %}
+{% if not summary.filters.country %}
+{% endif %}
+
+{% if show_comfama_panel %}
+<div class="surface-card p-3 p-lg-4 mb-4">
+  <div class="panel-header">
+    <div>
+      <div class="section-title">Uva Comfama</div>
+      <div class="panel-caption">Lectura separada de ventas WhatsApp, conversaciones, CPL y ROAS. Aplica solo Colombia.</div>
+    </div>
+    <a class="dashboard-action-btn" href="{% url 'reports:uva_comfama' %}?{{ request.GET.urlencode }}">Ver Comfama</a>
+  </div>
+  <div class="category-kpi-grid">
+    <div class="mini-metric">
+      <div class="mini-metric-label">Ventas Comfama</div>
+      <div class="mini-metric-value">{{ home_comfama_snapshot.kpis.sales_total|cop }}</div>
+    </div>
+    <div class="mini-metric">
+      <div class="mini-metric-label">Inversion Comfama</div>
+      <div class="mini-metric-value">{{ home_comfama_snapshot.kpis.spend_total|cop }}</div>
+    </div>
+    <div class="mini-metric">
+      <div class="mini-metric-label">Conversaciones</div>
+      <div class="mini-metric-value">{{ home_comfama_snapshot.kpis.conversations|floatformat:0 }}</div>
+    </div>
+    <div class="mini-metric">
+      <div class="mini-metric-label">ROAS Comfama</div>
+      <div class="mini-metric-value {{ home_comfama_snapshot.kpis.roas|roas_value_class }}">{{ home_comfama_snapshot.kpis.roas|floatformat:2 }} <span class="{{ home_comfama_snapshot.kpis.roas|roas_signal_class }}"></span></div>
+    </div>
+    <div class="mini-metric">
+      <div class="mini-metric-label">Ticket promedio</div>
+      <div class="mini-metric-value">{{ home_comfama_snapshot.kpis.average_ticket|cop }}</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if active_nav == "dashboard" %}
+<div class="surface-card p-3 p-lg-4 mb-4">
+  <div class="panel-header">
+    <div>
+      <div class="section-title">Bali</div>
+      <div class="panel-caption">Lectura ejecutiva de Shopify, Google Ads y WhatsApp Bali sin mezclarla con Uva.</div>
+    </div>
+    <a class="dashboard-action-btn" href="{% url 'reports:bali' %}?{{ request.GET.urlencode }}">Ver Bali</a>
+  </div>
+  <div class="category-kpi-grid mb-4">
+    <div class="mini-metric">
+      <div class="mini-metric-label">Ventas totales</div>
+      <div class="mini-metric-value">{{ home_bali_snapshot.kpis.sales_total|cop }}</div>
+      <div class="category-compare text-muted">Total con IVA {{ home_bali_snapshot.kpis.sales_total_with_vat|cop }}</div>
+    </div>
+    <div class="mini-metric">
+      <div class="mini-metric-label">Inversion Google Ads</div>
+      <div class="mini-metric-value">{{ home_bali_snapshot.kpis.spend_total|cop }}</div>
+    </div>
+    <div class="mini-metric">
+      <div class="mini-metric-label">ROAS</div>
+      <div class="mini-metric-value {{ home_bali_snapshot.kpis.roas|roas_value_class }}">{{ home_bali_snapshot.kpis.roas|floatformat:2 }} <span class="{{ home_bali_snapshot.kpis.roas|roas_signal_class }}"></span></div>
+    </div>
+    <div class="mini-metric">
+      <div class="mini-metric-label">Ticket promedio</div>
+      <div class="mini-metric-value">{{ home_bali_snapshot.kpis.average_ticket|cop }}</div>
+      <div class="category-compare text-muted">Total con IVA {{ home_bali_snapshot.kpis.average_ticket_with_vat|cop }}</div>
+    </div>
+    <div class="mini-metric">
+      <div class="mini-metric-label">% conversion web</div>
+      <div class="mini-metric-value">{{ home_bali_snapshot.kpis.conversion_rate|percent_value }}</div>
+    </div>
+  </div>
+  <div class="row g-4">
+    <div class="col-xl-7">
+      <div class="section-title mb-2">Tendencia Bali</div>
+      <div class="panel-caption mb-3">Ventas, inversion, ROAS y ticket segun el filtro de fechas seleccionado.</div>
+      <div class="chart-box"><canvas id="homeBaliPerformanceChart"></canvas></div>
+    </div>
+    <div class="col-xl-5">
+      <div class="section-title mb-2">Canales Bali</div>
+      <div class="panel-caption mb-3">Separacion entre Web y WhatsApp Bali.</div>
+      <div class="chart-box"><canvas id="homeBaliChannelChart"></canvas></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+{% if active_nav == "uva" %}
+{% if summary.filters.country %}
+<div class="surface-card p-3 p-lg-4 mb-4" data-meta-ads-section data-page-size="12">
+  <div class="panel-header align-items-start">
+    <div>
+      <h2 class="section-title h4 mb-1">Anuncios activos en Meta Ads</h2>
+      <p class="panel-caption mb-0">Preview de creatividades activas para {{ uva_meta_ads_preview.country_label }} segun la cuenta publicitaria configurada.</p>
+    </div>
+    <span class="badge bg-white bg-opacity-10 text-white-50 border-0"><span data-meta-visible-count>{{ uva_meta_ads_preview.ads|length }}</span>/<span data-meta-total-count>{{ uva_meta_ads_preview.ads|length }}</span> activos</span>
+  </div>
+  {% if uva_meta_ads_preview.ads %}
+  <div class="meta-ads-toolbar" data-meta-ads-toolbar>
+    <label>
+      <span>Orden</span>
+      <select data-meta-sort>
+        <option value="created_desc">Activacion reciente</option>
+        <option value="roas_desc">Mayor ROAS</option>
+        <option value="purchases_desc">Mas compras</option>
+        <option value="spend_desc">Mayor inversion</option>
+        <option value="maturity_desc">Madurez alta</option>
+        <option value="maturity_asc">Madurez baja</option>
+      </select>
+    </label>
+    <label>
+      <span>Filtro</span>
+      <select data-meta-filter>
+        <option value="all">Todos</option>
+        <option value="purchases">Con compras</option>
+        <option value="roas">Con ROAS</option>
+        <option value="maturity_low">Madurez baja</option>
+        <option value="maturity_medium">Madurez media</option>
+        <option value="maturity_high">Madurez alta</option>
+      </select>
+    </label>
+    <div class="meta-ads-page-summary" data-meta-page-summary></div>
+  </div>
+  {% if uva_meta_ads_preview.pacing_insights.positive or uva_meta_ads_preview.pacing_insights.negative %}
+  <div class="meta-pacing-insights">
+    <div class="meta-pacing-column meta-pacing-column-positive">
+      <div class="meta-pacing-column-head">
+        <span class="meta-pacing-signal"></span>
+        <div>
+          <div class="meta-pacing-title">Señales positivas de pauta</div>
+          <div class="meta-pacing-caption">Piezas con mejor respuesta en el periodo.</div>
+        </div>
+      </div>
+      <div class="meta-pacing-list">
+        {% for insight in uva_meta_ads_preview.pacing_insights.positive %}
+        <div class="meta-pacing-item">
+          <div class="meta-pacing-item-title">{{ insight.title }}</div>
+          <div class="meta-pacing-item-message">{{ insight.message }}</div>
+        </div>
+        {% empty %}
+        <div class="meta-pacing-empty">Aun no hay un ganador claro.</div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="meta-pacing-column meta-pacing-column-negative">
+      <div class="meta-pacing-column-head">
+        <span class="meta-pacing-signal"></span>
+        <div>
+          <div class="meta-pacing-title">Señales para ajustar</div>
+          <div class="meta-pacing-caption">Pauta que merece revision antes de escalar.</div>
+        </div>
+      </div>
+      <div class="meta-pacing-list">
+        {% for insight in uva_meta_ads_preview.pacing_insights.negative %}
+        <div class="meta-pacing-item">
+          <div class="meta-pacing-item-title">{{ insight.title }}</div>
+          <div class="meta-pacing-item-message">{{ insight.message }}</div>
+          <div class="meta-pacing-recommendation">{{ insight.recommendation }}</div>
+        </div>
+        {% empty %}
+        <div class="meta-pacing-empty">No hay alertas fuertes con el filtro actual.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  <div class="meta-ads-grid" data-meta-ads-grid>
+    {% for ad in uva_meta_ads_preview.ads %}
+    <button class="meta-ad-card" type="button" data-meta-ad-trigger data-meta-card data-index="{{ forloop.counter0 }}" data-bs-toggle="modal" data-bs-target="#metaAdModal"
+      data-name="{{ ad.name }}"
+      data-title="{{ ad.title|default:ad.name }}"
+      data-headline="{{ ad.headline|default:"" }}"
+      data-body="{{ ad.body|default:"Creatividad activa sin copy disponible desde Meta." }}"
+      data-image="{{ ad.image_url|default:"" }}"
+      data-media-kind="{{ ad.media_kind|default:"image" }}"
+      data-preview-url="{{ ad.preview_url|default:"" }}"
+      data-video-id="{{ ad.video_id|default:"" }}"
+      data-status="{{ ad.status }}"
+      data-created-time="{{ ad.created_time|default:"" }}"
+      data-maturity-level="{{ ad.maturity_level|default:"unknown" }}"
+      data-maturity-label="{{ ad.maturity_label|default:"Sin dato" }}"
+      data-maturity-description="{{ ad.maturity_description|default:"Meta no devolvio fecha de activacion para este anuncio." }}"
+      data-maturity-age-days="{{ ad.maturity_age_days|default:"" }}"
+      data-campaign="{{ ad.campaign_name|default:"" }}"
+      data-adset="{{ ad.adset_name|default:"" }}"
+      data-cta="{{ ad.cta|default:"" }}"
+      data-url="{{ ad.destination_url|default:"" }}"
+      {% localize off %}
+      data-spend="{{ ad.metrics.spend|default:0 }}"
+      data-impressions="{{ ad.metrics.impressions|default:0 }}"
+      data-reach="{{ ad.metrics.reach|default:0 }}"
+      data-clicks="{{ ad.metrics.clicks|default:0 }}"
+      data-ctr="{{ ad.metrics.ctr|default:0 }}"
+      data-cpc="{{ ad.metrics.cpc|default:0 }}"
+      data-cpm="{{ ad.metrics.cpm|default:0 }}"
+      data-frequency="{{ ad.metrics.frequency|default:0 }}"
+      data-purchases="{{ ad.metrics.purchases|default:0 }}"
+      data-cpa="{{ ad.metrics.cpa_purchase|default:0 }}"
+      data-purchase-value="{{ ad.metrics.purchase_value|default:0 }}"
+      data-roas="{{ ad.metrics.roas|default:0 }}"
+      {% endlocalize %}>
+      <div class="meta-ad-media">
+        {% if ad.image_url %}
+          <img src="{{ ad.image_url }}" alt="{{ ad.name }}" loading="lazy" onerror="this.style.display='none'; this.parentElement.textContent='{{ ad.name|slice:":1"|upper }}';">
+        {% else %}
+          {{ ad.name|slice:":1"|upper }}
+        {% endif %}
+        {% if ad.media_kind == "video" %}<span class="meta-ad-media-badge">Video</span>{% endif %}
+      </div>
+      <div class="meta-ad-body">
+        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+          <div class="meta-ad-kicker">Meta Ads</div>
+          <span class="meta-ad-pill">{{ ad.status }}</span>
+        </div>
+        <div class="meta-ad-maturity">
+          <div class="meta-ad-maturity-row">
+            <span class="meta-ad-maturity-label {{ ad.maturity_level|default:"unknown" }}">Madurez {{ ad.maturity_label|default:"Sin dato" }}</span>
+            {% if ad.maturity_age_days != None %}<span class="meta-ad-maturity-age">{{ ad.maturity_age_days }} dias activo</span>{% endif %}
+          </div>
+          <div class="meta-ad-maturity-help">{{ ad.maturity_description|default:"Meta no devolvio fecha de activacion para este anuncio." }}</div>
+        </div>
+        <div class="meta-ad-title">{{ ad.name }}</div>
+        <div class="meta-ad-copy">{{ ad.body|default:"Creatividad activa sin copy disponible desde Meta." }}</div>
+        <div class="meta-ad-kpi-strip">
+          <div class="meta-ad-kpi"><small>Inversion</small><strong>{{ ad.metrics.spend|cop }}</strong></div>
+          <div class="meta-ad-kpi"><small>ROAS</small><strong>{{ ad.metrics.roas|floatformat:2 }}</strong></div>
+          <div class="meta-ad-kpi"><small>Compras</small><strong>{{ ad.metrics.purchases|default:0 }}</strong></div>
+        </div>
+        <div class="meta-ad-meta">
+          {% if ad.campaign_name %}<div><strong>Campaña:</strong> {{ ad.campaign_name }}</div>{% endif %}
+          {% if ad.adset_name %}<div><strong>Conjunto:</strong> {{ ad.adset_name }}</div>{% endif %}
+          {% if ad.cta %}<div><strong>CTA:</strong> {{ ad.cta }}</div>{% endif %}
+          {% if ad.destination_url %}<span class="text-info fw-bold">Abrir detalle</span>{% endif %}
+        </div>
+      </div>
+    </button>
+    {% endfor %}
+  </div>
+  <div class="meta-ads-empty" data-meta-empty hidden>No hay anuncios activos que coincidan con el filtro.</div>
+  <div class="meta-ads-pagination" data-meta-pagination hidden>
+    <button type="button" data-meta-prev aria-label="Pagina anterior">Anterior</button>
+    <span data-meta-pagination-label>Pagina 1 de 1</span>
+    <button type="button" data-meta-next aria-label="Pagina siguiente">Siguiente</button>
+  </div>
+  {% else %}
+  <div class="empty-state p-4">{{ uva_meta_ads_preview.message }}</div>
+  {% endif %}
+</div>
+<div class="modal fade meta-ad-modal" id="metaAdModal" tabindex="-1" aria-labelledby="metaAdModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <div>
+          <div class="meta-ad-kicker mb-1">Meta Ads | {{ uva_meta_ads_preview.date_start }} a {{ uva_meta_ads_preview.date_end }}</div>
+          <h3 class="modal-title h5 mb-0" id="metaAdModalTitle">Anuncio activo</h3>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="row g-0">
+          <div class="col-lg-7">
+            <div class="meta-ad-modal-media" data-meta-modal-media></div>
+          </div>
+          <div class="col-lg-5">
+            <div class="meta-ad-modal-panel">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                <span class="meta-ad-pill" data-meta-modal-status>ACTIVE</span>
+                <a class="dashboard-action-btn py-2 px-3" href="#" target="_blank" rel="noopener" data-meta-modal-url>Ver destino</a>
+              </div>
+              <div class="meta-ad-maturity mb-3" data-meta-modal-maturity>
+                <div class="meta-ad-maturity-row">
+                  <span class="meta-ad-maturity-label unknown" data-meta-modal-maturity-label>Madurez sin dato</span>
+                  <span class="meta-ad-maturity-age" data-meta-modal-maturity-age></span>
+                </div>
+                <div class="meta-ad-maturity-help" data-meta-modal-maturity-description></div>
+              </div>
+              <h4 class="meta-ad-modal-title" data-meta-modal-headline></h4>
+              <div class="meta-ad-modal-copy" data-meta-modal-copy></div>
+              <div class="meta-ad-modal-kpis">
+                <div class="meta-ad-modal-kpi"><small>Inversion</small><strong data-meta-kpi="spend">$0 COP</strong></div>
+                <div class="meta-ad-modal-kpi"><small>ROAS</small><strong data-meta-kpi="roas">0,00</strong></div>
+                <div class="meta-ad-modal-kpi"><small>Compras</small><strong data-meta-kpi="purchases">0</strong></div>
+                <div class="meta-ad-modal-kpi"><small>CPA compra</small><strong data-meta-kpi="cpa">$0 COP</strong></div>
+                <div class="meta-ad-modal-kpi"><small>Impresiones</small><strong data-meta-kpi="impressions">0</strong></div>
+                <div class="meta-ad-modal-kpi"><small>Alcance</small><strong data-meta-kpi="reach">0</strong></div>
+                <div class="meta-ad-modal-kpi"><small>Clics</small><strong data-meta-kpi="clicks">0</strong></div>
+                <div class="meta-ad-modal-kpi"><small>CTR</small><strong data-meta-kpi="ctr">0%</strong></div>
+                <div class="meta-ad-modal-kpi"><small>CPC</small><strong data-meta-kpi="cpc">$0 COP</strong></div>
+                <div class="meta-ad-modal-kpi"><small>CPM</small><strong data-meta-kpi="cpm">$0 COP</strong></div>
+                <div class="meta-ad-modal-kpi"><small>Frecuencia</small><strong data-meta-kpi="frequency">0,00</strong></div>
+                <div class="meta-ad-modal-kpi"><small>Valor compras</small><strong data-meta-kpi="purchaseValue">$0 COP</strong></div>
+              </div>
+              <div class="meta-ad-modal-meta">
+                <div data-meta-modal-campaign></div>
+                <div data-meta-modal-adset></div>
+                <div data-meta-modal-cta></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% if not summary.filters.country %}
+<div class="surface-card p-3 p-lg-4 mb-4">
+  <div class="panel-header align-items-start">
+    <div>
+      <h2 class="section-title h4 mb-1">CategorÃ­as de producto Uva</h2>
+      <p class="panel-caption mb-0">Comparativa por categorÃ­a entre Colombia, Ecuador y Mexico para el rango filtrado.</p>
+    </div>
+    <span class="badge bg-white bg-opacity-10 text-white-50 border-0">{{ uva_category_country_snapshot.category_count }} categorÃ­as</span>
+  </div>
+  <div class="chart-box mb-4" style="min-height: 320px;"><canvas id="uvaCategoryCountryComparisonChart"></canvas></div>
+  <div class="category-country-grid">
+    {% for card in uva_category_country_snapshot.cards %}
+    <div class="category-country-card product-detail-trigger" role="button" tabindex="0" data-product-unit="uva" data-product-key="{{ card.category_id }}">
+      <div class="category-country-header">
+        <div class="cat-img-wrapper">
+          {% if card.image_url %}
+            <img src="{{ card.image_url }}" class="cat-img" alt="{{ card.name }}" data-fallback="{{ card.image_fallback_url }}" onerror="useCategoryFallbackImage(this);">
+            <div class="cat-placeholder" style="display:none;">{{ card.name|slice:":1"|upper }}</div>
+          {% else %}
+            <div class="cat-placeholder">{{ card.name|slice:":1"|upper }}</div>
+          {% endif %}
+        </div>
+        <div>
+          <div class="category-country-title">{{ card.name }}</div>
+          <div class="panel-caption">Comparativa por paÃ­s</div>
+        </div>
+      </div>
+      <div class="category-country-summary">
+        <div class="category-country-stat">
+          <div class="category-country-stat-label">Ventas totales</div>
+          <div class="category-country-stat-value">{{ card.combined_sales_total|cop }}</div>
+        </div>
+        <div class="category-country-stat">
+          <div class="category-country-stat-label">InversiÃ³n</div>
+          <div class="category-country-stat-value">{{ card.spend_total|cop }}</div>
+        </div>
+        <div class="category-country-stat">
+          <div class="category-country-stat-label">ROAS global</div>
+          <div class="category-country-stat-value {{ card.roas|roas_value_class }}">{{ card.roas|floatformat:2 }}</div>
+        </div>
+      </div>
+      <div class="category-country-rows">
+        {% for country in card.countries %}
+        <div class="category-country-row">
+          <div class="category-country-row-head">
+            <div class="category-country-row-label">{{ country.label }}</div>
+            <span class="country-badge">{{ country.code }}</span>
+          </div>
+          <div class="category-country-row-meta">
+            <span class="country-metric-chip">Ventas {{ country.combined_sales_total|cop }}</span>
+            <span class="country-metric-chip">Pauta {{ country.spend_total|cop }}</span>
+            <span class="country-metric-chip">ROAS <strong class="{{ country.roas|roas_value_class }}">{{ country.roas|floatformat:2 }}</strong></span>
+            <span class="country-metric-chip">Ticket {{ country.average_ticket|cop }}</span>
+            <span class="country-metric-chip">CPA Google {{ country.cpa_google|cop }}</span>
+            <span class="country-metric-chip">CPA Meta {{ country.cpa_meta|cop }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="w-100 text-center py-5">
+      <div class="empty-state">Aun no hay mÃ©tricas importadas para este filtro.</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="surface-card p-3 p-lg-4 mb-4">
+  <div class="panel-header align-items-start">
+    <div>
+      <h2 class="section-title h4 mb-1">Categorías de producto Uva</h2>
+      <p class="panel-caption mb-0">Rendimiento detallado por línea de producto en el periodo filtrado.</p>
+    </div>
+    <div class="d-flex flex-column align-items-end gap-2">
+      <div class="carousel-nav">
+        <button class="carousel-btn" id="cat-prev" title="Anterior">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <button class="carousel-btn" id="cat-next" title="Siguiente">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+      <span class="badge bg-white bg-opacity-10 text-white-50 border-0">{{ product_category_snapshot.card_count }} categorías</span>
+    </div>
+  </div>
+
+  <div class="category-carousel-wrapper">
+    <div class="category-carousel" id="category-slider">
+      {% for card in product_category_snapshot.cards %}
+        <div class="category-slide">
+          <div class="category-card product-detail-trigger" role="button" tabindex="0" data-product-unit="uva" data-product-key="{{ card.category_id }}">
+            <!-- Header: Avatar + Title -->
+            <div class="cat-header">
+              <div class="cat-img-wrapper">
+                {% if card.image_url %}
+                  <img src="{{ card.image_url }}" class="cat-img" alt="{{ card.name }}" data-fallback="{{ card.image_fallback_url }}" onerror="useCategoryFallbackImage(this);">
+                  <div class="cat-placeholder" style="display:none;">{{ card.name|slice:":1"|upper }}</div>
+                {% else %}
+                  <div class="cat-placeholder">{{ card.name|slice:":1"|upper }}</div>
+                {% endif %}
+              </div>
+              <div class="cat-info">
+                <h3>{{ card.name }}</h3>
+                <p>Uva {{ summary.filters.country|default:"General" }}</p>
+              </div>
+            </div>
+
+            <!-- Main KPI: Sales -->
+            <div class="cat-main-kpi">
+              <div>
+                <div class="cat-main-label">Ventas totales</div>
+                <div class="cat-main-val">{{ card.combined_sales_total|cop }}</div>
+              </div>
+              <div class="text-end">
+                <div class="cat-main-label">ROAS</div>
+                <div class="cat-main-val {{ card.roas|roas_value_class }}">
+                  {{ card.roas|floatformat:2 }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="cat-stats-grid">
+              <div class="cat-stat-item">
+                <span class="cat-stat-label">Inversión</span>
+                <span class="cat-stat-val">{{ card.spend_total|cop }}</span>
+              </div>
+              <div class="cat-stat-item">
+                <span class="cat-stat-label">Ticket Prom.</span>
+                <span class="cat-stat-val">{{ card.average_ticket|cop }}</span>
+              </div>
+              <div class="cat-stat-item">
+                <span class="cat-stat-label">CPA Meta</span>
+                <span class="cat-stat-val">{{ card.cpa_meta|cop }}</span>
+              </div>
+              <div class="cat-stat-item">
+                <span class="cat-stat-label">CPA Google</span>
+                <span class="cat-stat-val">{{ card.cpa_google|cop }}</span>
+              </div>
+            </div>
+
+            <!-- Channels & Meta -->
+            <div class="cat-channels">
+              <div class="cat-chan-row">
+                <span class="cat-chan-label">Ventas Web ({{ card.web_units }} und)</span>
+                <span class="cat-chan-val">{{ card.sales_total|cop }}</span>
+              </div>
+              <div class="cat-chan-row">
+                <span class="cat-chan-label">Ventas WhatsApp ({{ card.whatsapp_units }} und)</span>
+                <span class="cat-chan-val">{{ card.whatsapp_sales_total|cop }}</span>
+              </div>
+              <div class="cat-chan-row mt-2">
+                <span class="cat-chan-label">Unidades Totales</span>
+                <span class="cat-chan-val text-info">{{ card.quantity_total }}</span>
+              </div>
+            </div>
+            
+            {% if card.comparison.sales_total %}
+            <div class="position-absolute bottom-0 start-0 w-100 p-2 text-center" style="background: rgba(0,0,0,0.2); font-size: 0.65rem;">
+               {% with comp=card.comparison.sales_total %}
+                  <span class="{% if comp.direction == 'up' %}text-success{% else %}text-danger{% endif %} fw-bold">
+                    {{ comp.delta_pct|signed_percent }}
+                  </span> 
+                  <span class="opacity-50 text-white">vs. periodo anterior</span>
+               {% endwith %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      {% empty %}
+        <div class="w-100 text-center py-5">
+          <div class="empty-state">Aun no hay métricas importadas para este filtro.</div>
+        </div>
+      {% endfor %}
+    </div>
+    
+    <div class="carousel-indicator-wrapper">
+      <div class="carousel-indicator-bar" id="carousel-progress"></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+{% if show_non_dashboard_kpis %}
+<div class="row g-4 mb-4">
+  <div class="col-12">
+    <div class="surface-card p-3 p-lg-4 h-100">
+      <div class="panel-header">
+        <div>
+          <div class="section-title">Indicadores clave</div>
+          <div class="panel-caption">Metrica ejecutiva del rango filtrado.</div>
+        </div>
+      </div>
+      <div class="mini-metric-grid mb-4">
+        <div class="mini-metric">
+          <div class="mini-metric-label">Ventas web</div>
+          <div class="mini-metric-value">{{ summary.kpis.sales_web|cop }}</div>
+        </div>
+        <div class="mini-metric">
+          <div class="mini-metric-label">Ventas WhatsApp</div>
+          <div class="mini-metric-value">{{ summary.kpis.sales_whatsapp|cop }}</div>
+        </div>
+        <div class="mini-metric">
+          <div class="mini-metric-label">Ordenes / unidades</div>
+          <div class="mini-metric-value">{{ summary.kpis.orders|floatformat:0 }}</div>
+        </div>
+        <div class="mini-metric">
+          <div class="mini-metric-label">ROAS</div>
+          <div class="mini-metric-value {{ summary.kpis.roas|roas_value_class }}">{{ summary.kpis.roas|floatformat:2 }} <span class="{{ summary.kpis.roas|roas_signal_class }}"></span></div>
+        </div>
+        <div class="mini-metric">
+          <div class="mini-metric-label">Ticket promedio web</div>
+          <div class="mini-metric-value">{{ summary.kpis.web_average_ticket|cop }}</div>
+          <div class="category-compare text-muted">{{ summary.kpis.web_order_count|floatformat:0 }} pedidos web</div>
+        </div>
+        <div class="mini-metric">
+          <div class="mini-metric-label">Ticket promedio WhatsApp</div>
+          <div class="mini-metric-value">{{ summary.kpis.whatsapp_average_ticket|cop }}</div>
+          <div class="category-compare text-muted">{{ summary.kpis.whatsapp_order_count|floatformat:0 }} pedidos WhatsApp</div>
+        </div>
+      </div>
+      <div class="section-title mb-3">Insights automaticos</div>
+      <div class="status-list">
+        {% include "reports/includes/insights.html" with insight_rows=snapshot.insight_cards %}
+        {% for alert in summary.alerts %}
+          <div class="status-row">
+            <div>{{ alert }}</div>
+            <span class="status-pill">!</span>
+          </div>
+        {% endfor %}
+        {% if not snapshot.insight_cards and not summary.alerts %}
+          <div class="empty-state p-4">No hay insights disponibles.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-xl-6">
+    <div class="surface-card p-3 p-lg-4 h-100">
+      <div class="panel-header">
+        <div>
+          <div class="section-title">Ventas por canal</div>
+          <div class="panel-caption">Participacion de ventas por canal.</div>
+        </div>
+        <a class="dashboard-action-btn" href="{% url 'reports:web_sales' %}?{{ request.GET.urlencode }}">Ver ventas</a>
+      </div>
+      <div class="chart-box"><canvas id="salesByChannelChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="surface-card p-3 p-lg-4 h-100">
+      <div class="panel-header">
+        <div>
+          <div class="section-title">Fuentes de pauta</div>
+          <div class="panel-caption">Inversion por plataforma y ROAS referencial segun el filtro.</div>
+        </div>
+      </div>
+      <div class="chart-box"><canvas id="adPlatformChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+{% include "reports/includes/product_detail_modal.html" %}
+
+<script>
+function toNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const raw = String(value ?? '').trim();
+  if (!raw) return 0;
+  let normalized = raw.replace(/\s/g, '').replace(/[^\d,.-]/g, '');
+  if (!normalized) return 0;
+  const hasComma = normalized.includes(',');
+  const hasDot = normalized.includes('.');
+
+  if (hasComma && hasDot) {
+    if (normalized.lastIndexOf(',') > normalized.lastIndexOf('.')) {
+      normalized = normalized.replace(/\./g, '').replace(',', '.');
+    } else {
+      normalized = normalized.replace(/,/g, '');
+    }
+  } else if (hasComma) {
+    if (/^-?\d{1,3}(,\d{3})+$/.test(normalized)) {
+      normalized = normalized.replace(/,/g, '');
+    } else {
+      normalized = normalized.replace(',', '.');
+    }
+  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(normalized)) {
+    normalized = normalized.replace(/\./g, '');
+  }
+
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function compactMoney(value) {
+  return new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }).format(toNumber(value));
+}
+
+function fullNumber(value) {
+  return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(toNumber(value));
+}
+
+function decimalNumber(value, digits = 2) {
+  return new Intl.NumberFormat('es-CO', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(toNumber(value));
+}
+
+function setMetaModalKpi(key, value) {
+  const target = document.querySelector(`[data-meta-kpi="${key}"]`);
+  if (target) target.textContent = value;
+}
+
+function setMetaDetail(target, label, value) {
+  if (!target) return;
+  target.textContent = '';
+  if (!value) return;
+  const strong = document.createElement('strong');
+  strong.textContent = `${label}: `;
+  target.appendChild(strong);
+  target.appendChild(document.createTextNode(value));
+}
+
+const maturityRank = { unknown: 0, low: 1, medium: 2, high: 3 };
+
+function setMetaMaturity(data) {
+  const label = document.querySelector('[data-meta-modal-maturity-label]');
+  const age = document.querySelector('[data-meta-modal-maturity-age]');
+  const description = document.querySelector('[data-meta-modal-maturity-description]');
+  const level = data.maturityLevel || 'unknown';
+  if (label) {
+    label.className = `meta-ad-maturity-label ${level}`;
+    label.textContent = `Madurez ${data.maturityLabel || 'Sin dato'}`;
+  }
+  if (age) age.textContent = data.maturityAgeDays ? `${fullNumber(data.maturityAgeDays)} dias activo` : '';
+  if (description) description.textContent = data.maturityDescription || 'Meta no devolvio fecha de activacion para este anuncio.';
+}
+
+document.querySelectorAll('[data-meta-ad-trigger]').forEach(card => {
+  card.addEventListener('click', event => {
+    const data = card.dataset;
+    const title = data.title || data.name || 'Anuncio activo';
+    const headlineText = data.headline || title;
+    const media = document.querySelector('[data-meta-modal-media]');
+    const modalTitle = document.getElementById('metaAdModalTitle');
+    const headline = document.querySelector('[data-meta-modal-headline]');
+    const copy = document.querySelector('[data-meta-modal-copy]');
+    const status = document.querySelector('[data-meta-modal-status]');
+    const url = document.querySelector('[data-meta-modal-url]');
+    const campaign = document.querySelector('[data-meta-modal-campaign]');
+    const adset = document.querySelector('[data-meta-modal-adset]');
+    const cta = document.querySelector('[data-meta-modal-cta]');
+
+    if (modalTitle) modalTitle.textContent = data.name || title;
+    if (headline) headline.textContent = headlineText;
+    if (copy) copy.textContent = data.body || 'Creatividad activa sin copy disponible desde Meta.';
+    if (status) status.textContent = data.status || 'ACTIVE';
+    if (media) {
+      media.classList.toggle('is-preview', Boolean(data.previewUrl));
+      media.textContent = '';
+      if (data.previewUrl) {
+        const frameShell = document.createElement('div');
+        frameShell.className = 'meta-ad-preview-shell';
+        const iframe = document.createElement('iframe');
+        iframe.src = data.previewUrl;
+        iframe.title = `Preview Meta Ads - ${title}`;
+        iframe.loading = 'lazy';
+        iframe.scrolling = 'no';
+        iframe.setAttribute('allowfullscreen', 'true');
+        iframe.setAttribute('allow', 'autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share');
+        frameShell.appendChild(iframe);
+        media.appendChild(frameShell);
+      } else if (data.image) {
+        const img = document.createElement('img');
+        img.src = data.image;
+        img.alt = title;
+        media.appendChild(img);
+      } else {
+        const placeholder = document.createElement('span');
+        placeholder.textContent = (data.name || title).trim().slice(0, 1).toUpperCase();
+        media.appendChild(placeholder);
+        if (data.mediaKind === 'video') {
+          const fallback = document.createElement('div');
+          fallback.className = 'meta-ad-modal-fallback';
+          fallback.textContent = 'Meta no devolvió un preview reproducible para este video.';
+          media.appendChild(fallback);
+        }
+      }
+    }
+    if (url) {
+      if (data.url) {
+        url.href = data.url;
+        url.style.display = '';
+      } else {
+        url.removeAttribute('href');
+        url.style.display = 'none';
+      }
+    }
+    setMetaDetail(campaign, 'Campaña', data.campaign);
+    setMetaDetail(adset, 'Conjunto', data.adset);
+    setMetaDetail(cta, 'CTA', data.cta);
+    setMetaMaturity(data);
+
+    setMetaModalKpi('spend', fullMoney(data.spend));
+    setMetaModalKpi('roas', decimalNumber(data.roas));
+    setMetaModalKpi('purchases', fullNumber(data.purchases));
+    setMetaModalKpi('cpa', fullMoney(data.cpa));
+    setMetaModalKpi('impressions', fullNumber(data.impressions));
+    setMetaModalKpi('reach', fullNumber(data.reach));
+    setMetaModalKpi('clicks', fullNumber(data.clicks));
+    setMetaModalKpi('ctr', `${decimalNumber(data.ctr)}%`);
+    setMetaModalKpi('cpc', fullMoney(data.cpc));
+    setMetaModalKpi('cpm', fullMoney(data.cpm));
+    setMetaModalKpi('frequency', decimalNumber(data.frequency));
+    setMetaModalKpi('purchaseValue', fullMoney(data.purchaseValue));
+  });
+});
+
+function setupMetaAdsSection(section) {
+  const grid = section.querySelector('[data-meta-ads-grid]');
+  if (!grid) return;
+  const cards = Array.from(section.querySelectorAll('[data-meta-card]'));
+  const sortSelect = section.querySelector('[data-meta-sort]');
+  const filterSelect = section.querySelector('[data-meta-filter]');
+  const visibleCount = section.querySelector('[data-meta-visible-count]');
+  const totalCount = section.querySelector('[data-meta-total-count]');
+  const pageSummary = section.querySelector('[data-meta-page-summary]');
+  const emptyState = section.querySelector('[data-meta-empty]');
+  const pagination = section.querySelector('[data-meta-pagination]');
+  const prevButton = section.querySelector('[data-meta-prev]');
+  const nextButton = section.querySelector('[data-meta-next]');
+  const pageLabel = section.querySelector('[data-meta-pagination-label]');
+  const pageSize = Math.max(1, Number(section.dataset.pageSize || 12));
+  let page = 1;
+
+  const metric = (card, key) => toNumber(card.dataset[key]);
+  const created = card => Date.parse(card.dataset.createdTime || '') || 0;
+  const originalIndex = card => Number(card.dataset.index || 0);
+
+  function filteredCards() {
+    const filter = filterSelect?.value || 'all';
+    return cards.filter(card => {
+      if (filter === 'purchases') return metric(card, 'purchases') > 0;
+      if (filter === 'roas') return metric(card, 'roas') > 0;
+      if (filter === 'maturity_low') return card.dataset.maturityLevel === 'low';
+      if (filter === 'maturity_medium') return card.dataset.maturityLevel === 'medium';
+      if (filter === 'maturity_high') return card.dataset.maturityLevel === 'high';
+      return true;
+    });
+  }
+
+  function sortCards(items) {
+    const sort = sortSelect?.value || 'created_desc';
+    return [...items].sort((a, b) => {
+      if (sort === 'roas_desc') {
+        return metric(b, 'roas') - metric(a, 'roas') || metric(b, 'purchases') - metric(a, 'purchases') || created(b) - created(a) || originalIndex(a) - originalIndex(b);
+      }
+      if (sort === 'purchases_desc') {
+        return metric(b, 'purchases') - metric(a, 'purchases') || metric(b, 'roas') - metric(a, 'roas') || created(b) - created(a) || originalIndex(a) - originalIndex(b);
+      }
+      if (sort === 'spend_desc') {
+        return metric(b, 'spend') - metric(a, 'spend') || metric(b, 'purchases') - metric(a, 'purchases') || created(b) - created(a) || originalIndex(a) - originalIndex(b);
+      }
+      if (sort === 'maturity_desc') {
+        return (maturityRank[b.dataset.maturityLevel] || 0) - (maturityRank[a.dataset.maturityLevel] || 0) || created(b) - created(a) || originalIndex(a) - originalIndex(b);
+      }
+      if (sort === 'maturity_asc') {
+        return (maturityRank[a.dataset.maturityLevel] || 0) - (maturityRank[b.dataset.maturityLevel] || 0) || created(a) - created(b) || originalIndex(a) - originalIndex(b);
+      }
+      return created(b) - created(a) || originalIndex(a) - originalIndex(b);
+    });
+  }
+
+  function render() {
+    const ordered = sortCards(filteredCards());
+    const totalPages = Math.max(1, Math.ceil(ordered.length / pageSize));
+    page = Math.min(Math.max(page, 1), totalPages);
+    const start = (page - 1) * pageSize;
+    const pageCards = new Set(ordered.slice(start, start + pageSize));
+
+    ordered.forEach(card => grid.appendChild(card));
+    cards.forEach(card => {
+      card.hidden = !pageCards.has(card);
+    });
+
+    if (visibleCount) visibleCount.textContent = fullNumber(ordered.length);
+    if (totalCount) totalCount.textContent = fullNumber(cards.length);
+    if (emptyState) emptyState.hidden = ordered.length > 0;
+    if (pageSummary) {
+      const end = ordered.length ? Math.min(start + pageSize, ordered.length) : 0;
+      pageSummary.textContent = ordered.length ? `${fullNumber(start + 1)}-${fullNumber(end)} de ${fullNumber(ordered.length)}` : '0 anuncios';
+    }
+    if (pagination) pagination.hidden = totalPages <= 1;
+    if (pageLabel) pageLabel.textContent = `Pagina ${fullNumber(page)} de ${fullNumber(totalPages)}`;
+    if (prevButton) prevButton.disabled = page <= 1;
+    if (nextButton) nextButton.disabled = page >= totalPages;
+  }
+
+  sortSelect?.addEventListener('change', () => { page = 1; render(); });
+  filterSelect?.addEventListener('change', () => { page = 1; render(); });
+  prevButton?.addEventListener('click', () => { page -= 1; render(); });
+  nextButton?.addEventListener('click', () => { page += 1; render(); });
+  render();
+}
+
+document.querySelectorAll('[data-meta-ads-section]').forEach(setupMetaAdsSection);
+
+function baseChartOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 800, easing: 'easeOutQuart' },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { color: '#94a3b8', boxWidth: 8, boxHeight: 8, usePointStyle: true, padding: 20, font: { size: 11, weight: '600' } }
+      },
+      tooltip: {
+        backgroundColor: '#0f172a',
+        borderColor: 'rgba(255,255,255,0.08)',
+        borderWidth: 1,
+        padding: 12,
+        titleColor: '#fff',
+        titleFont: { size: 13, weight: '700' },
+        bodyColor: '#cbd5e1',
+        bodyFont: { size: 12 },
+        displayColors: true,
+        boxPadding: 6
+      }
+    },
+    scales: {
+      x: { 
+        ticks: { color: '#64748b', font: { size: 10, weight: '600' }, maxRotation: 0, autoSkip: true }, 
+        grid: { display: false } 
+      },
+      y: { 
+        ticks: { color: '#64748b', font: { size: 10 }, callback: compactMoney }, 
+        grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false } 
+      }
+    }
+  };
+}
+
+function replaceWithEmpty(canvas, message) {
+  const box = canvas.closest('.chart-box');
+  if (box) box.innerHTML = `<div class="empty-state p-4 text-center" style="color: rgba(255,255,255,0.5); font-size: 0.85rem; font-weight: 500;">${message}</div>`;
+}
+
+function renderPerformanceChart(id, rows) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  if (!rows || !rows.length) return replaceWithEmpty(canvas, 'Sin datos para graficar.');
+
+  const options = baseChartOptions();
+  options.scales.y1 = {
+    position: 'right',
+    ticks: { color: '#ef4444', font: { size: 10, weight: '700' }, callback: value => Number(value).toFixed(1) },
+    grid: { display: false }
+  };
+  options.scales.y2 = {
+    position: 'right',
+    offset: true,
+    ticks: { color: '#f59e0b', font: { size: 10 }, callback: compactMoney },
+    grid: { display: false }
+  };
+  options.plugins.tooltip.callbacks = {
+    label(context) {
+      const label = context.dataset.label || '';
+      if (label === 'ROAS') return `${label}: ${Number(context.raw || 0).toFixed(2)}`;
+      return `${label}: ${compactMoney(context.raw || 0)}`;
+    }
+  };
+  
+  new Chart(canvas, {
+    data: {
+      labels: rows.map(item => item.label),
+      datasets: [
+        { type: 'bar', label: 'Ventas', data: rows.map(item => Number(item.sales ?? item.sales_total ?? 0)), backgroundColor: 'rgba(59, 130, 246, 0.8)', hoverBackgroundColor: '#3b82f6', borderRadius: 6, barThickness: 12, yAxisID: 'y' },
+        { type: 'bar', label: 'Inversion', data: rows.map(item => Number(item.spend ?? 0)), backgroundColor: 'rgba(255, 255, 255, 0.1)', hoverBackgroundColor: 'rgba(255, 255, 255, 0.2)', borderRadius: 6, barThickness: 12, yAxisID: 'y' },
+        { type: 'line', label: 'ROAS', data: rows.map(item => Number(item.roas ?? 0)), borderColor: '#ef4444', backgroundColor: '#ef4444', borderWidth: 3, pointRadius: 4, pointHoverRadius: 6, tension: 0.4, yAxisID: 'y1' },
+        { type: 'line', label: 'Ticket promedio', data: rows.map(item => Number(item.average_ticket ?? 0)), borderColor: '#f59e0b', backgroundColor: '#f59e0b', borderWidth: 3, pointRadius: 4, pointHoverRadius: 6, pointStyle: 'rectRounded', tension: 0.35, yAxisID: 'y2' }
+      ]
+    },
+    options
+  });
+}
+
+function renderChannelChart(id, rows) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  if (!rows || !rows.length) return replaceWithEmpty(canvas, 'Sin datos para graficar.');
+
+  const visibleRows = rows.slice(0, 8);
+  const options = baseChartOptions();
+  options.indexAxis = 'y';
+  options.scales.x.display = false;
+  options.scales.y.grid = { display: false };
+  options.scales.y.ticks = { color: '#cbd5e1', font: { size: 11, weight: '600' } };
+  options.plugins.legend.display = false;
+
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: visibleRows.map(item => item.label),
+      datasets: [{
+        data: visibleRows.map(item => item.value),
+        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+        hoverBackgroundColor: '#3b82f6',
+        borderRadius: 4,
+        barThickness: 18
+      }]
+    },
+    options
+  });
+}
+
+function renderProfitabilityChart(id, rows) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  if (!rows || !rows.length) return replaceWithEmpty(canvas, 'Sin datos de rentabilidad por categoria.');
+
+  new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: rows.map(item => item.label),
+      datasets: [{
+        data: rows.map(item => item.value),
+        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'],
+        borderColor: '#0e1421',
+        borderWidth: 4,
+        hoverOffset: 12
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '75%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 8, usePointStyle: true, padding: 15, font: { size: 11, weight: '600' } } },
+        tooltip: {
+          backgroundColor: '#0f172a',
+          padding: 12,
+          callbacks: {
+            label(context) {
+              const row = rows[context.dataIndex] || {};
+              return ` ROAS: ${Number(row.value || 0).toFixed(2)} | Ventas: ${compactMoney(row.sales || 0)}`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderCountryMixChart(id, rows) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  if (!rows || !rows.length) return replaceWithEmpty(canvas, 'Sin datos para comparar paises.');
+
+  new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: rows.map(item => item.label),
+      datasets: [{
+        data: rows.map(item => item.sales),
+        backgroundColor: ['#60a5fa', '#7cf3ad', '#f87171'],
+        borderColor: 'rgba(13, 20, 32, .96)',
+        borderWidth: 3,
+        hoverOffset: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '72%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#cbd7ee', boxWidth: 12, usePointStyle: true } }
+      }
+    }
+  });
+}
+
+function renderAdPlatformChart(id, rows) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  if (!rows || !rows.length) return replaceWithEmpty(canvas, 'Sin datos de inversion.');
+
+  const options = baseChartOptions();
+  options.scales.y1 = {
+    position: 'right',
+    ticks: { color: '#f87171', font: { size: 10, weight: '700' } },
+    grid: { display: false }
+  };
+
+  new Chart(canvas, {
+    data: {
+      labels: rows.map(item => item.label),
+      datasets: [
+        { type: 'bar', label: 'Inversion', data: rows.map(item => Number(item.spend ?? 0)), backgroundColor: ['#60a5fa', '#c084fc', '#fbbf24'], borderRadius: 7, yAxisID: 'y' },
+        { type: 'line', label: 'ROAS referencial', data: rows.map(item => item.reference_roas), borderColor: '#f87171', backgroundColor: '#f87171', pointRadius: 4, tension: .28, yAxisID: 'y1' }
+      ]
+    },
+    options
+  });
+}
+
+function renderCountryComparisonChart(id, rows) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  if (!rows || !rows.length) return replaceWithEmpty(canvas, 'Sin datos para comparar paises.');
+
+  const options = baseChartOptions();
+  options.scales.y1 = {
+    position: 'right',
+    ticks: { color: '#ef4444', font: { size: 10, weight: '700' } },
+    grid: { display: false }
+  };
+  options.scales.y2 = {
+    position: 'right',
+    offset: true,
+    ticks: { color: '#f59e0b', font: { size: 10 } },
+    grid: { display: false }
+  };
+
+  new Chart(canvas, {
+    data: {
+      labels: rows.map(item => item.label),
+      datasets: [
+        { type: 'bar', label: 'Ventas totales', data: rows.map(item => item.sales), backgroundColor: 'rgba(59, 130, 246, 0.8)', borderRadius: 7, yAxisID: 'y' },
+        { type: 'bar', label: 'Inversion', data: rows.map(item => Number(item.spend ?? 0)), backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: 7, yAxisID: 'y' },
+        { type: 'line', label: 'ROAS', data: rows.map(item => Number(item.roas ?? 0)), borderColor: '#ef4444', backgroundColor: '#ef4444', borderWidth: 3, pointRadius: 5, tension: .32, yAxisID: 'y1' },
+        { type: 'line', label: 'Ticket promedio', data: rows.map(item => item.average_ticket), borderColor: '#f59e0b', backgroundColor: '#f59e0b', borderWidth: 3, pointRadius: 5, pointStyle: 'rectRounded', tension: .28, yAxisID: 'y2' }
+      ]
+    },
+    options
+  });
+}
+
+function renderCategoryCountryComparisonChart(id, rows) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  if (!rows || !rows.length) return replaceWithEmpty(canvas, 'Sin datos por categoria para comparar paises.');
+
+  const options = baseChartOptions();
+  options.plugins.tooltip.callbacks = {
+    label(context) {
+      return `${context.dataset.label}: ${compactMoney(context.raw || 0)}`;
+    }
+  };
+
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: rows.map(item => item.label),
+      datasets: [
+        {
+          label: 'Colombia',
+          data: rows.map(item => Number(item.CO ?? 0)),
+          backgroundColor: 'rgba(59, 130, 246, 0.82)',
+          borderRadius: 7
+        },
+        {
+          label: 'Ecuador',
+          data: rows.map(item => Number(item.EC ?? 0)),
+          backgroundColor: 'rgba(16, 185, 129, 0.82)',
+          borderRadius: 7
+        },
+        {
+          label: 'Mexico',
+          data: rows.map(item => Number(item.MX ?? 0)),
+          backgroundColor: 'rgba(239, 68, 68, 0.82)',
+          borderRadius: 7
+        }
+      ]
+    },
+    options
+  });
+}
+
+function fullMoney(value) {
+  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(toNumber(value));
+}
+
+let productDetailChart = null;
+
+function productDetailValue(value, kind) {
+  if (kind === 'money') return fullMoney(value);
+  if (kind === 'percent') return `${((Number(value || 0)) * 100).toFixed(1)}%`;
+  if (kind === 'ratio') return Number(value || 0).toFixed(2);
+  return Number(value || 0).toLocaleString('es-CO');
+}
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }[char]));
+}
+
+function closeProductDetail() {
+  const overlay = document.getElementById('productDetailOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+function useCategoryFallbackImage(img) {
+  if (!img) return;
+  const fallback = img.dataset.fallback || '';
+  if (fallback && img.src !== fallback) {
+    img.dataset.fallback = '';
+    img.src = fallback;
+    return;
+  }
+  img.style.display = 'none';
+  const placeholder = img.nextElementSibling;
+  if (placeholder) placeholder.style.display = 'flex';
+}
+
+function renderProductDetail(payload) {
+  document.getElementById('productDetailTitle').textContent = payload.title || 'Detalle de producto';
+  document.getElementById('productDetailSubtitle').textContent = payload.subtitle || '';
+  document.getElementById('productDetailNote').textContent = payload.allocation_note || '';
+  const imageBox = document.getElementById('productDetailImage');
+  const initial = escapeHtml((payload.title || 'P').trim().charAt(0).toUpperCase());
+  imageBox.innerHTML = '';
+  const renderPlaceholder = () => {
+    imageBox.innerHTML = `<div class="product-detail-placeholder">${initial}</div>`;
+  };
+  const primaryImage = payload.image_url || payload.image_fallback_url || '';
+  if (primaryImage) {
+    const image = document.createElement('img');
+    image.src = primaryImage;
+    image.alt = payload.title || 'Producto';
+    image.onerror = () => {
+      const fallback = payload.image_fallback_url || '';
+      if (fallback && image.src !== fallback) {
+        image.src = fallback;
+        return;
+      }
+      renderPlaceholder();
+    };
+    imageBox.appendChild(image);
+  } else {
+    renderPlaceholder();
+  }
+  document.getElementById('productDetailStats').innerHTML = (payload.stats || []).slice(0, 10).map(item => (
+    `<div class="product-detail-stat"><small>${escapeHtml(item.label)}</small><strong>${escapeHtml(productDetailValue(item.value, item.kind))}</strong></div>`
+  )).join('');
+  document.getElementById('productDetailInsights').innerHTML = (payload.insights || []).length
+    ? payload.insights.map(item => `<div class="product-detail-insight">${escapeHtml(item)}</div>`).join('')
+    : '<div class="product-detail-empty">Sin insights suficientes para este producto.</div>';
+
+  const canvas = document.getElementById('productDetailChart');
+  if (productDetailChart) productDetailChart.destroy();
+  const rows = payload.daily_series || [];
+  if (!rows.length) {
+    canvas.parentElement.innerHTML = '<div class="product-detail-empty">Sin serie diaria para graficar.</div>';
+    return;
+  }
+  productDetailChart = new Chart(canvas, {
+    data: {
+      labels: rows.map(item => item.label),
+      datasets: [
+        { type: 'bar', label: 'Ventas', data: rows.map(item => item.sales || 0), backgroundColor: 'rgba(59, 130, 246, .78)', borderRadius: 7, yAxisID: 'money' },
+        { type: 'bar', label: 'Inversion', data: rows.map(item => item.spend || 0), backgroundColor: 'rgba(16, 185, 129, .62)', borderRadius: 7, yAxisID: 'money' },
+        { type: 'line', label: 'ROAS', data: rows.map(item => item.roas || 0), borderColor: '#ef4444', backgroundColor: '#ef4444', borderWidth: 3, pointRadius: 3, tension: .3, yAxisID: 'ratio' },
+        { type: 'line', label: 'Ticket promedio', data: rows.map(item => item.average_ticket || 0), borderColor: '#f59e0b', backgroundColor: '#f59e0b', borderWidth: 3, pointRadius: 3, pointStyle: 'rectRounded', tension: .28, yAxisID: 'ticket' }
+      ]
+    },
+    options: {
+      ...baseChartOptions(),
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 10, weight: '600' }, maxRotation: 0, autoSkip: true }, grid: { display: false } },
+        money: { position: 'left', ticks: { color: '#64748b', callback: compactMoney }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        ratio: { position: 'right', ticks: { color: '#ef4444', callback: value => Number(value).toFixed(1) }, grid: { display: false } },
+        ticket: { position: 'right', offset: true, ticks: { color: '#f59e0b', callback: value => fullMoney(value).replace('COP', '').trim() }, grid: { display: false } }
+      },
+      plugins: {
+        ...baseChartOptions().plugins,
+        tooltip: {
+          callbacks: {
+            label(context) {
+              if (context.dataset.label === 'ROAS') return `ROAS: ${Number(context.raw || 0).toFixed(2)}`;
+              return `${context.dataset.label}: ${fullMoney(context.raw)}`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+async function openProductDetail(trigger) {
+  const overlay = document.getElementById('productDetailOverlay');
+  const loading = document.getElementById('productDetailLoading');
+  if (!overlay || !loading) return;
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  loading.style.display = 'block';
+  loading.textContent = 'Cargando detalle...';
+  document.getElementById('productDetailStats').innerHTML = '';
+  document.getElementById('productDetailInsights').innerHTML = '';
+  const params = new URLSearchParams(window.location.search);
+  params.set('unit', trigger.dataset.productUnit || 'uva');
+  params.set('category_id', trigger.dataset.productKey || '');
+  try {
+    const response = await fetch(`{% url 'reports:product_detail_api' %}?${params.toString()}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    if (!response.ok) throw new Error('No se pudo cargar el detalle.');
+    const payload = await response.json();
+    loading.style.display = 'none';
+    renderProductDetail(payload);
+  } catch (error) {
+    loading.textContent = error.message || 'No se pudo cargar el detalle.';
+  }
+}
+
+document.querySelectorAll('.product-detail-trigger').forEach(trigger => {
+  trigger.addEventListener('click', () => openProductDetail(trigger));
+  trigger.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openProductDetail(trigger);
+    }
+  });
+});
+document.getElementById('productDetailClose')?.addEventListener('click', closeProductDetail);
+document.getElementById('productDetailOverlay')?.addEventListener('click', event => {
+  if (event.target.id === 'productDetailOverlay') closeProductDetail();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') closeProductDetail();
+});
+
+// Category Carousel Logic
+(() => {
+  const slider = document.getElementById('category-slider');
+  const prevBtn = document.getElementById('cat-prev');
+  const nextBtn = document.getElementById('cat-next');
+  const progressBar = document.getElementById('carousel-progress');
+
+  if (!slider) return;
+
+  const updateUI = () => {
+    const scrollLeft = slider.scrollLeft;
+    const maxScroll = slider.scrollWidth - slider.clientWidth;
+    const progress = maxScroll > 0 ? (scrollLeft / maxScroll) * 100 : 100;
+    
+    if (progressBar) progressBar.style.width = `${progress}%`;
+    if (prevBtn) prevBtn.disabled = scrollLeft <= 5;
+    if (nextBtn) nextBtn.disabled = scrollLeft >= maxScroll - 5;
+  };
+
+  slider.addEventListener('scroll', updateUI);
+  window.addEventListener('resize', updateUI);
+
+  prevBtn?.addEventListener('click', () => {
+    slider.scrollBy({ left: -slider.clientWidth, behavior: 'smooth' });
+  });
+
+  nextBtn?.addEventListener('click', () => {
+    slider.scrollBy({ left: slider.clientWidth, behavior: 'smooth' });
+  });
+
+  setTimeout(updateUI, 100);
+})();
+
+(() => {
+  const salesByChannel = {{ sales_by_channel_json|safe|default:"[]" }};
+  const combinedSeries = {{ combined_series_json|safe|default:"[]" }};
+  const adPlatformPerformance = {{ ad_platform_performance_json|safe|default:"[]" }};
+  const categoryProfitabilityRaw = {{ category_profitability_json|safe|default:"[]" }};
+  const copaUvaCountryComparison = {{ copa_uva_country_comparison_json|safe|default:"[]" }};
+  const uvaCategoryCountryComparison = {{ uva_category_country_comparison_json|safe|default:"[]" }};
+  const homeBaliDaily = {{ home_bali_daily_json|safe|default:"[]" }};
+  const homeBaliChannels = {{ home_bali_channels_json|safe|default:"[]" }};
+  const countryProfitabilityFallback = copaUvaCountryComparison
+    .filter(item => Number(item.sales || 0) || Number(item.spend || 0) || Number(item.roas || 0))
+    .map(item => ({ label: item.label, value: Number(item.roas || 0), sales: Number(item.sales || 0), spend: Number(item.spend || 0) }));
+  const categoryProfitability = categoryProfitabilityRaw.length ? categoryProfitabilityRaw : countryProfitabilityFallback;
+
+  renderPerformanceChart('uvaCountryPerformanceChart', combinedSeries);
+  renderChannelChart('salesByChannelChart', salesByChannel);
+  renderAdPlatformChart('adPlatformChart', adPlatformPerformance);
+  renderProfitabilityChart('categoryProfitabilityChart', categoryProfitability);
+  renderCountryMixChart('countryMixChart', copaUvaCountryComparison);
+  renderCategoryCountryComparisonChart('uvaCategoryCountryComparisonChart', uvaCategoryCountryComparison);
+  
+  if (typeof renderCountryComparisonChart === 'function') {
+    renderCountryComparisonChart('copaUvaCountryComparisonChart', copaUvaCountryComparison);
+  }
+  
+  {% if active_nav == "dashboard" %}
+    renderPerformanceChart('homeBaliPerformanceChart', homeBaliDaily);
+    renderChannelChart('homeBaliChannelChart', homeBaliChannels);
+  {% endif %}
+})();
+</script>
+{% endblock %}
+

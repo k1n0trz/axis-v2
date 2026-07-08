@@ -1,0 +1,179 @@
+{% load report_extras %}
+<div class="row g-3 mb-4">
+  {% if active_nav == 'uva' %}
+    <div class="col-md-3"><div class="kpi-card"><div class="kpi-label">Ventas totales</div><div class="kpi-value">{{ summary.kpis.sales_total|cop }}</div></div></div>
+    <div class="col-md-3"><div class="kpi-card"><div class="kpi-label">Ventas mes</div><div class="kpi-value">{{ summary.kpis.sales_month|cop }}</div></div></div>
+    <div class="col-md-2"><div class="kpi-card"><div class="kpi-label">Ventas WhatsApp</div><div class="kpi-value">{{ summary.kpis.sales_whatsapp|cop }}</div></div></div>
+    <div class="col-md-2"><div class="kpi-card"><div class="kpi-label">CPA Promedio</div><div class="kpi-value">{{ summary.kpis.cpa_average|cop }}</div></div></div>
+    <div class="col-md-2"><div class="kpi-card"><div class="kpi-label">CPL WhatsApp</div><div class="kpi-value">{{ summary.kpis.cpl_weekly|cop }}</div></div></div>
+  {% elif active_nav == 'bali' %}
+    <div class="col-md-3"><div class="kpi-card"><div class="kpi-label">Ventas Web</div><div class="kpi-value">{{ summary.kpis.sales_web|cop }}</div></div></div>
+    <div class="col-md-3"><div class="kpi-card"><div class="kpi-label">Inversión Google</div><div class="kpi-value">{{ summary.kpis.ad_spend|cop }}</div></div></div>
+    <div class="col-md-2"><div class="kpi-card"><div class="kpi-label">Ventas WhatsApp</div><div class="kpi-value">{{ summary.kpis.sales_whatsapp|cop }}</div></div></div>
+    <div class="col-md-2"><div class="kpi-card"><div class="kpi-label">Mensajes</div><div class="kpi-value">{{ summary.kpis.messages|floatformat:0 }}</div></div></div>
+    <div class="col-md-2"><div class="kpi-card"><div class="kpi-label">Conversión</div><div class="kpi-value">{{ summary.kpis.conversion_rate|floatformat:2 }}%</div></div></div>
+  {% elif active_nav == 'marketplace' %}
+    <div class="col-md-3"><div class="kpi-card"><div class="kpi-label">Ventas</div><div class="kpi-value">{{ summary.kpis.sales_marketplace|cop }}</div></div></div>
+    <div class="col-md-3"><div class="kpi-card"><div class="kpi-label">Gasto Pauta</div><div class="kpi-value">{{ summary.kpis.ad_spend|cop }}</div></div></div>
+    <div class="col-md-3"><div class="kpi-card"><div class="kpi-label">Conversión</div><div class="kpi-value">{{ summary.kpis.conversion_rate|floatformat:2 }}%</div></div></div>
+    <div class="col-md-3"><div class="kpi-card"><div class="kpi-label">Ordenes</div><div class="kpi-value">{{ summary.kpis.orders|floatformat:0 }}</div></div></div>
+  {% endif %}
+</div>
+
+{% if active_nav == 'uva' %}
+<div class="row g-4 mb-4">
+  <div class="col-lg-6"><div class="surface-card h-100"><div class="section-title mb-3">CPA por producto</div><div class="chart-box"><canvas id="cpaByProductChart"></canvas></div></div></div>
+  <div class="col-lg-6"><div class="surface-card h-100"><div class="section-title mb-3">CPL WhatsApp semanal y mensual</div><div class="chart-box"><canvas id="cplWhatsappChart"></canvas></div></div></div>
+</div>
+<div class="row g-4 mb-4">
+  <div class="col-lg-4"><div class="surface-card h-100"><div class="section-title mb-3">Ventas por canal</div><div class="chart-box"><canvas id="unitChannelChart"></canvas></div></div></div>
+  <div class="col-lg-4"><div class="surface-card h-100"><div class="section-title mb-3">Inversión por producto</div><div class="chart-box"><canvas id="investmentByProductChart"></canvas></div></div></div>
+  <div class="col-lg-4"><div class="surface-card h-100"><div class="section-title mb-3">Gasto total por país</div><div class="chart-box"><canvas id="adSpendByCountryChart"></canvas></div></div></div>
+</div>
+<div class="row g-4 mb-4">
+  <div class="col-lg-5">
+    <div class="surface-card h-100">
+      <div class="section-title mb-4">Resumen de conversión</div>
+      <div class="d-flex flex-column gap-3">
+        <div class="status-row"><span>Mensajes generados</span><strong class="text-white">{{ summary.kpis.messages|floatformat:0 }}</strong></div>
+        <div class="status-row"><span>Compras</span><strong class="text-white">{{ summary.kpis.purchases|floatformat:0 }}</strong></div>
+        <div class="status-row"><span>Conversión</span><strong class="text-white">{{ summary.kpis.conversion_rate|floatformat:2 }}%</strong></div>
+        <div class="status-row"><span>ROAS</span><strong class="text-white">{{ summary.kpis.roas|floatformat:2 }}</strong></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7"><div class="surface-card h-100"><div class="section-title mb-3">Comfama Uva por producto</div><div class="chart-box"><canvas id="comfamaChart"></canvas></div></div></div>
+</div>
+{% elif active_nav == 'bali' %}
+<div class="row g-4 mb-4">
+  <div class="col-lg-6"><div class="surface-card h-100"><div class="section-title mb-3">Ventas Web vs WhatsApp</div><div class="chart-box"><canvas id="unitChannelChart"></canvas></div></div></div>
+  <div class="col-lg-6"><div class="surface-card h-100"><div class="section-title mb-3">Mensajes por canal</div><div class="chart-box"><canvas id="messagesByChannelChart"></canvas></div></div></div>
+</div>
+<div class="row g-4 mb-4">
+  <div class="col-lg-7"><div class="surface-card h-100"><div class="section-title mb-3">Operación semanal Bali</div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Semana</th><th>Tarea</th><th>Estado</th><th>Prioridad</th></tr></thead><tbody>{% for task in summary.tasks|slice:':8' %}<tr><td>{{ task.week_label }}</td><td>{{ task.task_name|truncatechars:48 }}</td><td><span class="roas-signal roas-signal-{{ task.status|task_status_class }}">{{ task.get_status_display }}</span></td><td><span class="text-{{ task.priority|task_priority_class }} fw-bold">{{ task.get_priority_display }}</span></td></tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-4">Sin tareas relacionadas.</td></tr>{% endfor %}</tbody></table></div></div></div>
+  <div class="col-lg-5"><div class="surface-card h-100"><div class="section-title mb-3">Hallazgos y Alertas</div><div class="d-grid gap-3">{% include "reports/includes/insights.html" with insight_rows=summary.insight_cards %}{% for alert in summary.alerts %}<div class="alert-item">{{ alert }}</div>{% endfor %}</div></div></div>
+</div>
+{% elif active_nav == 'marketplace' %}
+<div class="row g-4 mb-4">
+  <div class="col-lg-6"><div class="surface-card h-100"><div class="section-title mb-3">Ventas por canal</div><div class="chart-box"><canvas id="unitChannelChart"></canvas></div></div></div>
+  <div class="col-lg-6"><div class="surface-card h-100"><div class="section-title mb-3">Gasto de pauta por canal</div><div class="chart-box"><canvas id="adSpendByChannelChart"></canvas></div></div></div>
+</div>
+<div class="row g-4 mb-4">
+  <div class="col-lg-5">
+    <div class="surface-card h-100">
+      <div class="section-title mb-4">Resumen de Marketplace</div>
+      <div class="d-flex flex-column gap-3">
+        <div class="status-row"><span>Conversión</span><strong class="text-white">{{ summary.kpis.conversion_rate|floatformat:2 }}%</strong></div>
+        <div class="status-row"><span>Ordenes</span><strong class="text-white">{{ summary.kpis.orders|floatformat:0 }}</strong></div>
+        <div class="status-row"><span>Unidades</span><strong class="text-white">{{ summary.kpis.units|floatformat:0 }}</strong></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7"><div class="surface-card h-100"><div class="section-title mb-3">Operación Marketplace</div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Canal</th><th>Tarea</th><th>Estado</th><th>Impacto</th></tr></thead><tbody>{% for task in summary.tasks|slice:':8' %}<tr><td>{{ task.channel.name|default:'-' }}</td><td>{{ task.task_name|truncatechars:48 }}</td><td><span class="roas-signal roas-signal-{{ task.status|task_status_class }}">{{ task.get_status_display }}</span></td><td class="fw-bold">{{ task.impact }}</td></tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-4">Sin tareas relacionadas.</td></tr>{% endfor %}</tbody></table></div></div></div>
+</div>
+{% endif %}
+
+<script>
+(() => {
+const channelRows = {{ sales_by_channel_json|safe }};
+const countryRows = {{ country_sales_json|safe }};
+const investmentByProductRows = {{ investment_by_product_json|safe }};
+const adSpendByCountryRows = {{ ad_spend_by_country_json|safe }};
+const adSpendByChannelRows = {{ ad_spend_by_channel_json|safe }};
+const messagesByChannelRows = {{ messages_by_channel_json|safe }};
+const cpaByProductRows = {{ cpa_by_product_json|safe }};
+const cplWhatsappRows = {{ cpl_whatsapp_json|safe }};
+const comfamaSalesRows = {{ comfama_sales_json|safe }};
+const comfamaMessagesRows = {{ comfama_messages_json|safe }};
+const comfamaInvestmentRows = {{ comfama_investment_json|safe }};
+
+function compactMoney(value) {
+  return new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0);
+}
+
+function baseUnitOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { color: '#94a3b8', boxWidth: 8, usePointStyle: true, padding: 15, font: { size: 10, weight: '600' } }
+      },
+      tooltip: {
+        backgroundColor: '#0f172a',
+        borderColor: 'rgba(255,255,255,0.08)',
+        borderWidth: 1,
+        padding: 12
+      }
+    },
+    scales: {
+      x: { ticks: { color: '#64748b', font: { size: 9, weight: '600' } }, grid: { display: false } },
+      y: { ticks: { color: '#64748b', font: { size: 9 }, callback: compactMoney }, grid: { color: 'rgba(255,255,255,0.04)' } }
+    }
+  };
+}
+
+function renderBar(id, rows, color, label = '') {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: { 
+      labels: rows.map(item => item.label), 
+      datasets: [{ 
+        label, 
+        data: rows.map(item => item.value), 
+        backgroundColor: color, 
+        hoverBackgroundColor: color,
+        borderRadius: 6,
+        barThickness: 15
+      }] 
+    },
+    options: baseUnitOptions()
+  });
+}
+
+function renderGroupedBar(id, series) {
+  const canvas = document.getElementById(id);
+  if (!canvas || !series.length) return;
+  const labelSet = Array.from(new Set(series.flatMap(item => item.rows.map(row => row.label))));
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: labelSet,
+      datasets: series.map(item => ({
+        label: item.label,
+        data: labelSet.map(label => {
+          const match = item.rows.find(row => row.label === label);
+          return match ? match.value : 0;
+        }),
+        backgroundColor: item.color,
+        borderRadius: 4,
+        barThickness: 10
+      })),
+    },
+    options: baseUnitOptions()
+  });
+}
+
+renderBar('unitChannelChart', channelRows, 'rgba(59, 130, 246, 0.8)', 'Ventas');
+renderBar('investmentByProductChart', investmentByProductRows, 'rgba(16, 185, 129, 0.8)', 'Inversión');
+renderBar('adSpendByCountryChart', adSpendByCountryRows, 'rgba(245, 158, 11, 0.8)', 'Gasto');
+renderBar('adSpendByChannelChart', adSpendByChannelRows, 'rgba(239, 68, 68, 0.8)', 'Gasto');
+renderBar('messagesByChannelChart', messagesByChannelRows, 'rgba(139, 92, 246, 0.8)', 'Mensajes');
+renderBar('cpaByProductChart', cpaByProductRows, 'rgba(6, 182, 212, 0.8)', 'CPA');
+
+renderGroupedBar('cplWhatsappChart', [
+  { label: 'CPL Semanal', rows: cplWhatsappRows.map(r => ({ label: r.label, value: r.weekly })), color: 'rgba(59, 130, 246, 0.8)' },
+  { label: 'CPL Mensual', rows: cplWhatsappRows.map(r => ({ label: r.label, value: r.monthly })), color: 'rgba(255, 255, 255, 0.1)' }
+]);
+
+renderGroupedBar('comfamaChart', [
+  { label: 'Ventas', rows: comfamaSalesRows, color: 'rgba(16, 185, 129, 0.8)' },
+  { label: 'Conversaciones', rows: comfamaMessagesRows, color: 'rgba(59, 130, 246, 0.8)' },
+  { label: 'Inversión', rows: comfamaInvestmentRows, color: 'rgba(255, 255, 255, 0.1)' }
+]);
+})();
+</script>

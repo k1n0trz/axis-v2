@@ -1,0 +1,11 @@
+﻿Django>=5.0
+djangorestframework
+psycopg2-binary
+openpyxl
+python-decouple
+gunicorn
+whitenoise
+requests
+msal
+django-storages[google]
+

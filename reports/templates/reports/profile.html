@@ -1,0 +1,75 @@
+{% extends "reports/base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-xl-4">
+    <div class="surface-card p-4 h-100">
+      <div class="section-title mb-3">Resumen del perfil</div>
+      <div class="text-center mb-4">
+        <div style="width: 132px; height: 132px; margin: 0 auto; border-radius: 50%; background: rgba(46,134,255,.16); display:flex; align-items:center; justify-content:center; overflow:hidden; font-size: 2.2rem; font-weight: 700; border: 3px solid rgba(124,243,173,.28);">
+          {% if profile_obj.photo %}
+            <img src="{{ profile_obj.photo.url }}" alt="Foto de perfil" style="width: 100%; height: 100%; object-fit: cover; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <span style="width: 100%; height: 100%; display:none; align-items:center; justify-content:center;">
+              {{ user_obj.first_name|default:user_obj.username|slice:":1"|upper }}
+            </span>
+          {% else %}
+            <span style="width: 100%; height: 100%; display:flex; align-items:center; justify-content:center;">
+              {{ user_obj.first_name|default:user_obj.username|slice:":1"|upper }}
+            </span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="d-grid gap-3">
+        <div>
+          <div class="text-muted small">Usuario</div>
+          <div>{{ user_obj.username }}</div>
+        </div>
+        <div>
+          <div class="text-muted small">Cargo</div>
+          <div>{{ profile_obj.role.name|default:profile_obj.job_title|default:"Sin cargo asignado" }}</div>
+        </div>
+        <div>
+          <div class="text-muted small">Jefe</div>
+          <div>
+            {% if profile_obj.manager %}
+              {{ profile_obj.manager.get_full_name|default:profile_obj.manager.username }}
+            {% else %}
+              Sin jefe asignado
+            {% endif %}
+          </div>
+        </div>
+        <div>
+          <div class="text-muted small">Marcas con acceso</div>
+          <div>
+            {% for brand in profile_obj.business_units.all %}
+              <span class="badge badge-soft me-1 mb-1">{{ brand.name }}</span>
+            {% empty %}
+              <span class="text-muted">Sin marcas asignadas</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-8">
+    <div class="surface-card p-4">
+      <div class="section-title mb-3">Actualizar datos</div>
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        <div class="row g-3">
+          {% for field in profile_form %}
+            <div class="col-md-6 {% if field.name == 'photo' %}col-md-12{% endif %}">
+              <label class="form-label small mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+              {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+          {% endfor %}
+        </div>
+        <div class="mt-4">
+          <button class="btn btn-primary" type="submit">Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

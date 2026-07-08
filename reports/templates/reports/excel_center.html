@@ -1,0 +1,75 @@
+﻿{% extends "reports/base.html" %}
+{% block content %}
+<div class="row g-4 mb-4">
+  <div class="col-lg-5">
+    <div class="surface-card p-3 h-100">
+      <div class="section-title mb-3">Importar archivo maestro</div>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="step" value="preview">
+        {{ import_form.excel_file.label_tag }}
+        {{ import_form.excel_file }}
+        <button class="btn btn-primary mt-3">Generar preview</button>
+      </form>
+      <hr>
+      <a class="btn btn-outline-secondary" href="{% url 'reports:excel_template' %}">Descargar plantilla vacia</a>
+      <div class="small text-muted mt-3">La importacion acepta aliases en espanol e ingles y reconoce la estructura de tu archivo real con la columna opcional <strong>year</strong>.</div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="surface-card p-3 h-100">
+      <div class="section-title mb-3">Exportar datos del sistema</div>
+      <form method="get" action="{% url 'reports:excel_export' %}" class="row g-3">
+        {% for field in export_form %}
+        <div class="col-md-6">
+          <label class="form-label">{{ field.label }}</label>
+          {{ field }}
+        </div>
+        {% endfor %}
+        <div class="col-12"><button class="btn btn-success">Exportar archivo maestro</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% if preview %}
+<div class="surface-card p-3 mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <div class="section-title">Preview de importacion</div>
+      <div class="text-muted">{{ preview.file_name }}</div>
+    </div>
+    {% if not preview.critical_errors %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="step" value="confirm">
+      <button class="btn btn-primary">Confirmar importacion</button>
+    </form>
+    {% endif %}
+  </div>
+  <div class="row g-3 mb-4">
+    {% for sheet, stats in preview.sheet_stats.items %}
+    <div class="col-md-4"><div class="kpi-card p-3"><small class="text-muted text-uppercase">{{ sheet }}</small><div class="kpi-value">{{ stats.rows }}</div><div class="text-muted">Errores: {{ stats.errors }}{% if stats.warnings %} | Alertas: {{ stats.warnings }}{% endif %}</div></div></div>
+    {% endfor %}
+  </div>
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="section-title mb-2">Errores criticos</div>
+      {% for error in preview.critical_errors %}
+      <div class="alert alert-danger py-2">{{ error.sheet }} / fila {{ error.row }}: {{ error.message }}</div>
+      {% empty %}
+      <div class="alert alert-success py-2">Sin errores criticos. La importacion puede continuar.</div>
+      {% endfor %}
+    </div>
+    <div class="col-lg-6">
+      <div class="section-title mb-2">Alertas y observaciones</div>
+      {% for warning in preview.warnings|slice:":8" %}
+      <div class="alert alert-warning py-2">{{ warning.sheet }} / fila {{ warning.row }}: {{ warning.message }}</div>
+      {% empty %}
+      <div class="alert alert-light py-2">Sin alertas relevantes.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

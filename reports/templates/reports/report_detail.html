@@ -1,0 +1,124 @@
+﻿{% extends "reports/base.html" %}
+{% load report_extras %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <h1 class="h3 mb-1">{{ report.week_label }}</h1>
+    <p class="text-muted mb-0">{{ report.date_start }} - {{ report.date_end }}</p>
+  </div>
+  <a class="btn btn-success" href="{% url 'reports:export' report.pk %}">Exportar Excel</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <small class="text-muted">Total tareas</small>
+        <div class="display-6">{{ total_tasks }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100 border-success">
+      <div class="card-body">
+        <small class="text-muted">Completadas</small>
+        <div class="display-6">{{ completed_tasks }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100 border-warning">
+      <div class="card-body">
+        <small class="text-muted">Alta prioridad</small>
+        <div class="display-6">{{ priority_counts|get_item:"Alta" }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100 border-primary">
+      <div class="card-body">
+        <small class="text-muted">Avance</small>
+        <div class="display-6">{{ completion_rate }}%</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="progress mb-4" role="progressbar" aria-label="Porcentaje completado" aria-valuenow="{{ completion_rate }}" aria-valuemin="0" aria-valuemax="100">
+  <div class="progress-bar bg-success" style="width: {{ completion_rate }}%">{{ completion_rate }}%</div>
+</div>
+
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link {% if not active_area %}active{% endif %}" href="{% url 'reports:detail' report.pk %}">Resumen semanal</a>
+  </li>
+  {% for area in areas %}
+    <li class="nav-item">
+      <a class="nav-link {% if active_area == area %}active{% endif %}" href="?area={{ area|urlencode }}">
+        {{ area }} <span class="badge bg-secondary">{{ area_counts|get_item:area }}</span>
+      </a>
+    </li>
+  {% endfor %}
+</ul>
+
+{% if not active_area %}
+  <div class="row g-3 mb-4">
+    {% for area in areas %}
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <small class="text-muted">{{ area }}</small>
+            <div class="h3 mb-0">{{ area_counts|get_item:area }}</div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="row g-3 mb-4">
+    {% for status, label in statuses %}
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <small class="text-muted">{{ label }}</small>
+            <div class="h4 mb-0">{{ status_counts|get_item:status }}</div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="bg-white border rounded p-3 h-100">
+        <h2 class="h5">Bloqueadas</h2>
+        {% for task in blocked_tasks %}
+          <div class="alert alert-danger py-2 mb-2">{{ task.task_name }}</div>
+        {% empty %}
+          <p class="text-muted mb-0">Sin tareas bloqueadas.</p>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="bg-white border rounded p-3 h-100">
+        <h2 class="h5">Alta prioridad</h2>
+        {% for task in high_priority_tasks %}
+          <div class="alert alert-warning py-2 mb-2">{{ task.task_name }}</div>
+        {% empty %}
+          <p class="text-muted mb-0">Sin tareas de alta prioridad.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {% for area, tasks in grouped_tasks.items %}
+    <h2 class="h5 mt-4">{{ area }}</h2>
+    {% include "reports/task_table.html" with tasks=tasks %}
+  {% empty %}
+    <div class="alert alert-info">Este reporte todavia no tiene tareas.</div>
+  {% endfor %}
+{% else %}
+  {% include "reports/task_table.html" with tasks=filtered_tasks %}
+{% endif %}
+{% endblock %}
+

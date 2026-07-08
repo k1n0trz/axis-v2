@@ -1,0 +1,30 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+  <div id="content-main">
+    <p>{{ description }}</p>
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {% csrf_token %}
+      <fieldset class="module aligned">
+        {% for field in form.visible_fields %}
+          <div class="form-row">
+            {{ field.errors }}
+            <div>
+              {{ field.label_tag }}
+              {{ field }}
+              {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+            </div>
+          </div>
+        {% endfor %}
+        {% for field in form.hidden_fields %}
+          {{ field }}
+        {% endfor %}
+      </fieldset>
+      <div class="submit-row">
+        <input type="submit" value="Importar Excel" class="default">
+        <a href="../" class="button cancel-link">Volver</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

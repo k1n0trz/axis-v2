@@ -1,0 +1,864 @@
+{% extends "reports/base.html" %}
+{% load report_extras %}
+
+{% block content %}
+<style>
+  .calendar-shell {
+    border: 1px solid rgba(154, 168, 194, .14);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(16, 24, 39, .98), rgba(9, 14, 24, .98));
+    overflow: hidden;
+    box-shadow: 0 22px 70px rgba(0, 0, 0, .24);
+  }
+  .calendar-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid rgba(154, 168, 194, .12);
+  }
+  .calendar-nav {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+  }
+  .calendar-nav a,
+  .calendar-create {
+    border: 1px solid rgba(154, 168, 194, .16);
+    background: rgba(255, 255, 255, .035);
+    color: #e9f2ff;
+    border-radius: 10px;
+    padding: .55rem .8rem;
+    text-decoration: none;
+    font-weight: 800;
+    font-size: .84rem;
+  }
+  .task-subnav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .65rem;
+    margin-bottom: 1rem;
+  }
+  .task-subnav a {
+    border: 1px solid rgba(154, 168, 194, .16);
+    background: rgba(255,255,255,.035);
+    color: #cbd7ee;
+    border-radius: 999px;
+    padding: .58rem .9rem;
+    text-decoration: none;
+    font-weight: 850;
+    font-size: .84rem;
+  }
+  .task-subnav a.active {
+    color: #effff4;
+    border-color: rgba(124, 243, 173, .3);
+    background: rgba(124, 243, 173, .11);
+    box-shadow: 0 0 0 1px rgba(124, 243, 173, .08);
+  }
+  .calendar-create {
+    border-color: rgba(124, 243, 173, .26);
+    background: rgba(124, 243, 173, .1);
+  }
+  .calendar-title {
+    color: #f8fbff;
+    font-size: clamp(1.15rem, 1.7vw, 1.7rem);
+    font-weight: 850;
+    line-height: 1;
+    margin: 0 .5rem;
+  }
+  .calendar-meta {
+    color: #93a4c2;
+    font-size: .82rem;
+    font-weight: 700;
+  }
+  .calendar-grid-wrap {
+    overflow: auto;
+    max-height: calc(100vh - 245px);
+  }
+  .calendar-grid {
+    min-width: 860px;
+    display: grid;
+    grid-template-columns: 70px repeat(5, minmax(150px, 1fr));
+    position: relative;
+  }
+  .calendar-corner,
+  .calendar-day-head {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    min-height: 72px;
+    border-bottom: 1px solid rgba(154, 168, 194, .14);
+    background: rgba(12, 19, 31, .98);
+  }
+  .calendar-corner {
+    left: 0;
+    z-index: 5;
+    display: grid;
+    place-content: end center;
+    padding-bottom: .55rem;
+    color: #7d8faa;
+    font-size: .72rem;
+    font-weight: 800;
+  }
+  .calendar-day-head {
+    display: grid;
+    place-items: center;
+    gap: .25rem;
+    border-left: 1px solid rgba(154, 168, 194, .12);
+  }
+  .calendar-day-head span {
+    color: #8ea0bd;
+    font-size: .7rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+  }
+  .calendar-day-head strong {
+    width: 42px;
+    height: 42px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 999px;
+    color: #f7fbff;
+    font-size: 1.35rem;
+  }
+  .calendar-day-head.today strong {
+    background: #2f7cf6;
+  }
+  .calendar-time {
+    min-height: 64px;
+    border-bottom: 1px solid rgba(154, 168, 194, .11);
+    background: rgba(9, 14, 24, .74);
+    color: #7f90aa;
+    font-size: .72rem;
+    font-weight: 800;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: .35rem .7rem 0 0;
+    position: sticky;
+    left: 0;
+    z-index: 2;
+  }
+  .calendar-day-column {
+    position: relative;
+    min-height: 1024px;
+    border-left: 1px solid rgba(154, 168, 194, .12);
+    background:
+      repeating-linear-gradient(to bottom, rgba(154, 168, 194, .105) 0 1px, transparent 1px 64px),
+      rgba(13, 20, 32, .54);
+  }
+  .calendar-slot {
+    height: 64px;
+    cursor: crosshair;
+    position: relative;
+  }
+  .calendar-slot:hover {
+    background: rgba(124, 243, 173, .055);
+  }
+  .calendar-event {
+    position: absolute;
+    left: 8px;
+    width: calc(100% - 16px);
+    min-height: 30px;
+    border: 1px solid rgba(96, 165, 250, .3);
+    border-left: 4px solid #60a5fa;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(47, 124, 246, .78), rgba(16, 185, 129, .34));
+    color: #f8fbff;
+    padding: .42rem .55rem;
+    font-size: .75rem;
+    line-height: 1.18;
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, .24);
+    cursor: grab;
+    z-index: 3;
+  }
+  .calendar-event.compact {
+    padding: .36rem .45rem;
+    font-size: .68rem;
+    border-left-width: 3px;
+  }
+  .calendar-event.compact .event-meta {
+    font-size: .62rem;
+    gap: .24rem;
+  }
+  .calendar-event:active { cursor: grabbing; }
+  .calendar-event.completed {
+    border-color: rgba(16, 185, 129, .3);
+    border-left-color: #10b981;
+    background: rgba(16, 185, 129, .22);
+    color: #cdeedd;
+  }
+  .calendar-event.canceled {
+    border-color: rgba(148, 163, 184, .2);
+    border-left-color: #64748b;
+    background: rgba(100, 116, 139, .2);
+    color: #b9c5d8;
+  }
+  .event-title {
+    font-weight: 850;
+    overflow-wrap: anywhere;
+  }
+  .event-meta {
+    display: flex;
+    gap: .4rem;
+    margin-top: .28rem;
+    color: rgba(239, 246, 255, .78);
+    font-size: .68rem;
+    font-weight: 700;
+  }
+  .calendar-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: none;
+    place-items: center;
+    background: rgba(4, 8, 15, .68);
+    backdrop-filter: blur(8px);
+  }
+  .calendar-modal-backdrop.open { display: grid; }
+  .calendar-modal {
+    width: min(560px, calc(100vw - 2rem));
+    border: 1px solid rgba(154, 168, 194, .18);
+    border-radius: 14px;
+    background: #101827;
+    box-shadow: 0 24px 90px rgba(0, 0, 0, .44);
+    padding: 1.1rem;
+  }
+  .calendar-modal h3 {
+    color: #f8fbff;
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+  }
+  .calendar-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .8rem;
+  }
+  .calendar-form-grid .span-2 { grid-column: 1 / -1; }
+  .calendar-modal label {
+    color: #9fb0cd;
+    font-size: .72rem;
+    font-weight: 800;
+    margin-bottom: .3rem;
+  }
+  .calendar-modal input,
+  .calendar-modal textarea,
+  .calendar-modal select {
+    width: 100%;
+    border: 1px solid rgba(154, 168, 194, .18);
+    border-radius: 9px;
+    background: rgba(4, 8, 15, .34);
+    color: #f8fbff;
+    padding: .62rem .72rem;
+    outline: none;
+  }
+  .calendar-modal textarea { min-height: 88px; resize: vertical; }
+  .calendar-modal-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: .7rem;
+    margin-top: 1rem;
+  }
+  .calendar-modal-actions button {
+    border: 1px solid rgba(154, 168, 194, .18);
+    border-radius: 9px;
+    padding: .62rem .9rem;
+    background: rgba(255,255,255,.04);
+    color: #e9f2ff;
+    font-weight: 800;
+  }
+  .calendar-modal-actions .primary {
+    border-color: rgba(124, 243, 173, .28);
+    background: rgba(124, 243, 173, .12);
+    color: #eafff2;
+  }
+  .status-actions {
+    display: flex;
+    gap: .45rem;
+    flex-wrap: wrap;
+  }
+  .agent-shell {
+    border: 1px solid rgba(154, 168, 194, .14);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(16, 24, 39, .98), rgba(9, 14, 24, .98));
+    box-shadow: 0 22px 70px rgba(0, 0, 0, .24);
+    padding: 1rem;
+  }
+  .agent-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: end;
+    margin-bottom: 1rem;
+  }
+  .agent-picker {
+    display: flex;
+    gap: .6rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .agent-picker a,
+  .agent-export-btn,
+  .agent-filter button {
+    border: 1px solid rgba(154, 168, 194, .16);
+    border-radius: 10px;
+    background: rgba(255,255,255,.035);
+    color: #e9f2ff;
+    padding: .55rem .75rem;
+    text-decoration: none;
+    font-size: .82rem;
+    font-weight: 800;
+  }
+  .agent-picker a.active,
+  .agent-export-btn {
+    border-color: rgba(124, 243, 173, .28);
+    background: rgba(124, 243, 173, .1);
+  }
+  .agent-filter {
+    display: flex;
+    gap: .55rem;
+    flex-wrap: wrap;
+    align-items: end;
+  }
+  .agent-filter label {
+    color: #9fb0cd;
+    font-size: .7rem;
+    font-weight: 850;
+    display: grid;
+    gap: .25rem;
+  }
+  .agent-filter input {
+    border: 1px solid rgba(154, 168, 194, .16);
+    border-radius: 9px;
+    background: rgba(4, 8, 15, .35);
+    color: #f8fbff;
+    padding: .52rem .65rem;
+  }
+  .agent-week {
+    border: 1px solid rgba(154, 168, 194, .13);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 1rem;
+    background: rgba(7, 12, 22, .5);
+  }
+  .agent-week-title {
+    background: linear-gradient(90deg, rgba(66, 18, 43, .96), rgba(22, 77, 100, .82));
+    color: #f8fbff;
+    text-align: center;
+    font-weight: 900;
+    padding: .58rem .8rem;
+    border-bottom: 1px solid rgba(124, 243, 173, .18);
+  }
+  .agent-week-body {
+    padding: 1rem;
+  }
+  .agent-week-overview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: .95rem 1rem;
+    border: 1px solid rgba(154, 168, 194, .12);
+    border-radius: 14px;
+    background: rgba(255,255,255,.03);
+  }
+  .agent-week-user {
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+    min-width: 0;
+  }
+  .agent-week-avatar {
+    width: 54px;
+    height: 54px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(124, 243, 173, .22);
+    background: linear-gradient(135deg, rgba(59,130,246,.92), rgba(34,211,238,.88));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 0 20px rgba(34, 211, 238, .14);
+  }
+  .agent-week-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .agent-week-avatar span {
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 900;
+  }
+  .agent-week-user h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 850;
+    color: #f8fbff;
+  }
+  .agent-week-user p {
+    margin: .15rem 0 0;
+    color: #8fa4c1;
+    font-size: .78rem;
+    font-weight: 700;
+  }
+  .agent-week-stats {
+    display: flex;
+    gap: .65rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .agent-week-stat {
+    min-width: 112px;
+    border: 1px solid rgba(154, 168, 194, .12);
+    border-radius: 12px;
+    background: rgba(255,255,255,.03);
+    padding: .65rem .8rem;
+  }
+  .agent-week-stat-label {
+    color: #8fa4c1;
+    font-size: .68rem;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .agent-week-stat-value {
+    color: #f8fbff;
+    font-size: 1rem;
+    font-weight: 900;
+    margin-top: .2rem;
+  }
+  .agent-task-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: .75rem;
+  }
+  .agent-task {
+    border: 1px solid rgba(96, 165, 250, .24);
+    border-left: 4px solid #60a5fa;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(47, 124, 246, .28), rgba(16, 185, 129, .13));
+    padding: .55rem .65rem;
+    color: #f8fbff;
+  }
+  .agent-task.completed {
+    border-color: rgba(16, 185, 129, .28);
+    border-left-color: #10b981;
+    background: rgba(16, 185, 129, .18);
+  }
+  .agent-task.canceled {
+    border-color: rgba(148, 163, 184, .18);
+    border-left-color: #64748b;
+    background: rgba(100, 116, 139, .16);
+  }
+  .agent-task-title {
+    font-size: .82rem;
+    font-weight: 850;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+  .agent-task-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-top: .35rem;
+    color: #9fb0cd;
+    font-size: .7rem;
+    font-weight: 800;
+  }
+  .agent-task-day {
+    color: #74c0fc;
+    font-size: .68rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: .28rem;
+  }
+  .agent-empty-day {
+    color: #73849e;
+    font-size: .78rem;
+    padding: .75rem 0;
+  }
+  @media (max-width: 760px) {
+    .calendar-toolbar { align-items: flex-start; flex-direction: column; }
+    .agent-toolbar { grid-template-columns: 1fr; }
+    .calendar-form-grid { grid-template-columns: 1fr; }
+    .calendar-form-grid .span-2 { grid-column: auto; }
+    .agent-week-overview {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .agent-week-stats {
+      justify-content: flex-start;
+    }
+  }
+</style>
+
+<div class="task-subnav">
+  <a class="{% if task_tab != 'agents' %}active{% endif %}" href="{% url 'reports:tasks' %}">Mi calendario</a>
+  {% if task_agents %}
+  <a class="{% if task_tab == 'agents' %}active{% endif %}" href="?tab=agents{% if selected_agent %}&agent={{ selected_agent.id }}{% endif %}">Tareas agentes</a>
+  {% endif %}
+</div>
+
+{% if task_tab == "agents" and task_agents %}
+<section class="agent-shell">
+  <div class="agent-toolbar">
+    <div>
+      <div class="calendar-meta mb-2">Agentes registrados</div>
+      <div class="agent-picker">
+        {% for agent in task_agents %}
+        <a class="{% if selected_agent and agent.id == selected_agent.id %}active{% endif %}" href="?tab=agents&agent={{ agent.id }}{% if agent_filter_start %}&desde={{ agent_filter_start }}{% endif %}{% if agent_filter_end %}&hasta={{ agent_filter_end }}{% endif %}">
+          {{ agent.get_full_name|default:agent.username }}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    <form class="agent-filter" method="get">
+      <input type="hidden" name="tab" value="agents">
+      {% if selected_agent %}<input type="hidden" name="agent" value="{{ selected_agent.id }}">{% endif %}
+      <label>Desde <input type="date" name="desde" value="{{ agent_filter_start }}"></label>
+      <label>Hasta <input type="date" name="hasta" value="{{ agent_filter_end }}"></label>
+      <button type="submit">Filtrar</button>
+      {% if selected_agent %}
+      <a class="agent-export-btn" href="{% url 'reports:task_agents_export' %}?{{ agent_export_query }}">Exportar Excel</a>
+      {% endif %}
+    </form>
+  </div>
+
+  {% if selected_agent %}
+  <div class="calendar-meta">
+    Viendo tareas de <strong>{{ selected_agent.get_full_name|default:selected_agent.username }}</strong>. La semana actual aparece primero.
+  </div>
+  {% endif %}
+
+  {% for week in agent_task_weeks %}
+  <article class="agent-week">
+    <div class="agent-week-title">{{ week.title }}</div>
+    <div class="agent-week-body">
+      <div class="agent-week-overview">
+        <div class="agent-week-user">
+          <div class="agent-week-avatar">
+            {% if selected_agent.profile.photo %}
+            <img src="{{ selected_agent.profile.photo.url }}" alt="{{ selected_agent.get_full_name|default:selected_agent.username }}">
+            {% else %}
+            <span>{{ selected_agent.username|slice:":1"|upper }}</span>
+            {% endif %}
+          </div>
+          <div>
+            <h3>{{ selected_agent.get_full_name|default:selected_agent.username }}</h3>
+            <p>Todas las tareas de la semana en una sola tarjeta, sin dividir por dias.</p>
+          </div>
+        </div>
+        <div class="agent-week-stats">
+          <div class="agent-week-stat">
+            <div class="agent-week-stat-label">Tareas</div>
+            <div class="agent-week-stat-value">{{ week.task_count }}</div>
+          </div>
+          <div class="agent-week-stat">
+            <div class="agent-week-stat-label">Horas</div>
+            <div class="agent-week-stat-value">{{ week.total_hours|floatformat:1 }} h</div>
+          </div>
+          <div class="agent-week-stat">
+            <div class="agent-week-stat-label">Realizadas</div>
+            <div class="agent-week-stat-value">{{ week.completed_count }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="agent-task-list">
+        {% for task in week.tasks %}
+        <div class="agent-task {{ task.status }}">
+          <div class="agent-task-day">{{ task.due_date|date:"l j" }}</div>
+          <div class="agent-task-title">{{ task.title }}</div>
+          <div class="agent-task-meta">
+            <span>{{ task.get_status_display }}</span>
+            <span>{{ task.registered_hours|floatformat:1 }} h</span>
+            {% if task.due_time %}<span>{{ task.due_time|time:"H:i" }}</span>{% endif %}
+            {% if task.attachments.count %}<span>{{ task.attachments.count }} adj.</span>{% endif %}
+            {% if task.task_links.count %}<span>{{ task.task_links.count }} link</span>{% endif %}
+          </div>
+        </div>
+        {% empty %}
+        <div class="agent-empty-day">Sin tareas en esta semana.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </article>
+  {% empty %}
+  <div class="empty-state p-4 text-muted">No hay tareas para este agente en el rango seleccionado.</div>
+  {% endfor %}
+</section>
+{% else %}
+<section class="calendar-shell">
+  <div class="calendar-toolbar">
+    <div class="calendar-nav">
+      <a href="?week={{ calendar_today }}">Hoy</a>
+      <a href="?week={{ calendar_prev }}" title="Semana anterior">&lsaquo;</a>
+      <a href="?week={{ calendar_next }}" title="Semana siguiente">&rsaquo;</a>
+      <h2 class="calendar-title">{{ calendar_title }}</h2>
+    </div>
+    <div class="calendar-nav">
+      <span class="calendar-meta">{{ calendar_start|date:"d/m/Y" }} - {{ calendar_end|date:"d/m/Y" }}</span>
+      <button class="calendar-create" type="button" id="openTaskModal">Crear tarea</button>
+    </div>
+  </div>
+
+  <div class="calendar-grid-wrap">
+    <div class="calendar-grid" id="taskCalendar">
+      <div class="calendar-corner">GMT-05</div>
+      {% for day in calendar_days %}
+      <div class="calendar-day-head {% if day.date == today %}today{% endif %}" data-date="{{ day.date|date:'Y-m-d' }}">
+        <span>{{ day.weekday }}</span>
+        <strong>{{ day.date|date:"j" }}</strong>
+      </div>
+      {% endfor %}
+
+      {% for hour in calendar_hours %}
+      <div class="calendar-time">{{ hour|stringformat:"02d" }}:00</div>
+      {% for day in calendar_days %}
+      <div class="calendar-slot" data-date="{{ day.date|date:'Y-m-d' }}" data-time="{{ hour|stringformat:'02d' }}:00"></div>
+      {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<div class="calendar-modal-backdrop" id="taskModal">
+  <form class="calendar-modal" id="taskForm">
+    {% csrf_token %}
+    <h3>Nueva tarea</h3>
+    <div class="calendar-form-grid">
+      <div class="span-2">
+        <label for="taskTitle">Titulo</label>
+        <input id="taskTitle" name="title" required maxlength="180" autocomplete="off">
+      </div>
+      <div>
+        <label for="taskDate">Fecha</label>
+        <input id="taskDate" name="due_date" type="date" required>
+      </div>
+      <div>
+        <label for="taskTime">Hora</label>
+        <input id="taskTime" name="due_time" type="time" required step="900">
+      </div>
+      <div>
+        <label for="taskHours">Horas</label>
+        <input id="taskHours" name="registered_hours" type="number" min="0.25" step="0.25" value="1">
+      </div>
+      <div>
+        <label for="taskStatus">Estado</label>
+        <select id="taskStatus" name="status">
+          <option value="pending">Pendiente</option>
+          <option value="in_progress">En proceso</option>
+          <option value="completed">Realizada</option>
+        </select>
+      </div>
+      {% if calendar_assignees|length > 1 %}
+      <div class="span-2">
+        <label for="taskAssignee">Responsable</label>
+        <select id="taskAssignee" name="assigned_to">
+          {% for assignee in calendar_assignees %}
+          <option value="{{ assignee.id }}">{{ assignee.get_full_name|default:assignee.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="span-2">
+        <label for="taskDescription">Descripcion</label>
+        <textarea id="taskDescription" name="description"></textarea>
+      </div>
+      <div class="span-2">
+        <label for="taskLinks">Enlaces</label>
+        <textarea id="taskLinks" name="links" placeholder="Un enlace por linea"></textarea>
+      </div>
+    </div>
+    <div class="calendar-modal-actions">
+      <div class="status-actions" id="modalStatusActions"></div>
+      <div>
+        <button type="button" id="closeTaskModal">Cancelar</button>
+        <button type="submit" class="primary">Guardar</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+(() => {
+  const tasks = {{ calendar_tasks_json|safe }};
+  const createUrl = "{% url 'reports:task_calendar_create' %}";
+  const updateUrlTemplate = "{% url 'reports:task_calendar_update' 0 %}";
+  const moveUrlTemplate = "{% url 'reports:task_calendar_move' 0 %}";
+  const statusUrlTemplate = "{% url 'reports:task_calendar_status' 0 %}";
+  const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+  const slots = [...document.querySelectorAll('.calendar-slot')];
+  const modal = document.getElementById('taskModal');
+  const form = document.getElementById('taskForm');
+  const statusActions = document.getElementById('modalStatusActions');
+  const slotHeight = 64;
+  const firstHour = 8;
+  let activeTask = null;
+
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  }
+
+  function minutesToTop(hour, minute) {
+    return ((hour - firstHour) * slotHeight) + ((minute || 0) / 60 * slotHeight);
+  }
+
+  function normalizeSlotTime(baseTime, y) {
+    const baseHour = Number(String(baseTime || '08:00').slice(0, 2));
+    const minute = Math.min(45, Math.max(0, Math.round((y / slotHeight) * 4) * 15));
+    const hour = Math.min(21, baseHour);
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  }
+
+  function slotKey(task) {
+    return `${task.date}|${Number(task.hour || 8)}`;
+  }
+
+  function renderTask(task, index = 0, count = 1) {
+    const slot = slots.find(item => item.dataset.date === task.date && Number(item.dataset.time.slice(0, 2)) === Number(task.hour || 8));
+    if (!slot) return;
+    const stacked = count > 1;
+    const event = document.createElement('article');
+    event.className = `calendar-event ${task.status || ''} ${stacked ? 'compact' : ''}`;
+    event.draggable = true;
+    event.dataset.id = task.id;
+    event.style.left = '8px';
+    event.style.width = 'calc(100% - 16px)';
+    event.style.top = `${(((task.minute || 0) / 60) * slotHeight) + (stacked ? index * 44 : 0)}px`;
+    event.style.height = stacked ? '38px' : `${Math.max(30, (Number(task.duration || 1) * slotHeight) - 5)}px`;
+    event.innerHTML = `
+      <div class="event-title">${escapeHtml(task.title)}</div>
+      <div class="event-meta"><span>${escapeHtml(task.time)}</span><span>${Number(task.hours || 0).toFixed(1)} h</span><span>${escapeHtml(task.status_label)}</span></div>
+    `;
+    event.addEventListener('click', ev => {
+      ev.stopPropagation();
+      openModal(task);
+    });
+    event.addEventListener('dragstart', ev => {
+      ev.dataTransfer.setData('text/plain', task.id);
+    });
+    slot.appendChild(event);
+  }
+
+  function renderAll() {
+    slots.forEach(slot => slot.innerHTML = '');
+    const grouped = tasks.reduce((acc, task) => {
+      const key = slotKey(task);
+      acc[key] = acc[key] || [];
+      acc[key].push(task);
+      return acc;
+    }, {});
+    Object.values(grouped).forEach(group => {
+      group
+        .sort((a, b) => String(a.time).localeCompare(String(b.time)) || String(a.title).localeCompare(String(b.title)))
+        .forEach((task, index) => renderTask(task, index, group.length));
+    });
+  }
+
+  function openModal(task = null, date = '', time = '08:00') {
+    activeTask = task;
+    form.reset();
+    form.elements.title.value = task?.title || '';
+    form.elements.due_date.value = task?.date || date;
+    form.elements.due_time.value = task?.time || time;
+    form.elements.registered_hours.value = task?.hours || 1;
+    form.elements.status.value = task?.status || 'pending';
+    form.elements.description.value = task?.description || '';
+    form.elements.links.value = task?.links || '';
+    statusActions.innerHTML = '';
+    if (task) {
+      [
+        ['pending', 'Pendiente'],
+        ['in_progress', 'En proceso'],
+        ['completed', 'Realizada']
+      ].forEach(([status, label]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.addEventListener('click', () => updateStatus(task.id, status));
+        statusActions.appendChild(button);
+      });
+    }
+    modal.classList.add('open');
+    setTimeout(() => form.title.focus(), 50);
+  }
+
+  function closeModal() {
+    modal.classList.remove('open');
+    activeTask = null;
+  }
+
+  async function postForm(url, data) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf },
+      body: data
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error || 'No se pudo guardar.');
+    return payload.task;
+  }
+
+  async function updateStatus(id, status) {
+    const data = new FormData();
+    data.append('status', status);
+    const updated = await postForm(statusUrlTemplate.replace('/0/', `/${id}/`), data);
+    const index = tasks.findIndex(task => String(task.id) === String(id));
+    if (index >= 0) tasks[index] = updated;
+    renderAll();
+    closeModal();
+  }
+
+  slots.forEach(slot => {
+    slot.addEventListener('click', () => openModal(null, slot.dataset.date, slot.dataset.time));
+    slot.addEventListener('dragover', event => event.preventDefault());
+    slot.addEventListener('drop', async event => {
+      event.preventDefault();
+      const id = event.dataTransfer.getData('text/plain');
+      const rect = slot.getBoundingClientRect();
+      const data = new FormData();
+      data.append('due_date', slot.dataset.date);
+      data.append('due_time', normalizeSlotTime(slot.dataset.time, event.clientY - rect.top));
+      const updated = await postForm(moveUrlTemplate.replace('/0/', `/${id}/`), data);
+      const index = tasks.findIndex(task => String(task.id) === String(id));
+      if (index >= 0) tasks[index] = updated;
+      renderAll();
+    });
+  });
+
+  document.getElementById('openTaskModal')?.addEventListener('click', () => {
+    const todaySlot = slots.find(slot => slot.dataset.date === new Date().toISOString().slice(0, 10) && slot.dataset.time === '08:00') || slots[0];
+    openModal(null, todaySlot?.dataset.date || '', todaySlot?.dataset.time || '08:00');
+  });
+  document.getElementById('closeTaskModal')?.addEventListener('click', closeModal);
+  modal.addEventListener('click', event => {
+    if (event.target === modal) closeModal();
+  });
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (activeTask) {
+      const updated = await postForm(updateUrlTemplate.replace('/0/', `/${activeTask.id}/`), new FormData(form));
+      const index = tasks.findIndex(task => String(task.id) === String(activeTask.id));
+      if (index >= 0) tasks[index] = updated;
+    } else {
+      const created = await postForm(createUrl, new FormData(form));
+      tasks.push(created);
+    }
+    renderAll();
+    closeModal();
+  });
+
+  renderAll();
+})();
+</script>
+{% endif %}
+{% endblock %}

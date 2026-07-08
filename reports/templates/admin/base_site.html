@@ -1,0 +1,22 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'admin/axis-admin.css' %}">
+  <link rel="stylesheet" href="{% static 'admin/password_toggle.css' %}">
+{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <link rel="icon" type="image/png" href="{% static 'branding/favicon.png' %}">
+  <script src="{% static 'admin/password_toggle.js' %}" defer></script>
+{% endblock %}
+
+{% block branding %}
+<div class="axis-admin-brand">
+  <img class="axis-admin-brand-logo" src="{% static 'branding/logo-helti.png' %}" alt="Helti">
+</div>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

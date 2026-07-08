@@ -1,0 +1,12 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+    {% if opts.model_name != 'usertask' and opts.model_name != 'marketplacesale' and opts.model_name != 'baliwhatsappsale' and opts.model_name != 'comfamasale' and opts.model_name != 'dailyadspend' %}
+        <li>
+            <a href="exportar-excel-universal/?{{ request.GET.urlencode }}" class="viewlink">
+                Exportar Excel (Filtros)
+            </a>
+        </li>
+    {% endif %}
+    {{ block.super }}
+{% endblock %}

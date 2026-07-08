@@ -1,0 +1,306 @@
+html[data-theme="light"], :root {
+  --axis-bg: #0b1018;
+  --axis-surface: #131b2c;
+  --axis-surface-2: #182234;
+  --axis-border: rgba(154, 168, 194, 0.16);
+  --axis-text: #edf4ff;
+  --axis-text-muted: #97a7c4;
+  --axis-accent: #7cf3ad;
+  --axis-accent-2: #60a5fa;
+  --axis-danger: #f87171;
+}
+
+body,
+#container,
+#content,
+.dashboard #content {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(96, 165, 250, 0.12), transparent 22%),
+    linear-gradient(180deg, #090e15 0%, #0d1320 100%) !important;
+  color: var(--axis-text) !important;
+}
+
+#header {
+  background: rgba(10, 15, 24, 0.94) !important;
+  color: var(--axis-text) !important;
+  border-bottom: 1px solid var(--axis-border);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
+}
+
+#branding h1, #branding h1 a:link, #branding h1 a:visited,
+.module caption, .module h2, .inline-group h2,
+div.breadcrumbs, .object-tools a, .button, input[type=submit], input[type=button], .submit-row input {
+  color: var(--axis-text) !important;
+}
+
+div.breadcrumbs {
+  background: rgba(14, 21, 34, 0.88) !important;
+  border-bottom: 1px solid var(--axis-border);
+}
+
+#user-tools, #user-tools a, #user-tools button {
+  color: var(--axis-text-muted) !important;
+}
+
+.axis-admin-brand {
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+}
+
+.axis-admin-brand-logo {
+  display: block;
+  width: 116px;
+  height: auto;
+}
+
+.axis-admin-brand-title {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.axis-admin-brand-copy {
+  color: var(--axis-text-muted);
+  font-size: .78rem;
+}
+
+.module,
+#changelist,
+.submit-row,
+fieldset,
+.inline-group,
+.results,
+.paginator,
+.selector,
+.messagelist li,
+.dashboard .module {
+  background: linear-gradient(180deg, rgba(19, 27, 44, 0.96) 0%, rgba(15, 22, 35, 0.98) 100%) !important;
+  border: 1px solid var(--axis-border) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 35px rgba(0, 0, 0, 0.18);
+}
+
+.module caption,
+.module h2,
+.inline-group h2 {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(154, 168, 194, 0.1);
+  font-size: .92rem;
+  letter-spacing: .02em;
+}
+
+input, textarea, select, .vTextField, .vLargeTextField, .vURLField, .vIntegerField, .vDateField, .vTimeField {
+  background: rgba(10, 15, 24, 0.86) !important;
+  color: var(--axis-text) !important;
+  border: 1px solid rgba(154, 168, 194, 0.16) !important;
+  border-radius: 10px !important;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: rgba(124, 243, 173, 0.46) !important;
+  box-shadow: 0 0 0 3px rgba(124, 243, 173, 0.1) !important;
+}
+
+th, td, .results th, .results td, .row1, .row2, .form-row, .aligned label, .help {
+  color: var(--axis-text) !important;
+  border-color: rgba(154, 168, 194, 0.1) !important;
+}
+
+th, .results th {
+  background: rgba(255, 255, 255, 0.02) !important;
+  color: #c7d5ee !important;
+}
+
+#content-main,
+#changelist .changelist-form-container,
+#changelist .results,
+#result_list,
+#result_list tbody,
+#result_list thead {
+  background: transparent !important;
+}
+
+#result_list tbody tr,
+#result_list tbody tr.row1,
+#result_list tbody tr.row2 {
+  background: rgba(15, 22, 35, .98) !important;
+}
+
+#result_list tbody tr:nth-child(even),
+#result_list tbody tr.row2 {
+  background: rgba(20, 29, 46, .98) !important;
+}
+
+#result_list tbody tr:hover {
+  background: rgba(34, 47, 70, .98) !important;
+}
+
+#result_list tbody td,
+#result_list tbody th,
+#result_list tbody td.field-__str__,
+#result_list tbody th.field-__str__ {
+  background: transparent !important;
+  color: #dbe7fb !important;
+}
+
+#result_list tbody a:link,
+#result_list tbody a:visited {
+  color: #cfe3ff !important;
+  font-weight: 600;
+}
+
+#nav-sidebar,
+#nav-sidebar .module,
+#nav-sidebar table,
+#nav-sidebar tbody,
+#nav-sidebar tr,
+#nav-sidebar td,
+#nav-sidebar th {
+  background: #101827 !important;
+  color: #d6e4fb !important;
+}
+
+#nav-sidebar .current-model,
+#nav-sidebar .current-model td,
+#nav-sidebar .current-model th {
+  background: rgba(124, 243, 173, .12) !important;
+}
+
+#nav-sidebar a:link,
+#nav-sidebar a:visited {
+  color: #d6e4fb !important;
+}
+
+#toolbar,
+#toolbar form,
+#changelist-form .actions,
+#changelist .paginator {
+  background: rgba(15, 22, 35, .98) !important;
+  color: var(--axis-text) !important;
+}
+
+a:link, a:visited {
+  color: #d8e8ff;
+}
+
+a:hover {
+  color: #ffffff;
+}
+
+.button, input[type=submit], input[type=button], .submit-row input, .object-tools a {
+  background: rgba(12, 19, 31, 0.94) !important;
+  border: 1px solid rgba(124, 243, 173, 0.34) !important;
+  border-radius: 999px !important;
+  box-shadow: inset 0 0 0 1px rgba(124, 243, 173, 0.06);
+  transition: .18s ease;
+}
+
+.button:hover, input[type=submit]:hover, input[type=button]:hover, .submit-row input:hover, .object-tools a:hover {
+  background: rgba(10, 15, 24, 0.98) !important;
+  border-color: rgba(124, 243, 173, 0.88) !important;
+  box-shadow: 0 0 0 1px rgba(124, 243, 173, 0.22), 0 0 18px rgba(124, 243, 173, 0.16);
+}
+
+#changelist-filter,
+#changelist-filter h2 {
+  background: transparent !important;
+}
+
+#changelist-filter {
+  border-left: 1px solid rgba(154, 168, 194, 0.12);
+}
+
+#changelist-filter a, #changelist-filter li {
+  color: var(--axis-text-muted) !important;
+}
+
+#changelist-filter li.selected a {
+  color: var(--axis-text) !important;
+}
+
+.axis-admin-dashboard {
+  margin-bottom: 1.5rem;
+}
+
+.axis-admin-summary,
+.axis-admin-card-grid,
+.axis-admin-two-col {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.axis-admin-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.axis-admin-card-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.axis-admin-two-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.axis-admin-summary-card,
+.axis-admin-card,
+.axis-admin-panel {
+  padding: 1rem 1.05rem;
+  border-radius: 16px;
+  border: 1px solid var(--axis-border);
+  background: linear-gradient(180deg, rgba(20, 28, 43, 0.96) 0%, rgba(16, 23, 37, 0.98) 100%);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.18);
+}
+
+.axis-admin-summary-label,
+.axis-admin-card-label {
+  color: var(--axis-text-muted);
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.axis-admin-summary-card strong,
+.axis-admin-card-value {
+  display: block;
+  color: var(--axis-text);
+  font-size: 1.8rem;
+  font-weight: 800;
+  line-height: 1.05;
+  margin-top: .4rem;
+}
+
+.axis-admin-card-meta {
+  margin-top: .55rem;
+  color: var(--axis-text-muted);
+  font-size: .84rem;
+}
+
+.axis-admin-panel h2 {
+  margin: 0 0 .85rem;
+  font-size: 1rem;
+  color: var(--axis-text);
+}
+
+.axis-admin-list {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--axis-text-muted);
+}
+
+.axis-admin-list li + li {
+  margin-top: .55rem;
+}
+
+.axis-admin-list-tight strong {
+  color: var(--axis-text);
+}
+
+@media (max-width: 1024px) {
+  .axis-admin-summary,
+  .axis-admin-card-grid,
+  .axis-admin-two-col {
+    grid-template-columns: 1fr;
+  }
+}

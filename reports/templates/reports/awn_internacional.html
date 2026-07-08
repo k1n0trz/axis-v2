@@ -1,0 +1,233 @@
+{% extends "reports/base.html" %}
+{% load report_extras %}
+{% block content %}
+<style>
+  .awn-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .awn-chart-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(340px, .7fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .awn-insight-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .8rem;
+  }
+  @media (max-width: 1400px) {
+    .awn-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (max-width: 992px) {
+    .awn-kpi-grid,
+    .awn-chart-grid,
+    .awn-insight-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="awn-kpi-grid">
+  <div class="kpi-card p-3">
+    <small class="text-muted">Visitas al perfil</small>
+    <div class="kpi-value">{{ awn_snapshot.kpis.profile_visits|floatformat:0 }}</div>
+  </div>
+  <div class="kpi-card p-3">
+    <small class="text-muted">Nuevos seguidores</small>
+    <div class="kpi-value">{{ awn_snapshot.kpis.new_followers|floatformat:0 }}</div>
+  </div>
+  <div class="kpi-card p-3">
+    <small class="text-muted">Inversion</small>
+    <div class="kpi-value">{{ awn_snapshot.kpis.spend_total|cop }}</div>
+  </div>
+  <div class="kpi-card p-3">
+    <small class="text-muted">CPR promedio</small>
+    <div class="kpi-value">{{ awn_snapshot.kpis.average_cpr|cop }}</div>
+  </div>
+  <div class="kpi-card p-3">
+    <small class="text-muted">CPS promedio</small>
+    <div class="kpi-value">{{ awn_snapshot.kpis.average_cps|cop }}</div>
+  </div>
+  <div class="kpi-card p-3">
+    <small class="text-muted">% visita a seguidor</small>
+    <div class="kpi-value">{{ awn_snapshot.kpis.follow_rate|percent_value }}</div>
+  </div>
+</div>
+
+<div class="awn-chart-grid">
+  <div class="surface-card p-3 p-lg-4">
+    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+      <div>
+        <div class="section-title">Seguidores, inversion y CPS diario</div>
+        <div class="panel-subtitle">Lectura diaria del pais filtrado o consolidada entre Ecuador y Mexico.</div>
+      </div>
+    </div>
+    <div class="chart-box chart-box-lg"><canvas id="awnDailyChart"></canvas></div>
+  </div>
+  <div class="surface-card p-3 p-lg-4">
+    <div class="section-title mb-2">Distribucion por pais</div>
+    <div class="panel-subtitle mb-3">Participacion de seguidores conseguidos por mercado.</div>
+    <div class="chart-box"><canvas id="awnCountryPieChart"></canvas></div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-7">
+    <div class="surface-card p-3 p-lg-4 h-100">
+      <div class="section-title mb-2">Rendimiento por pais</div>
+      <div class="panel-subtitle mb-3">Comparativo de visitas, seguidores e inversion.</div>
+      <div class="chart-box"><canvas id="awnCountryChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="surface-card p-3 p-lg-4 h-100">
+      <div class="section-title mb-3">Insights automaticos</div>
+      <div class="awn-insight-grid">
+        {% include "reports/includes/insights.html" with insight_rows=awn_snapshot.insight_cards %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+const awnCountries = {{ awn_countries_json|safe }};
+const awnDaily = {{ awn_daily_json|safe }};
+
+function formatCop(value) {
+  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value || 0);
+}
+
+function compactMoney(value) {
+  return new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0);
+}
+
+function replaceWithEmpty(canvas, message) {
+  const box = canvas.closest('.chart-box');
+  if (box) box.innerHTML = `<div class="empty-state p-4 text-muted">${message}</div>`;
+}
+
+function baseOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 450, easing: 'easeOutQuart' },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { position: 'bottom', labels: { color: '#cbd7ee', boxWidth: 12, boxHeight: 12, usePointStyle: true } },
+      tooltip: {
+        backgroundColor: 'rgba(9, 14, 24, 0.96)',
+        borderColor: 'rgba(96, 165, 250, 0.22)',
+        borderWidth: 1,
+        padding: 12,
+        titleColor: '#f7fbff',
+        bodyColor: '#dce8ff'
+      }
+    },
+    scales: {
+      x: { ticks: { color: '#95a6c4', maxRotation: 0, autoSkip: true }, grid: { display: false } },
+      y: { ticks: { color: '#95a6c4', callback: compactMoney }, grid: { color: 'rgba(154,168,194,.12)' } }
+    }
+  };
+}
+
+function renderDaily() {
+  const canvas = document.getElementById('awnDailyChart');
+  if (!canvas) return;
+  if (!awnDaily.length) return replaceWithEmpty(canvas, 'Sin datos de seguidores para graficar.');
+  const options = baseOptions();
+  options.scales.y.title = { display: true, text: 'Seguidores / COP', color: '#95a6c4' };
+  options.scales.y1 = {
+    position: 'right',
+    ticks: { color: '#fca5a5', callback: value => formatCop(value).replace('COP', '').trim() },
+    grid: { drawOnChartArea: false },
+    title: { display: true, text: 'CPS', color: '#fca5a5' }
+  };
+  options.plugins.tooltip.callbacks = {
+    label(context) {
+      return context.dataset.label === 'CPS' ? `CPS: ${formatCop(context.raw)}` : `${context.dataset.label}: ${context.dataset.label === 'Inversion' ? formatCop(context.raw) : Number(context.raw || 0)}`;
+    }
+  };
+  new Chart(canvas, {
+    data: {
+      labels: awnDaily.map(item => item.label),
+      datasets: [
+        { type: 'bar', label: 'Seguidores', data: awnDaily.map(item => item.followers), backgroundColor: 'rgba(124, 243, 173, .72)', borderRadius: 7, yAxisID: 'y' },
+        { type: 'bar', label: 'Inversion', data: awnDaily.map(item => item.spend), backgroundColor: 'rgba(96, 165, 250, .72)', borderRadius: 7, yAxisID: 'y' },
+        { type: 'line', label: 'CPS', data: awnDaily.map(item => item.cps), borderColor: '#f87171', backgroundColor: '#f87171', borderWidth: 3, pointRadius: 3, tension: .32, yAxisID: 'y1' }
+      ]
+    },
+    options
+  });
+}
+
+function renderCountry() {
+  const canvas = document.getElementById('awnCountryChart');
+  if (!canvas) return;
+  if (!awnCountries.length) return replaceWithEmpty(canvas, 'Sin paises para comparar.');
+  const options = baseOptions();
+  options.indexAxis = 'y';
+  options.scales.x = { ticks: { color: '#95a6c4', callback: compactMoney }, grid: { color: 'rgba(154,168,194,.12)' } };
+  options.scales.y = { ticks: { color: '#dbe7ff' }, grid: { display: false } };
+  options.plugins.tooltip.callbacks = {
+    label(context) {
+      const row = awnCountries[context.dataIndex] || {};
+      if (context.dataset.label === 'Inversion') return `Inversion: ${formatCop(context.raw)} | CPS ${formatCop(row.cps || 0)}`;
+      return `${context.dataset.label}: ${Number(context.raw || 0)} | CPR ${formatCop(row.cpr || 0)}`;
+    }
+  };
+  new Chart(canvas, {
+    data: {
+      labels: awnCountries.map(item => item.label),
+      datasets: [
+        { type: 'bar', label: 'Seguidores', data: awnCountries.map(item => item.followers), backgroundColor: '#7cf3ad', borderRadius: 7 },
+        { type: 'bar', label: 'Inversion', data: awnCountries.map(item => item.spend), backgroundColor: '#60a5fa', borderRadius: 7 }
+      ]
+    },
+    options
+  });
+}
+
+function renderPie() {
+  const canvas = document.getElementById('awnCountryPieChart');
+  if (!canvas) return;
+  if (!awnCountries.length) return replaceWithEmpty(canvas, 'Sin datos por pais para graficar.');
+  new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: awnCountries.map(item => item.label),
+      datasets: [{
+        data: awnCountries.map(item => item.followers),
+        backgroundColor: ['#7cf3ad', '#60a5fa'],
+        borderColor: 'rgba(13, 20, 32, .96)',
+        borderWidth: 3,
+        hoverOffset: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#cbd7ee', boxWidth: 12, boxHeight: 12, usePointStyle: true } },
+        tooltip: {
+          callbacks: {
+            label(context) {
+              const row = awnCountries[context.dataIndex] || {};
+              return `${row.label}: ${row.followers || 0} seguidores | ${formatCop(row.spend || 0)}`;
+            }
+          }
+        }
+      },
+      cutout: '62%'
+    }
+  });
+}
+
+renderDaily();
+renderCountry();
+renderPie();
+})();
+</script>
+{% endblock %}

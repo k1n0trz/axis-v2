@@ -1,0 +1,37 @@
+.axis-rich-hidden-source {
+  display: none !important;
+}
+
+.axis-rich-editor {
+  max-width: 760px;
+}
+
+.axis-rich-toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.axis-rich-toolbar button {
+  min-width: 34px;
+  height: 30px;
+  border: 1px solid var(--border-color, #555);
+  border-radius: 6px;
+  background: var(--darkened-bg, #111);
+  color: var(--body-fg, #fff);
+  font-weight: 700;
+}
+
+.axis-rich-editor-surface {
+  min-height: 150px;
+  border: 1px solid var(--border-color, #555);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--body-bg, #111);
+  color: var(--body-fg, #fff);
+}
+
+.axis-rich-editor-surface:focus {
+  outline: 2px solid var(--primary, #79aec8);
+  outline-offset: 1px;
+}

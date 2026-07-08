@@ -1,0 +1,34 @@
+{
+  "rules": [
+    { "match": "copa menstrual", "category": "copa-menstrual" },
+    { "match": "copa", "category": "copa-menstrual" },
+    { "match": "copas", "category": "copa-menstrual" },
+    { "match": "disco", "category": "disco-menstrual" },
+    { "match": "panties", "category": "panties-menstruales" },
+    { "match": "bolas kegel", "category": "bolas-kegel-uva" },
+    { "match": "kegel", "category": "bolas-kegel-uva" },
+    { "match": "lubricante", "category": "lubricantes" },
+    { "match": "dilatador", "category": "dilatadores-vaginales" },
+    { "match": "hidratante", "category": "hidratante-intimo-uva" },
+    { "match": "kits", "category": "kits" },
+    { "match": "ofertas verano", "category": "ofertas" },
+    { "match": "megaprima", "category": "ofertas" },
+    { "match": "allways on", "category": "ofertas" },
+    { "match": "ofertas", "category": "ofertas" },
+    { "match": "cubrepezones sin adhesivo", "category": "cubrepezones-sin-adhesivo" },
+    { "match": "cubrepezones sin adhesivos", "category": "cubrepezones-sin-adhesivo" },
+    { "match": "sin adhesivo", "category": "cubrepezones-sin-adhesivo" },
+    { "match": "sin adhesivos", "category": "cubrepezones-sin-adhesivo" },
+    { "match": "cubrepezones", "category": "cubrepezones" }
+  ],
+  "country_rules": {
+    "CO": {
+      "rules": [
+        { "match": "ventas  | adv", "category": "copa-menstrual" },
+        { "match": "ventas | rmk", "category": "copa-menstrual" },
+        { "match": "ventas | 1%", "category": "copa-menstrual" },
+        { "match": "ventas | ugc", "category": "copa-menstrual" }
+      ]
+    }
+  }
+}

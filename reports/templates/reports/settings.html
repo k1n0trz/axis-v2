@@ -1,0 +1,167 @@
+{% extends "reports/base.html" %}
+{% block content %}
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="surface-card p-4 h-100">
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+          <div class="section-title">Crear marca</div>
+          <p class="text-muted mb-0">Registra una marca y asociale los canales que ya existan.</p>
+        </div>
+        <span class="badge text-bg-light">{{ business_units|length }} marcas</span>
+      </div>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_brand">
+        <div class="mb-3">
+          <label class="form-label" for="{{ business_unit_form.name.id_for_label }}">{{ business_unit_form.name.label }}</label>
+          {{ business_unit_form.name }}
+          {% for error in business_unit_form.name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ business_unit_form.description.id_for_label }}">{{ business_unit_form.description.label }}</label>
+          {{ business_unit_form.description }}
+          <div class="form-text">Maximo 500 caracteres.</div>
+          {% for error in business_unit_form.description.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ business_unit_form.assigned_channels.id_for_label }}">{{ business_unit_form.assigned_channels.label }}</label>
+          {{ business_unit_form.assigned_channels }}
+          <div class="form-text">Puedes reasignar canales existentes a esta marca.</div>
+          {% for error in business_unit_form.assigned_channels.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar marca</button>
+      </form>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="surface-card p-4 h-100">
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+          <div class="section-title">Crear canal</div>
+          <p class="text-muted mb-0">Cada canal puede quedar asociado a una marca y tener su logo.</p>
+        </div>
+        <span class="badge text-bg-light">{{ channels|length }} canales</span>
+      </div>
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_channel">
+        <div class="mb-3">
+          <label class="form-label" for="{{ channel_form.name.id_for_label }}">{{ channel_form.name.label }}</label>
+          {{ channel_form.name }}
+          {% for error in channel_form.name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ channel_form.description.id_for_label }}">{{ channel_form.description.label }}</label>
+          {{ channel_form.description }}
+          {% for error in channel_form.description.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ channel_form.business_unit.id_for_label }}">{{ channel_form.business_unit.label }}</label>
+          {{ channel_form.business_unit }}
+          {% for error in channel_form.business_unit.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ channel_form.logo.id_for_label }}">{{ channel_form.logo.label }}</label>
+          {{ channel_form.logo }}
+          {% if channel_form.logo.help_text %}<div class="form-text">{{ channel_form.logo.help_text }}</div>{% endif %}
+          {% for error in channel_form.logo.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar canal</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-5">
+    <div class="surface-card p-4 h-100">
+      <div class="section-title mb-3">Marcas registradas</div>
+      {% if business_units %}
+        <div class="d-grid gap-3">
+          {% for item in business_units %}
+            <div class="border rounded-3 p-3">
+              <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+                <div>
+                  <div class="fw-semibold">{{ item.name }}</div>
+                  <div class="small text-muted">{{ item.slug }}</div>
+                </div>
+                <span class="badge {% if item.is_active %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+                  {% if item.is_active %}Activa{% else %}Inactiva{% endif %}
+                </span>
+              </div>
+              <p class="text-muted small mb-2">{{ item.description|default:"Sin descripcion registrada." }}</p>
+              <div class="small">
+                <strong>Canales:</strong>
+                {% for channel in item.channels.all %}
+                  <span class="badge text-bg-light me-1 mb-1">{{ channel.name }}</span>
+                {% empty %}
+                  <span class="text-muted">Sin canales asignados.</span>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-muted mb-0">Todavia no hay marcas creadas.</p>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="surface-card p-4 h-100">
+      <div class="section-title mb-3">Canales registrados</div>
+      {% if channels %}
+        <div class="d-grid gap-3">
+          {% for item in channels %}
+            <div class="border rounded-3 p-3">
+              <div class="d-flex align-items-center gap-3">
+                <div class="flex-shrink-0 bg-white border rounded-3 d-flex align-items-center justify-content-center" style="width:72px;height:72px;">
+                  {% if item.logo %}
+                    <img src="{{ item.logo.url }}" alt="Logo {{ item.name }}" style="max-width:64px;max-height:64px;" />
+                  {% else %}
+                    <span class="small text-muted text-center px-2">Sin logo</span>
+                  {% endif %}
+                </div>
+                <div class="flex-grow-1">
+                  <div class="fw-semibold">{{ item.name }}</div>
+                  <div class="small text-muted">{{ item.business_unit.name|default:"Sin marca" }}</div>
+                  <div class="small text-muted mt-1">{{ item.description|default:"Sin descripcion registrada." }}</div>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-muted mb-0">Todavia no hay canales creados.</p>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-xl-3">
+    <div class="surface-card p-4 h-100">
+      <div class="section-title mb-3">Otros catalogos</div>
+      <div class="mb-4">
+        <div class="fw-semibold mb-2">Paises</div>
+        {% for item in countries %}
+          <div class="d-flex justify-content-between py-1 small">
+            <span>{{ item.name }}</span>
+            <span class="badge text-bg-light">{{ item.code }}</span>
+          </div>
+        {% empty %}
+          <div class="text-muted small">Sin paises registrados.</div>
+        {% endfor %}
+      </div>
+      <div>
+        <div class="fw-semibold mb-2">Productos</div>
+        {% for item in products %}
+          <div class="d-flex justify-content-between py-1 small">
+            <span>{{ item.name }}</span>
+            <span class="badge text-bg-light">{{ item.business_unit.name|default:"-" }}</span>
+          </div>
+        {% empty %}
+          <div class="text-muted small">Sin productos registrados.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

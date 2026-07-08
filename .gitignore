@@ -1,0 +1,47 @@
+﻿# Local secrets and environment
+.env
+.env.*
+!.env.example
+*.env
+docs/env-proceso.txt
+docs/apis-microsoft.txt
+
+# Local databases and generated data
+db.sqlite3
+*.sqlite3
+*.sqlite
+*.db
+data/
+!data/.gitkeep
+
+# Generated/static build output
+staticfiles/
+media/
+uploads/
+img-tempo/
+
+# Python
+.venv/
+venv/
+env/
+axis/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs and local scratch files
+*.log
+*.tmp
+tmp_write_probe.txt
+
+# Tooling/local metadata
+.codex_*
+.tools/
+.vscode/
+.idea/
+

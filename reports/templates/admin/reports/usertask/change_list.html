@@ -1,0 +1,31 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+  {{ block.super }}
+  <li>
+    <form method="get" action="exportar-excel/" class="axis-task-export-form">
+      {{ export_date_form.desde }}
+      {{ export_date_form.hasta }}
+      <button type="submit" class="button">Exportar Excel</button>
+    </form>
+  </li>
+  <style>
+    .axis-task-export-form {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 6px;
+    }
+    .axis-task-export-form input[type="date"] {
+      max-width: 132px;
+      min-height: 31px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color, #ccc);
+      padding: 3px 7px;
+    }
+    .axis-task-export-form .button {
+      min-height: 31px;
+      border-radius: 6px;
+    }
+  </style>
+{% endblock %}

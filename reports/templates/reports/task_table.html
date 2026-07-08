@@ -1,0 +1,20 @@
+﻿{% load report_extras %}
+<div class="table-responsive bg-white mb-3">
+  <table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Tarea</th><th>Responsable</th><th>Estado</th><th>Prioridad</th><th>Observaciones</th></tr></thead>
+    <tbody>
+      {% for task in tasks %}
+      <tr>
+        <td>{{ task.task_name }}</td>
+        <td>{{ task.responsible|default:"Sin asignar" }}</td>
+        <td><span class="badge bg-{{ task.status|status_class }}">{{ task.status }}</span></td>
+        <td><span class="badge bg-{{ task.priority|priority_class }}">{{ task.priority }}</span></td>
+        <td>{{ task.observations|default:"-" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="text-center text-muted py-4">No hay tareas en esta vista.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+

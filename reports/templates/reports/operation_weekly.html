@@ -1,0 +1,56 @@
+﻿{% extends "reports/base.html" %}
+{% load report_extras %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-md-2"><div class="kpi-card p-3"><small class="text-muted">Total tareas</small><div class="kpi-value">{{ task_summary.total }}</div></div></div>
+  <div class="col-md-2"><div class="kpi-card p-3"><small class="text-muted">Completadas</small><div class="kpi-value">{{ task_summary.completed }}</div></div></div>
+  <div class="col-md-2"><div class="kpi-card p-3"><small class="text-muted">En proceso</small><div class="kpi-value">{{ task_summary.in_progress }}</div></div></div>
+  <div class="col-md-2"><div class="kpi-card p-3"><small class="text-muted">Bloqueadas</small><div class="kpi-value">{{ task_summary.blocked }}</div></div></div>
+  <div class="col-md-2"><div class="kpi-card p-3"><small class="text-muted">Criticas</small><div class="kpi-value">{{ task_summary.critical }}</div></div></div>
+</div>
+<div class="row g-4 mb-4">
+  <div class="col-lg-4"><div class="surface-card p-3 h-100"><div class="section-title mb-2">Tareas por area</div>{% for key, value in task_summary.by_area.items %}<div class="d-flex justify-content-between py-1"><span>{{ key }}</span><span class="badge text-bg-light">{{ value }}</span></div>{% empty %}<div class="text-muted">Sin datos.</div>{% endfor %}</div></div>
+  <div class="col-lg-4"><div class="surface-card p-3 h-100"><div class="section-title mb-2">Tareas por unidad</div>{% for key, value in task_summary.by_unit.items %}<div class="d-flex justify-content-between py-1"><span>{{ key }}</span><span class="badge text-bg-light">{{ value }}</span></div>{% empty %}<div class="text-muted">Sin datos.</div>{% endfor %}</div></div>
+  <div class="col-lg-4"><div class="surface-card p-3 h-100"><div class="section-title mb-2">Tareas por impacto</div>{% for key, value in task_summary.by_impact.items %}<div class="d-flex justify-content-between py-1"><span>{{ key }}</span><span class="badge text-bg-light">{{ value }}</span></div>{% empty %}<div class="text-muted">Sin datos.</div>{% endfor %}</div></div>
+</div>
+<div class="surface-card p-3 mb-4">
+  <div class="section-title mb-3">Detalle de tareas</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead><tr><th>Semana</th><th>Area</th><th>Unidad</th><th>Pais</th><th>Canal</th><th>Tarea</th><th>Estado</th><th>Prioridad</th><th>Tipo</th><th>Impacto</th><th>Resultado</th><th>Observacion</th></tr></thead>
+      <tbody>
+        {% for task in tasks %}
+        <tr>
+          <td>{{ task.week_label }}</td>
+          <td>{{ task.area }}</td>
+          <td>{{ task.business_unit.name|default:"-" }}</td>
+          <td>{{ task.country.name|default:"-" }}</td>
+          <td>{{ task.channel.name|default:"-" }}</td>
+          <td>{{ task.task_name }}</td>
+          <td><span class="badge bg-{{ task.status|task_status_class }}">{{ task.get_status_display }}</span></td>
+          <td><span class="badge bg-{{ task.priority|task_priority_class }}">{{ task.get_priority_display }}</span></td>
+          <td>{{ task.task_type }}</td>
+          <td>{{ task.impact }}</td>
+          <td>{{ task.result|default:"-" }}</td>
+          <td>{{ task.notes|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="12" class="text-center text-muted py-4">No hay tareas semanales para este filtro.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="surface-card p-3">
+  <div class="section-title mb-3">Cierre ejecutivo semanal</div>
+  <ul class="mb-0">
+    <li>Ejecutado: {{ task_summary.completed }} tareas completadas.</li>
+    <li>Pendiente: {{ task_summary.in_progress }} tareas en proceso.</li>
+    <li>Bloqueado: {{ task_summary.blocked }} tareas bloqueadas.</li>
+    <li>Impacto en ventas: {{ task_summary.by_impact|get_item:"ventas" }}</li>
+    <li>Seguimiento gerencial requerido: {{ task_summary.critical }} tareas criticas.</li>
+  </ul>
+</div>
+{% endblock %}
+
+

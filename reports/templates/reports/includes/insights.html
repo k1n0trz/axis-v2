@@ -1,0 +1,12 @@
+{% for insight in insight_rows %}
+<div class="smart-insight smart-insight-{{ insight.signal }}">
+  <span class="smart-insight-light" aria-hidden="true"></span>
+  <div class="smart-insight-content">
+    <div class="smart-insight-title">{{ insight.title }}</div>
+    <div class="smart-insight-message">{{ insight.message }}</div>
+  </div>
+  {% if badge %}<span class="smart-insight-badge">{{ badge }}</span>{% endif %}
+</div>
+{% empty %}
+<div class="empty-state p-4">No hay insights disponibles para el periodo seleccionado.</div>
+{% endfor %}

@@ -1,0 +1,235 @@
+{% load report_extras %}
+<style>
+  .operational-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, .82fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .operational-grid .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .operational-grid .panel-caption {
+    color: #94a6c7;
+    font-size: .84rem;
+  }
+  .operational-task-list {
+    display: grid;
+    gap: .9rem;
+  }
+  .operational-task-card {
+    border: 1px solid rgba(154, 168, 194, 0.12);
+    border-radius: 8px;
+    background: rgba(20, 29, 46, 0.78);
+    padding: 1rem;
+  }
+  .operational-task-head {
+    display: flex;
+    justify-content: space-between;
+    gap: .8rem;
+    margin-bottom: .65rem;
+  }
+  .operational-task-title {
+    color: #f4f8ff;
+    font-weight: 750;
+  }
+  .operational-meta {
+    color: #9cabc6;
+    font-size: .82rem;
+  }
+  .operational-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid rgba(124, 243, 173, .22);
+    padding: .24rem .55rem;
+    color: #d9ffe8;
+    font-size: .72rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .operational-completion-pill {
+    display: inline-flex;
+    border-radius: 999px;
+    border: 1px solid rgba(96, 165, 250, .26);
+    padding: .24rem .55rem;
+    color: #dce8ff;
+    font-size: .72rem;
+    font-weight: 700;
+    margin-top: .45rem;
+  }
+  .task-editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-top: .8rem;
+  }
+  .task-editor-toolbar button {
+    width: 34px;
+    height: 30px;
+    border-radius: 7px;
+    border: 1px solid rgba(154, 168, 194, 0.16);
+    background: rgba(14, 21, 34, 0.88);
+    color: #dce8ff;
+    font-weight: 800;
+  }
+  .task-editor {
+    min-height: 78px;
+    margin-top: .45rem;
+    border: 1px solid rgba(154, 168, 194, 0.16);
+    border-radius: 8px;
+    background: rgba(14, 21, 34, 0.78);
+    color: #eef5ff;
+    padding: .75rem;
+    outline: none;
+  }
+  .task-editor:focus {
+    border-color: rgba(124, 243, 173, .5);
+    box-shadow: 0 0 0 .2rem rgba(124, 243, 173, .08);
+  }
+  .operational-manager-table {
+    display: grid;
+    gap: .65rem;
+    max-height: 420px;
+    overflow: auto;
+  }
+  .operational-manager-row {
+    display: grid;
+    grid-template-columns: minmax(110px, .7fr) minmax(0, 1.2fr) auto;
+    gap: .7rem;
+    align-items: center;
+    padding: .75rem;
+    border: 1px solid rgba(154, 168, 194, 0.1);
+    border-radius: 8px;
+    background: rgba(13, 20, 32, .62);
+  }
+  @media (max-width: 960px) {
+    .operational-grid, .operational-manager-row { grid-template-columns: 1fr; }
+  }
+</style>
+
+{% if operational_assigned_tasks or operational_completed_tasks or operational_managed_tasks %}
+<div class="operational-grid">
+  <div class="surface-card p-3 p-lg-4">
+    <div class="panel-header">
+      <div>
+        <div class="section-title">Metas operativas pendientes</div>
+        <div class="panel-caption">Tareas asignadas por tu jefe para mover el cumplimiento de meta.</div>
+      </div>
+    </div>
+    <div class="operational-task-list">
+      {% for task in operational_assigned_tasks %}
+      <div class="operational-task-card">
+        <div class="operational-task-head">
+          <div>
+            <div class="operational-task-title">{{ task.title }}</div>
+            <div class="operational-meta">
+              {{ task.sales_target.business_unit.name }}
+              {% if task.sales_target.channel %} · {{ task.sales_target.channel.name }}{% endif %}
+              · Meta {{ task.sales_target.target_amount|cop }}
+            </div>
+          </div>
+          <span class="operational-pill">{{ task.get_status_display }}</span>
+        </div>
+        {% if task.description %}
+        <div class="operational-meta mb-2">{{ task.description }}</div>
+        {% endif %}
+        {% if task.goal_completion_percent is not None %}
+        <div class="operational-completion-pill">{{ task.goal_completion_percent|floatformat:2 }}% cumplimiento meta</div>
+        {% endif %}
+        <form method="post" action="{% url 'reports:operational_task_update' task.pk %}" data-task-form>
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <input type="hidden" name="employee_response" value="{{ task.employee_response|default:'' }}" data-editor-input>
+          <div class="task-editor-toolbar" aria-label="Herramientas de texto">
+            <button type="button" data-command="bold" title="Negrita">B</button>
+            <button type="button" data-command="italic" title="Cursiva">I</button>
+            <button type="button" data-command="insertUnorderedList" title="Lista">•</button>
+            <button type="button" data-command="createLink" title="Enlace">↗</button>
+          </div>
+          <div class="task-editor" contenteditable="true" data-editor>{{ task.employee_response|default:''|safe }}</div>
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <button class="btn btn-primary btn-sm" type="submit" name="action" value="save">Guardar avance</button>
+            <button class="btn btn-primary btn-sm" type="submit" name="action" value="complete">Marcar completada</button>
+          </div>
+        </form>
+      </div>
+      {% empty %}
+      <div class="empty-state p-4 text-muted">No tienes metas operativas pendientes.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="surface-card p-3 p-lg-4">
+    <div class="panel-header">
+      <div>
+        <div class="section-title">Seguimiento del equipo</div>
+        <div class="panel-caption">Registro de metas operativas por empleado.</div>
+      </div>
+    </div>
+    <div class="operational-manager-table">
+      {% for task in operational_managed_tasks %}
+      <div class="operational-manager-row">
+        <div>
+          <div class="operational-task-title">{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</div>
+          <div class="operational-meta">{{ task.get_status_display }}</div>
+        </div>
+        <div>
+          <div class="operational-task-title">{{ task.title }}</div>
+          <div class="operational-meta">
+            {{ task.sales_target.business_unit.name }}
+            {% if task.sales_target.channel %} · {{ task.sales_target.channel.name }}{% endif %}
+          </div>
+          {% if task.employee_response %}
+          <div class="operational-meta mt-1">{{ task.employee_response|safe }}</div>
+          {% endif %}
+          {% if task.goal_completion_percent is not None %}
+          <div class="operational-completion-pill">{{ task.goal_completion_percent|floatformat:2 }}% cumplimiento meta</div>
+          {% endif %}
+        </div>
+        <span class="operational-pill">{% if task.due_date %}{{ task.due_date|date:"d/m" }}{% else %}Sin fecha{% endif %}</span>
+      </div>
+      {% empty %}
+      <div class="empty-state p-4 text-muted">No hay tareas del equipo para mostrar.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+(() => {
+  document.querySelectorAll('[data-task-form]').forEach(form => {
+    const editor = form.querySelector('[data-editor]');
+    const input = form.querySelector('[data-editor-input]');
+    if (!editor || !input || form.dataset.editorBound === '1') return;
+
+    form.querySelectorAll('[data-command]').forEach(button => {
+      button.addEventListener('click', () => {
+        const command = button.dataset.command;
+        editor.focus();
+        if (command === 'createLink') {
+          const url = window.prompt('Pega el enlace');
+          if (!url) return;
+          document.execCommand(command, false, url);
+        } else {
+          document.execCommand(command, false, null);
+        }
+        input.value = editor.innerHTML;
+      });
+    });
+
+    editor.addEventListener('input', () => {
+      input.value = editor.innerHTML;
+    });
+    form.addEventListener('submit', () => {
+      input.value = editor.innerHTML;
+    });
+    form.dataset.editorBound = '1';
+  });
+})();
+</script>

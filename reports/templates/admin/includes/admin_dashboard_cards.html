@@ -1,0 +1,45 @@
+<section class="axis-admin-dashboard">
+  <div class="axis-admin-summary">
+    <div class="axis-admin-summary-card">
+      <span class="axis-admin-summary-label">Marcas con gestion</span>
+      <strong>{{ summary.brands_with_data }}</strong>
+    </div>
+    <div class="axis-admin-summary-card">
+      <span class="axis-admin-summary-label">Modulos diarios</span>
+      <strong>{{ summary.daily_modules }}</strong>
+    </div>
+    <div class="axis-admin-summary-card">
+      <span class="axis-admin-summary-label">Modulos guiados</span>
+      <strong>{{ summary.guided_modules }}</strong>
+    </div>
+  </div>
+
+  <div class="axis-admin-card-grid">
+    {% for card in cards %}
+    <article class="axis-admin-card">
+      <div class="axis-admin-card-label">{{ card.label }}</div>
+      <div class="axis-admin-card-value">{{ card.value }}</div>
+      <div class="axis-admin-card-meta">{{ card.meta }}</div>
+    </article>
+    {% endfor %}
+  </div>
+
+  <div class="axis-admin-two-col">
+    <section class="axis-admin-panel">
+      <h2>Ajustes activos</h2>
+      <ul class="axis-admin-list">
+        {% for item in adjustments %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    <section class="axis-admin-panel">
+      <h2>Ultima actualizacion por modulo</h2>
+      <ul class="axis-admin-list axis-admin-list-tight">
+        {% for item in freshness %}
+        <li><strong>{{ item.label }}:</strong> {{ item.value }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+  </div>
+</section>

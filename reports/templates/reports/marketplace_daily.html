@@ -1,0 +1,503 @@
+{% extends "reports/base.html" %}
+{% load report_extras %}
+{% block content %}
+<style>
+  .marketplace-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .marketplace-layout-stack {
+    display: flex;
+    flex-direction: column;
+  }
+  .marketplace-kpi-summary { order: 1; }
+  .marketplace-visual-grid { order: 2; }
+  .marketplace-goal-summary { order: 3; }
+  .marketplace-channel-grid { order: 4; margin-bottom: 1.5rem; }
+  .marketplace-products-section { order: 5; }
+  .marketplace-insights-section { order: 6; }
+  .marketplace-insight-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .marketplace-visual-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .marketplace-channel-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .marketplace-channel-card {
+    border: 1px solid rgba(154, 168, 194, 0.12);
+    border-radius: 8px;
+    background: rgba(20, 29, 46, 0.78);
+    padding: 1rem;
+    min-height: 168px;
+  }
+  .marketplace-insight-card {
+    border: 1px solid rgba(124, 243, 173, 0.14);
+    border-radius: 8px;
+    background: rgba(13, 20, 32, 0.72);
+    padding: 1rem;
+  }
+  .marketplace-comparison {
+    display: inline-flex;
+    align-items: center;
+    gap: .28rem;
+    margin-top: .45rem;
+    padding: .18rem .48rem;
+    border-radius: 999px;
+    color: #fbbf24;
+    background: rgba(245, 158, 11, .12);
+    font-size: .72rem;
+    font-weight: 700;
+  }
+  .marketplace-comparison.up {
+    color: #7cf3ad;
+    background: rgba(16, 185, 129, .12);
+  }
+  .marketplace-comparison.down {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, .12);
+  }
+  .marketplace-channel-head {
+    display: flex;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .8rem;
+  }
+  .marketplace-channel-name {
+    color: #f4f8ff;
+    font-weight: 700;
+  }
+  .marketplace-channel-value {
+    color: #f4f8ff;
+    font-weight: 800;
+    font-size: 1.18rem;
+    line-height: 1.1;
+  }
+  .target-bar {
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(154, 168, 194, .14);
+    overflow: hidden;
+    margin: .7rem 0 .5rem;
+  }
+  .target-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #7cf3ad, #60a5fa);
+  }
+  .marketplace-meta {
+    color: #9cabc6;
+    font-size: .82rem;
+  }
+  .marketplace-tax-note {
+    color: #91a1bc;
+    font-size: .73rem;
+    line-height: 1.25;
+    margin-top: .28rem;
+  }
+  .bonus-pill {
+    display: inline-flex;
+    border-radius: 999px;
+    border: 1px solid rgba(96, 165, 250, .26);
+    padding: .25rem .55rem;
+    color: #dce8ff;
+    font-size: .72rem;
+    font-weight: 800;
+    margin-top: .55rem;
+  }
+  .marketplace-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .55rem;
+    margin-bottom: 1rem;
+  }
+  .marketplace-tab {
+    border: 1px solid rgba(124, 243, 173, 0.24);
+    border-radius: 999px;
+    color: #dce8ff;
+    padding: .55rem .85rem;
+    text-decoration: none;
+    background: rgba(14, 21, 34, .72);
+    font-weight: 650;
+  }
+  .marketplace-tab.active,
+  .marketplace-tab:hover {
+    color: #f7fbff;
+    border-color: rgba(124, 243, 173, 0.8);
+    background: rgba(124, 243, 173, .1);
+  }
+
+  .ml-inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: .85rem;
+    margin-bottom: 1rem;
+  }
+  .ml-inventory-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .ml-inventory-table th,
+  .ml-inventory-table td {
+    border-bottom: 1px solid rgba(154, 168, 194, .12);
+    padding: .72rem .65rem;
+    vertical-align: middle;
+  }
+  .ml-inventory-table th {
+    color: #9fb4d8;
+    font-size: .72rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .ml-product-cell {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    min-width: 260px;
+  }
+  .ml-product-thumb {
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: rgba(154, 168, 194, .1);
+  }
+  .ml-product-copy {
+    display: grid;
+    gap: .4rem;
+  }
+  .ml-product-title {
+    color: #f4f8ff;
+    font-weight: 750;
+    line-height: 1.25;
+  }
+  .ml-product-link-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    border: 1px solid rgba(96, 165, 250, .36);
+    border-radius: 999px;
+    background: rgba(37, 99, 235, .14);
+    color: #dbeafe;
+    font-size: .72rem;
+    font-weight: 850;
+    line-height: 1;
+    padding: .42rem .7rem;
+    text-decoration: none;
+  }
+  .ml-product-link-button:hover {
+    border-color: rgba(124, 243, 173, .65);
+    background: rgba(124, 243, 173, .12);
+    color: #f8fafc;
+    text-decoration: none;
+  }
+  .ml-health-pill {
+    display: inline-flex;
+    border-radius: 999px;
+    padding: .22rem .5rem;
+    font-size: .72rem;
+    font-weight: 800;
+  }
+  .ml-health-pill.ok { color: #7cf3ad; background: rgba(16,185,129,.12); }
+  .ml-health-pill.warning { color: #fbbf24; background: rgba(245,158,11,.14); }
+  .ml-health-pill.critical { color: #fca5a5; background: rgba(239,68,68,.14); }
+  .ml-warnings {
+    color: #fbbf24;
+    font-size: .78rem;
+    line-height: 1.35;
+    margin-top: .25rem;
+  }
+  .ml-last-sync {
+    color: #91a1bc;
+    font-size: .78rem;
+  }
+
+  @media (max-width: 1400px) {
+    .marketplace-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .marketplace-channel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 900px) {
+    .marketplace-kpi-grid, .marketplace-visual-grid, .marketplace-channel-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="marketplace-tabs">
+  <a class="marketplace-tab {% if not selected_marketplace_channel %}active{% endif %}" href="{{ marketplace_summary_url }}">Resumen</a>
+  {% for channel in marketplace_channel_tabs %}
+    <a class="marketplace-tab {% if channel.active %}active{% endif %}" href="{{ channel.url }}">{{ channel.name }}</a>
+  {% endfor %}
+</div>
+
+
+<div class="marketplace-layout-stack">
+
+{% if marketplace_inventory.totals.total %}
+<div class="surface-card p-3 p-lg-4 mb-4 marketplace-products-section">
+  <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+    <div>
+      <div class="section-title mb-1">Productos de Marketplace</div>
+      <div class="marketplace-meta">Inventario {{ marketplace_inventory.label }}: publicaciones activas, identificacion y alertas para cruce automatico.</div>
+    </div>
+    {% if marketplace_inventory.totals.last_synced %}
+    <div class="ml-last-sync">Actualizado: {{ marketplace_inventory.totals.last_synced|date:"d/m/Y H:i" }}</div>
+    {% endif %}
+  </div>
+  <div class="ml-inventory-grid">
+    <div class="kpi-card p-3"><div class="small text-muted">Publicaciones</div><div class="kpi-value">{{ marketplace_inventory.totals.total|default:0 }}</div></div>
+    <div class="kpi-card p-3"><div class="small text-muted">Con stock</div><div class="kpi-value">{{ marketplace_inventory.totals.with_stock|default:0 }}</div></div>
+    <div class="kpi-card p-3"><div class="small text-muted">Sin stock</div><div class="kpi-value">{{ marketplace_inventory.totals.zero_stock|default:0 }}</div></div>
+    <div class="kpi-card p-3"><div class="small text-muted">Falta SKU</div><div class="kpi-value">{{ marketplace_inventory.totals.missing_sku|default:0 }}</div></div>
+    <div class="kpi-card p-3"><div class="small text-muted">Falta GTIN</div><div class="kpi-value">{{ marketplace_inventory.totals.missing_gtin|default:0 }}</div></div>
+    <div class="kpi-card p-3"><div class="small text-muted">Unidades disponibles</div><div class="kpi-value">{{ marketplace_inventory.totals.available_units|default:0 }}</div></div>
+  </div>
+  <div class="table-responsive">
+    <table class="ml-inventory-table">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th>SKU</th>
+          <th>GTIN</th>
+          <th>Estado</th>
+          <th>Disponible</th>
+          <th>Vendido</th>
+          <th>Revision</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in marketplace_inventory.rows %}
+        <tr>
+          <td>
+            <div class="ml-product-cell">
+              {% if item.thumbnail_url %}<img class="ml-product-thumb" src="{{ item.thumbnail_url }}" alt="{{ item.title }}">{% endif %}
+              <div class="ml-product-copy">
+                <div class="ml-product-title">{{ item.title }}</div>
+                {% if item.permalink %}
+                <a class="ml-product-link-button" href="{{ item.permalink }}" target="_blank" rel="noopener">Abrir publicacion</a>
+                {% endif %}
+                <div class="marketplace-meta">{{ item.item_id }}{% if item.brand %} · {{ item.brand }}{% endif %}</div>
+              </div>
+            </div>
+          </td>
+          <td>{{ item.sku|default:"--" }}</td>
+          <td>{{ item.gtin|default:"--" }}</td>
+          <td>{{ item.status|default:"--" }}</td>
+          <td>{{ item.available_quantity }}</td>
+          <td>{{ item.sold_quantity }}</td>
+          <td>
+            <span class="ml-health-pill {{ item.health_status }}">
+              {% if item.health_status == "ok" %}Correcto{% elif item.health_status == "critical" %}Critico{% else %}Advertencia{% endif %}
+            </span>
+            {% if item.warning_messages %}<div class="ml-warnings">{{ item.warning_messages|join:", " }}</div>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if marketplace_goal_summary %}
+<div class="surface-card p-3 p-lg-4 mb-4 marketplace-goal-summary">
+  <div class="section-title mb-3">Logros y metas</div>
+  <div class="marketplace-insight-grid mb-0">
+  {% for item in marketplace_goal_summary %}
+  <div class="marketplace-insight-card">
+    <div class="small text-muted">{{ item.label }}</div>
+    <div class="kpi-value {% if item.label == 'ROAS' %}{{ item.value|roas_value_class }}{% endif %}">
+      {% if item.kind == "money" %}{{ item.value|cop }}
+      {% elif item.kind == "percent" %}{{ item.value|floatformat:1 }}%
+      {% else %}{{ item.value }}{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if marketplace_kpis %}
+<div class="marketplace-kpi-grid marketplace-kpi-summary">
+  {% for item in marketplace_kpis %}
+  <div class="kpi-card p-3">
+    <div class="small text-muted">{{ item.label }}</div>
+    <div class="kpi-value">
+      {% if item.kind == "money" %}{{ item.value|cop }}
+      {% elif item.kind == "decimal" %}{{ item.value|floatformat:2 }}
+      {% else %}{{ item.value|floatformat:0 }}{% endif %}
+    {% if item.label == "ROAS" %}
+      <span class="{{ item.value|roas_signal_class }}"></span>
+    {% endif %}
+    </div>
+    {% if item.value_with_vat %}
+    <div class="marketplace-tax-note">Total con IVA: {{ item.value_with_vat|cop }}</div>
+    {% endif %}
+    {% if item.comparison.has_previous and item.comparison.delta_pct != None %}
+    <div class="marketplace-comparison {{ item.comparison.direction }}">
+      {{ item.comparison.delta_pct|signed_percent }} vs. periodo anterior
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="surface-card p-3 p-lg-4 mb-4 marketplace-insights-section">
+  <div class="section-title mb-3">Insights inteligentes del periodo</div>
+  {% include "reports/includes/insights.html" with insight_rows=snapshot.insight_cards %}
+</div>
+
+<div class="marketplace-visual-grid">
+  <div class="surface-card p-3 p-lg-4">
+    <div class="section-title mb-3">Ventas, inversion y ROAS</div>
+    <div class="chart-box chart-box-lg"><canvas id="marketplaceSeriesChart"></canvas></div>
+  </div>
+  <div class="surface-card p-3 p-lg-4">
+    <div class="section-title mb-3">Ventas por canal</div>
+    <div class="chart-box chart-box-lg"><canvas id="marketplaceChannelChart"></canvas></div>
+  </div>
+</div>
+
+<div class="marketplace-channel-grid">
+  {% for target in marketplace_targets %}
+  <div class="marketplace-channel-card">
+    <div class="marketplace-channel-head">
+      <div>
+        <div class="marketplace-channel-name">{{ target.label }}</div>
+        <div class="marketplace-meta">Cumplimiento de meta</div>
+      </div>
+      <div class="marketplace-channel-value">{{ target.fulfillment_label|floatformat:1 }}%</div>
+    </div>
+    <div class="marketplace-meta">Ventas {{ target.sales|cop }}</div>
+    {% if target.sales_with_vat %}
+    <div class="marketplace-tax-note">Total con IVA: {{ target.sales_with_vat|cop }}</div>
+    {% endif %}
+    <div class="target-bar">
+      <div class="target-fill" style="width: {{ target.fulfillment_width }}%;"></div>
+    </div>
+    <div class="marketplace-meta">Meta {{ target.target|cop }}</div>
+    <div class="bonus-pill">{{ target.bonus_tier.name }} · {{ target.bonus_tier.payout }}</div>
+  </div>
+  {% empty %}
+  <div class="empty-state p-4 text-muted">Sin canales activos de Marketplace.</div>
+  {% endfor %}
+</div>
+
+</div>
+
+<script>
+(() => {
+const channelRows = {{ marketplace_channel_json|safe }};
+const seriesRows = {{ marketplace_series_json|safe }};
+const targetRows = {{ marketplace_targets_json|safe }};
+
+function formatCop(value) {
+  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value || 0);
+}
+
+function compactMoney(value) {
+  return new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0);
+}
+
+function emptyChart(canvas, message) {
+  const box = canvas.closest('.chart-box');
+  if (box) box.innerHTML = `<div class="empty-state p-4 text-muted">${message}</div>`;
+}
+
+function baseOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { position: 'bottom', labels: { color: '#cbd7ee', boxWidth: 12, boxHeight: 12, usePointStyle: true } },
+      tooltip: {
+        backgroundColor: 'rgba(9, 14, 24, 0.96)',
+        borderColor: 'rgba(96, 165, 250, 0.22)',
+        borderWidth: 1,
+        callbacks: {
+          label(context) {
+            if (context.dataset.label === 'ROAS') return `ROAS: ${Number(context.raw || 0).toFixed(2)}`;
+            return `${context.dataset.label}: ${formatCop(context.raw)}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: { ticks: { color: '#95a6c4', maxRotation: 0, autoSkip: true }, grid: { display: false } },
+      y: { ticks: { color: '#95a6c4', callback: compactMoney }, grid: { color: 'rgba(154,168,194,.12)' } }
+    }
+  };
+}
+
+function renderSeries() {
+  const canvas = document.getElementById('marketplaceSeriesChart');
+  if (!canvas) return;
+  if (!seriesRows.length) return emptyChart(canvas, 'Sin datos para graficar.');
+  const options = baseOptions();
+  options.scales.y1 = {
+    position: 'right',
+    ticks: { color: '#fca5a5', callback: value => Number(value).toFixed(1) },
+    grid: { drawOnChartArea: false }
+  };
+  new Chart(canvas, {
+    data: {
+      labels: seriesRows.map(item => item.label),
+      datasets: [
+        { type: 'bar', label: 'Ventas', data: seriesRows.map(item => item.sales), backgroundColor: 'rgba(124, 243, 173, .72)', borderColor: '#7cf3ad', borderWidth: 1, borderRadius: 7 },
+        { type: 'bar', label: 'Inversion', data: seriesRows.map(item => item.spend), backgroundColor: 'rgba(96, 165, 250, .72)', borderColor: '#60a5fa', borderWidth: 1, borderRadius: 7 },
+        { type: 'line', label: 'ROAS', data: seriesRows.map(item => item.roas), borderColor: '#f87171', backgroundColor: '#f87171', borderWidth: 3, pointRadius: 3, tension: .3, yAxisID: 'y1' }
+      ]
+    },
+    options
+  });
+}
+
+function renderChannels() {
+  const canvas = document.getElementById('marketplaceChannelChart');
+  if (!canvas) return;
+  const rows = targetRows.length ? targetRows : channelRows;
+  if (!rows.length) return emptyChart(canvas, 'Sin ventas por canal.');
+  const options = baseOptions();
+  options.indexAxis = 'y';
+  options.plugins.legend.display = Boolean(targetRows.length);
+  options.plugins.tooltip.callbacks = {
+    label(context) {
+      const value = context.raw || 0;
+      return `${context.dataset.label}: ${formatCop(value)}`;
+    }
+  };
+  options.scales.x = { ticks: { color: '#95a6c4', callback: compactMoney }, grid: { color: 'rgba(154,168,194,.12)' } };
+  options.scales.y = { ticks: { color: '#dbe7ff' }, grid: { display: false } };
+  const datasets = targetRows.length
+    ? [
+        { label: 'Ventas', data: rows.map(item => item.sales), backgroundColor: '#7cf3ad', borderRadius: 7 },
+        { label: 'Meta', data: rows.map(item => item.target), backgroundColor: 'rgba(96, 165, 250, .5)', borderColor: '#60a5fa', borderWidth: 1, borderRadius: 7 }
+      ]
+    : [{ label: 'Ventas', data: rows.map(item => item.value), backgroundColor: ['#7cf3ad', '#60a5fa', '#f87171', '#fbbf24'], borderRadius: 7 }];
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: rows.map(item => item.label),
+      datasets
+    },
+    options
+  });
+}
+
+renderSeries();
+renderChannels();
+})();
+</script>
+{% endblock %}

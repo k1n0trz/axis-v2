@@ -1,0 +1,12 @@
+﻿{% extends "reports/base.html" %}
+{% block content %}
+<ul class="nav nav-tabs mb-4">
+  <li class="nav-item"><a class="nav-link {% if request.GET.tab|default:'resumen' == 'resumen' %}active{% endif %}" href="?tab=resumen">Resumen</a></li>
+  <li class="nav-item"><a class="nav-link {% if request.GET.tab == 'mercado-libre' %}active{% endif %}" href="?tab=mercado-libre">Mercado Libre</a></li>
+  <li class="nav-item"><a class="nav-link {% if request.GET.tab == 'falabella' %}active{% endif %}" href="?tab=falabella">Falabella</a></li>
+  <li class="nav-item"><a class="nav-link {% if request.GET.tab == 'rappi' %}active{% endif %}" href="?tab=rappi">Rappi</a></li>
+  <li class="nav-item"><a class="nav-link {% if request.GET.tab == 'farmatodo' %}active{% endif %}" href="?tab=farmatodo">Farmatodo</a></li>
+</ul>
+{% include "reports/unit_content.html" %}
+{% endblock %}
+
