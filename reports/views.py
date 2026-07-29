@@ -1214,7 +1214,7 @@ def _executive_dashboard_context(request, active_key, title, subtitle, filter_ov
         "sales_by_unit_json": json.dumps(summary["sales_by_unit"]),
         "sales_by_channel_json": json.dumps(summary["sales_by_channel"]),
         "combined_series_json": json.dumps(sales_snapshot.get("combined_series", [])),
-        "ad_platform_performance_json": json.dumps(build_ad_platform_performance(filters)),
+        "ad_platform_performance_json": json.dumps(build_ad_platform_performance(filters, sales_snapshot)),
         "is_uva_all_countries": active_key == "uva" and not filters.get("country"),
         "show_non_dashboard_kpis": active_key != "dashboard" and not (active_key == "uva" and not filters.get("country")),
         "show_comfama_panel": active_key == "dashboard" or (active_key == "uva" and filters.get("country") == "CO"),
@@ -1546,7 +1546,7 @@ def web_sales_report(request):
         "sales_row_count": sales_snapshot["row_count"],
         "sales_by_day_json": json.dumps(sales_snapshot.get("sales_by_day", [])),
         "sales_by_channel_json": json.dumps(sales_snapshot.get("sales_by_channel", [])),
-        "ad_platform_performance_json": json.dumps(build_ad_platform_performance(filters)),
+        "ad_platform_performance_json": json.dumps(build_ad_platform_performance(filters, sales_snapshot)),
         "snapshot": sales_snapshot,
     }
     return render(request, "reports/web_sales.html", context)
@@ -1620,7 +1620,7 @@ def ad_spend_report(request):
         "sales_by_day_json": json.dumps(snapshot.get("sales_by_day", [])),
         "spend_by_day_json": json.dumps(snapshot.get("spend_by_day", [])),
         "roas_by_day_json": json.dumps(snapshot.get("roas_by_day", [])),
-        "ad_platform_performance_json": json.dumps(build_ad_platform_performance(filters)),
+        "ad_platform_performance_json": json.dumps(build_ad_platform_performance(filters, snapshot)),
     }
     return render(request, "reports/ad_spend.html", context)
 

@@ -14,6 +14,7 @@ from openpyxl.utils.datetime import from_excel
 from django.utils.text import slugify
 
 from reports.integrations.clients import MetaAdsClient
+from reports.query_cache import memoize_per_request
 from reports.models import AdPlatform, AwnInternationalFollowerMetric, BaliCommunityWebcamMetric, BaliDailyMetric, BaliWebProductDailyMetric, BusinessUnit, Channel, ComfamaAdMetric, ComfamaSale, Country, DailyAdSpend, DailyChannelSale, DailyGeoAdMetric, DailyProductCategoryMetric, DailyProductCategorySale, MarketplaceProductInventory, Product, ProductCategory, SalesTransaction
 
 logger = logging.getLogger(__name__)
@@ -383,6 +384,7 @@ def _category_scope_slugs(filters):
     return None
 
 
+@memoize_per_request
 def product_category_metrics(filters, limit=None):
     queryset = DailyProductCategoryMetric.objects.select_related("business_unit", "country", "category")
     if filters.get("date_start"):
@@ -401,6 +403,7 @@ def product_category_metrics(filters, limit=None):
     return list(queryset)
 
 
+@memoize_per_request
 def product_category_channel_sales(filters, channel_slug=None, limit=None):
     queryset = DailyProductCategorySale.objects.select_related("business_unit", "country", "channel", "category")
     if filters.get("date_start"):
@@ -3593,6 +3596,7 @@ def sales_transactions(filters, limit=None):
     return list(queryset)
 
 
+@memoize_per_request
 def daily_channel_sales(filters, limit=None):
     queryset = DailyChannelSale.objects.select_related("business_unit", "country", "channel")
     if filters.get("date_start"):
@@ -3610,6 +3614,7 @@ def daily_channel_sales(filters, limit=None):
     return list(queryset)
 
 
+@memoize_per_request
 def daily_ad_spends(filters, limit=None):
     queryset = DailyAdSpend.objects.select_related("business_unit", "country", "ad_platform")
     if filters.get("date_start"):
@@ -3655,9 +3660,15 @@ def build_sales_snapshot(filters, limit=100, include_comparison=True):
     return snapshot
 
 
-def build_ad_platform_performance(filters):
+def build_ad_platform_performance(filters, sales_snapshot=None):
+    """Inversion por plataforma y ROAS de referencia.
+
+    `sales_snapshot` evita reconstruir un snapshot completo solo para leer
+    `sales_total`: las vistas que llaman aqui ya tienen uno calculado.
+    """
     spend_rows = daily_ad_spends(filters)
-    sales_snapshot = build_sales_snapshot(filters, include_comparison=False)
+    if sales_snapshot is None:
+        sales_snapshot = build_sales_snapshot(filters, include_comparison=False)
     sales_total = Decimal(str(sales_snapshot["kpis"]["sales_total"] or 0))
     grouped = defaultdict(lambda: ZERO)
     for row in spend_rows:
