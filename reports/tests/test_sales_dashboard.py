@@ -64,17 +64,17 @@ class SalesDashboardTests(TestCase):
             ],
         )
 
-    def test_cubrepezones_sin_adhesivo_has_own_category(self):
+    def test_cubrepezones_sin_adhesivo_uses_unified_category(self):
         self.assertEqual(
             category_slug_from_product_name("Cubrepezones sin adhesivos color nude"),
-            "cubrepezones-sin-adhesivo",
+            "cubrepezones",
         )
         self.assertEqual(
             category_slug_from_product_name("Cubrepezones ultradelgados sin Adhesivo - Nude"),
-            "cubrepezones-sin-adhesivo",
+            "cubrepezones",
         )
-        self.assertEqual(category_slug_from_product_name("Cubrepezones UVA - Nude"), "cubrepezones-sin-adhesivo")
-        self.assertEqual(category_slug_from_product_name("Cubrepezones ultradelgados"), "cubrepezones-sin-adhesivo")
+        self.assertEqual(category_slug_from_product_name("Cubrepezones UVA - Nude"), "cubrepezones")
+        self.assertEqual(category_slug_from_product_name("Cubrepezones ultradelgados"), "cubrepezones")
         self.assertEqual(category_slug_from_product_name("Pezonera Luxury Camtoyz"), "cubrepezones")
 
     def test_hidratante_intimo_has_own_category(self):
@@ -291,6 +291,33 @@ class SalesDashboardTests(TestCase):
         self.assertIn("insights.time_range", calls[0])
         self.assertNotIn("insights.time_range", calls[1])
 
+    def test_meta_ads_client_retries_active_ads_with_reduced_creative_fields(self):
+        class Response:
+            def __init__(self, ok, payload=None, status_code=200):
+                self.ok = ok
+                self._payload = payload or {}
+                self.status_code = status_code
+
+            def json(self):
+                return self._payload
+
+        calls = []
+
+        def fake_get(url, params=None, timeout=None):
+            fields = params["fields"] if params else ""
+            calls.append(fields)
+            if "object_story_spec" in fields or "title,body" in fields:
+                return Response(False, {"error": {"message": "Tried accessing nonexisting field"}}, status_code=400)
+            return Response(True, {"data": [{"id": "ad-1", "name": "Activo", "creative": {"id": "creative-1"}}]})
+
+        client = MetaAdsClient("secret-token")
+        with patch.object(client.session, "get", side_effect=fake_get):
+            rows = client.get_active_ads("123", date_start=date(2026, 6, 1), date_end=date(2026, 6, 10))
+
+        self.assertEqual(rows[0]["id"], "ad-1")
+        self.assertGreaterEqual(len(calls), 3)
+        self.assertIn("creative{id,name,thumbnail_url,image_url}", calls[-1])
+
     def test_meta_ads_client_fetches_all_active_ad_pages_without_limit(self):
         class Response:
             ok = True
@@ -327,6 +354,41 @@ class SalesDashboardTests(TestCase):
         self.assertIn("No fue posible cargar anuncios activos de Meta para Colombia", preview["message"])
         self.assertNotIn("secret-token", preview["message"])
         self.assertNotIn("access_token", preview["message"])
+
+    @override_settings(META_ACCESS_TOKEN="secret-token", META_CO_ACCOUNT_ID="3473366029576347")
+    def test_meta_ads_preview_defaults_to_colombia_without_country_filter(self):
+        with patch("reports.services.sales_dashboard.MetaAdsClient.get_active_ads", return_value=[] ) as get_active_ads:
+            preview = build_uva_meta_ads_preview({"date_start": "2026-06-01", "date_end": "2026-06-10"})
+
+        self.assertEqual(preview["country_code"], "CO")
+        self.assertEqual(preview["requires_country"], False)
+        self.assertIn("Colombia", preview["country_label"])
+        get_active_ads.assert_called_once()
+
+    @override_settings(META_ACCESS_TOKEN="secret-token", META_CO_ACCOUNT_ID="3473366029576347")
+    def test_meta_ads_preview_forces_iframe_preview_for_reel_without_video_id(self):
+        rows = [
+            {
+                "id": "ad-reel-1",
+                "name": "02/07/26 | Reel | Postbioticos",
+                "effective_status": "ACTIVE",
+                "creative": {"id": "creative-1", "name": "Creative", "thumbnail_url": "https://example.com/thumb.jpg"},
+                "campaign": {"name": "Campana"},
+                "adset": {"name": "Conjunto"},
+            }
+        ]
+        with patch("reports.services.sales_dashboard.MetaAdsClient.get_active_ads", return_value=rows), patch(
+            "reports.services.sales_dashboard.MetaAdsClient.get_ad_images_by_hashes",
+            return_value={},
+        ), patch(
+            "reports.services.sales_dashboard.MetaAdsClient.get_ad_preview_iframe_src",
+            return_value="https://www.facebook.com/ads/preview/ad-reel-1",
+        ) as preview_src:
+            preview = build_uva_meta_ads_preview({"country": "CO", "date_start": "2026-07-01", "date_end": "2026-07-09"})
+
+        self.assertEqual(preview["ads"][0]["media_kind"], "video")
+        self.assertEqual(preview["ads"][0]["preview_url"], "https://www.facebook.com/ads/preview/ad-reel-1")
+        preview_src.assert_called()
 
     def test_meta_ad_display_name_uses_ad_name_for_dynamic_creative(self):
         row = {"name": "26/03/26 | Reel | Subsidio"}

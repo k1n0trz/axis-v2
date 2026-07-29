@@ -11,6 +11,7 @@ from reports.integrations.schema import (
     ChannelSaleRecord,
     ComfamaAdMetricRecord,
     FollowerMetricRecord,
+    GeoAdMetricRecord,
 )
 from reports.models import (
     AdPlatform,
@@ -22,6 +23,7 @@ from reports.models import (
     Country,
     DailyAdSpend,
     DailyChannelSale,
+    DailyGeoAdMetric,
     DailyProductCategoryMetric,
     DailyProductCategorySale,
     ProductCategory,
@@ -199,6 +201,39 @@ class AxisSyncService:
                 category=category,
                 metric_date=record.metric_date,
                 defaults=defaults,
+            )
+            stats["created" if created else "updated"] += 1
+        return stats
+
+    @transaction.atomic
+    def sync_geo_ad_metrics(self, records):
+        stats = {"created": 0, "updated": 0}
+        for record in records:
+            if not isinstance(record, GeoAdMetricRecord):
+                continue
+            unit = _business_unit(record.business_unit_slug)
+            country = _country(record.country_code)
+            platform = _platform(record.ad_platform_slug)
+            _, created = DailyGeoAdMetric.objects.update_or_create(
+                business_unit=unit,
+                country=country,
+                ad_platform=platform,
+                metric_date=record.metric_date,
+                geo_level=record.geo_level,
+                location_key=record.location_key,
+                defaults={
+                    "location_name": record.location_name,
+                    "platform_location_id": record.platform_location_id,
+                    "impressions": max(int(record.impressions or 0), 0),
+                    "reach": max(int(record.reach or 0), 0),
+                    "clicks": max(int(record.clicks or 0), 0),
+                    "purchases": record.purchases or Decimal("0"),
+                    "conversion_value": record.conversion_value or Decimal("0"),
+                    "spend_amount": record.spend_amount or Decimal("0"),
+                    "source_type": DailyGeoAdMetric.SourceType.IMPORTED,
+                    "source_file": record.source_file,
+                    "notes": record.notes,
+                },
             )
             stats["created" if created else "updated"] += 1
         return stats

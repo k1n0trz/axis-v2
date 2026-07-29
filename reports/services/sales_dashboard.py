@@ -3,22 +3,33 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
+import logging
 import unicodedata
 
 from django.conf import settings
+from django.core.cache import cache
 from django.utils import timezone
 from openpyxl import load_workbook
 from openpyxl.utils.datetime import from_excel
 from django.utils.text import slugify
 
 from reports.integrations.clients import MetaAdsClient
-from reports.models import AdPlatform, AwnInternationalFollowerMetric, BaliCommunityWebcamMetric, BaliDailyMetric, BaliWebProductDailyMetric, BusinessUnit, Channel, ComfamaAdMetric, ComfamaSale, Country, DailyAdSpend, DailyChannelSale, DailyProductCategoryMetric, DailyProductCategorySale, Product, ProductCategory, SalesTransaction
+from reports.models import AdPlatform, AwnInternationalFollowerMetric, BaliCommunityWebcamMetric, BaliDailyMetric, BaliWebProductDailyMetric, BusinessUnit, Channel, ComfamaAdMetric, ComfamaSale, Country, DailyAdSpend, DailyChannelSale, DailyGeoAdMetric, DailyProductCategoryMetric, DailyProductCategorySale, MarketplaceProductInventory, Product, ProductCategory, SalesTransaction
+
+logger = logging.getLogger(__name__)
 
 ZERO = Decimal("0")
 COLOMBIA_VAT_DIVISOR = Decimal("1.19")
 MONEY_QUANT = Decimal("0.01")
 ECUADOR_USD_TO_COP_RATE = Decimal("3700")
 MEXICO_MXN_TO_COP_RATE = Decimal("200")
+
+
+def _setting_int(name, default):
+    try:
+        return int(getattr(settings, name, default))
+    except (TypeError, ValueError):
+        return int(default)
 
 
 def uva_exchange_rate_for_country(country_code, currency, fallback_rate=None):
@@ -82,10 +93,10 @@ PRODUCT_CATEGORY_ALIASES = {
     "hidratante íntimo uva": "hidratante-intimo-uva",
     "hidratante íntimo": "hidratante-intimo-uva",
     "hidratante": "hidratante-intimo-uva",
-    "cubrepezones sin adhesivo": "cubrepezones-sin-adhesivo",
-    "cubrepezones sin adhesivos": "cubrepezones-sin-adhesivo",
-    "cubrepezon sin adhesivo": "cubrepezones-sin-adhesivo",
-    "cubrepezon sin adhesivos": "cubrepezones-sin-adhesivo",
+    "cubrepezones sin adhesivo": "cubrepezones",
+    "cubrepezones sin adhesivos": "cubrepezones",
+    "cubrepezon sin adhesivo": "cubrepezones",
+    "cubrepezon sin adhesivos": "cubrepezones",
     "cubrepezones": "cubrepezones",
     "otros uva": "otros-uva",
     "otros": "otros-uva",
@@ -107,14 +118,14 @@ PRODUCT_CATEGORY_KEYWORDS = (
     ("hidratante intimo", "hidratante-intimo-uva"),
     ("hidratante íntimo", "hidratante-intimo-uva"),
     ("hidratante", "hidratante-intimo-uva"),
-    ("sin adhesivos", "cubrepezones-sin-adhesivo"),
-    ("sin adhesivo", "cubrepezones-sin-adhesivo"),
-    ("cubrepezones uva", "cubrepezones-sin-adhesivo"),
-    ("cubrepezones ultradelgados", "cubrepezones-sin-adhesivo"),
-    ("cubrepezones sin adhesivos", "cubrepezones-sin-adhesivo"),
-    ("cubrepezones sin adhesivo", "cubrepezones-sin-adhesivo"),
-    ("cubrepezon sin adhesivos", "cubrepezones-sin-adhesivo"),
-    ("cubrepezon sin adhesivo", "cubrepezones-sin-adhesivo"),
+    ("sin adhesivos", "cubrepezones"),
+    ("sin adhesivo", "cubrepezones"),
+    ("cubrepezones uva", "cubrepezones"),
+    ("cubrepezones ultradelgados", "cubrepezones"),
+    ("cubrepezones sin adhesivos", "cubrepezones"),
+    ("cubrepezones sin adhesivo", "cubrepezones"),
+    ("cubrepezon sin adhesivos", "cubrepezones"),
+    ("cubrepezon sin adhesivo", "cubrepezones"),
     ("cubrepezon", "cubrepezones"),
     ("cubrepezones", "cubrepezones"),
     ("pezonera", "cubrepezones"),
@@ -130,11 +141,11 @@ PRODUCT_CATEGORY_KEYWORDS = (
 PRODUCT_CATEGORY_IMAGE_FALLBACKS = {
     "bolas-kegel-uva": "https://copauva.com/wp-content/uploads/2026/05/FOTO-18.jpg",
     "copa-menstrual": "https://copauva.com/wp-content/uploads/2023/01/A-Espanol-Principal-1.png",
-    "cubrepezones-sin-adhesivo": "https://copauva.com/wp-content/uploads/2026/05/CUBRE-P-NUDE.jpg",
     "cubrepezones": "https://copauva.com/wp-content/uploads/2026/05/CUBRE-P-NUDE.jpg",
     "dilatadores-vaginales": "https://copauva.com/wp-content/uploads/2025/09/1-espa__ol.jpg",
     "disco-menstrual": "https://copauva.com/wp-content/uploads/2023/08/Disco-menstrual12.jpg",
     "esterilizador": "https://copauva.com/wp-content/uploads/2024/04/Esterelizador-UVA5-2.jpg",
+    "hidratante-intimo-uva": "/static/reports/products/hidratante-intimo-uva.jpg",
     "higiene-intima": "https://copauva.com/wp-content/uploads/2024/10/DSC04764-1.jpg",
     "kits": "https://copauva.com/wp-content/uploads/2025/08/KIT-COPA_Mesa-de-trabajo-1.jpg",
     "lubricantes": "https://copauva.com/wp-content/uploads/2025/12/Diseno-sin-titulo-20.jpg",
@@ -146,7 +157,6 @@ UVA_PRODUCT_CATEGORY_SLUGS = frozenset(
         "bolas-kegel-uva",
         "copa-menstrual",
         "cubrepezones",
-        "cubrepezones-sin-adhesivo",
         "dilatadores-vaginales",
         "disco-menstrual",
         "esterilizador",
@@ -1054,6 +1064,151 @@ def bali_web_product_metrics(filters):
     return list(queryset.filter(business_unit__slug="bali", country__code="CO"))
 
 
+def _marketplace_inventory_key(marketplace):
+    marketplace = normalize_text(marketplace or "mercadolibre")
+    return {
+        "mercado-libre": "mercadolibre",
+        "mercadolibre": "mercadolibre",
+        "falabella": "falabella",
+    }.get(marketplace, marketplace)
+
+
+def _marketplace_channel_slug(marketplace):
+    marketplace = _marketplace_inventory_key(marketplace)
+    return {"mercadolibre": "mercado-libre", "falabella": "falabella"}.get(marketplace, marketplace)
+
+
+def _marketplace_product_share(item, marketplace):
+    qs = MarketplaceProductInventory.objects.filter(marketplace=marketplace)
+    total_sold = sum((row.sold_quantity or 0 for row in qs), 0)
+    if total_sold > 0:
+        return Decimal(item.sold_quantity or 0) / Decimal(total_sold)
+    total_items = qs.count() or 1
+    return Decimal("1") / Decimal(total_items)
+
+
+def _shopify_reference_for_marketplace_product(filters, item):
+    title_tokens = [token for token in normalize_text(item.title).split("-") if len(token) >= 4]
+    if not title_tokens:
+        return None
+    bali_filters = dict(filters)
+    bali_filters["business_unit"] = "bali"
+    bali_filters["country"] = "CO"
+    rows = bali_web_product_metrics(bali_filters)
+    scored = []
+    for row in rows:
+        normalized = normalize_text(row.product_title)
+        score = sum(1 for token in title_tokens if token in normalized)
+        if score:
+            scored.append((score, row.product_title, row))
+    if not scored:
+        return None
+    best_title = sorted(scored, key=lambda item_score: item_score[0], reverse=True)[0][1]
+    matched_rows = [row for row in rows if row.product_title == best_title]
+    sales_total = sum((row.total_sales for row in matched_rows), ZERO)
+    units_total = sum((row.net_items_sold for row in matched_rows), 0)
+    return {"title": best_title, "sales": sales_total, "units": units_total}
+
+
+def build_marketplace_product_detail(filters, marketplace, item_id):
+    marketplace = _marketplace_inventory_key(marketplace)
+    channel_slug = _marketplace_channel_slug(marketplace)
+    try:
+        item = MarketplaceProductInventory.objects.get(marketplace=marketplace, item_id=item_id)
+    except MarketplaceProductInventory.DoesNotExist:
+        return None
+
+    product_share = _marketplace_product_share(item, marketplace)
+    marketplace_filters = dict(filters)
+    marketplace_filters["business_unit"] = "marketplace"
+    marketplace_filters["channel"] = channel_slug
+    sales_rows = [row for row in daily_channel_sales(marketplace_filters) if normalize_text(row.channel.slug) == channel_slug]
+    spend_rows = daily_ad_spends(marketplace_filters)
+    spend_by_date = defaultdict(lambda: ZERO)
+    for row in spend_rows:
+        spend_by_date[row.spend_date] += row.spend_amount or ZERO
+
+    daily_map = defaultdict(lambda: {"sales": ZERO, "spend": ZERO, "orders": 0, "units": 0})
+    for row in sales_rows:
+        values = daily_map[row.sale_date]
+        values["sales"] += (row.sales_amount or ZERO) * product_share
+        values["orders"] += int(round((row.order_count or 0) * float(product_share)))
+        values["units"] += int(round((row.units or 0) * float(product_share)))
+    for metric_date, spend in spend_by_date.items():
+        daily_map[metric_date]["spend"] += spend * product_share
+
+    daily_series = []
+    for metric_date, values in sorted(daily_map.items(), key=lambda entry: entry[0]):
+        if not values["units"] and values["orders"]:
+            values["units"] = values["orders"]
+        roas = _safe_ratio(values["sales"], values["spend"])
+        ticket = _safe_ratio(values["sales"], Decimal(values["orders"] or values["units"] or 0))
+        daily_series.append(
+            {
+                "label": metric_date.isoformat(),
+                "sales": float(values["sales"]),
+                "spend": float(values["spend"]),
+                "units": values["units"],
+                "orders": values["orders"],
+                "roas": round(float(roas), 2) if roas else 0,
+                "average_ticket": round(float(ticket), 2) if ticket else 0,
+            }
+        )
+
+    sales_total = sum((Decimal(str(row["sales"])) for row in daily_series), ZERO)
+    spend_total = sum((Decimal(str(row["spend"])) for row in daily_series), ZERO)
+    units_total = sum((row["units"] for row in daily_series), 0) or (item.sold_quantity or 0)
+    orders_total = sum((row["orders"] for row in daily_series), 0)
+    roas = _safe_ratio(sales_total, spend_total)
+    ticket = _safe_ratio(sales_total, Decimal(orders_total or units_total or 0))
+    inventory_value = (item.price or ZERO) * Decimal(item.available_quantity or 0)
+    best_day = max(daily_series, key=lambda row: row["sales"], default=None)
+    shopify_reference = _shopify_reference_for_marketplace_product(filters, item)
+
+    insights = []
+    insights.append(f"{item.title} tiene {item.available_quantity} unidades disponibles y {item.sold_quantity} vendidas registradas en {item.marketplace.title()}.")
+    if sales_total:
+        insights.append(f"La venta atribuida del periodo es {format_cop(sales_total)}, con ROAS estimado de {float(roas):.2f}.")
+    if spend_total:
+        insights.append(f"La inversion Google Ads atribuida al producto es {format_cop(spend_total)} segun la participacion del producto dentro del canal.")
+    if item.health_status != MarketplaceProductInventory.HealthStatus.OK:
+        messages = ", ".join(item.warning_messages or []) or "requiere revision de publicacion"
+        insights.append(f"Prioridad operativa: {messages}.")
+    if item.available_quantity <= 0:
+        insights.append("Sin stock disponible: no conviene empujar pauta hasta recuperar inventario o pausar la publicacion.")
+    elif item.sold_quantity and item.available_quantity < max(3, item.sold_quantity * 0.15):
+        insights.append("Stock sensible frente a ventas historicas: revisar reposicion antes de escalar presupuesto.")
+    if best_day:
+        insights.append(f"El mejor dia atribuido fue {best_day['label']} con {format_cop(best_day['sales'])}.")
+    if shopify_reference:
+        insights.append(f"Referencia Shopify relacionada: {shopify_reference['title']} suma {format_cop(shopify_reference['sales'])} y {shopify_reference['units']} unidades en Bali.")
+    else:
+        insights.append("No hay match claro contra Shopify por nombre/SKU; conviene normalizar SKU/GTIN para comparar Marketplace vs Shopify producto a producto.")
+
+    return {
+        "type": "marketplace",
+        "key": item.item_id,
+        "title": item.title,
+        "subtitle": f"Detalle de producto {item.marketplace.title()}",
+        "image_url": item.thumbnail_url,
+        "daily_series": daily_series,
+        "stats": [
+            {"label": "Ventas atribuidas", "value": float(sales_total), "kind": "money"},
+            {"label": "Inversion Google", "value": float(spend_total), "kind": "money"},
+            {"label": "ROAS estimado", "value": round(float(roas), 2) if roas else 0, "kind": "ratio"},
+            {"label": "Ticket estimado", "value": round(float(ticket), 2) if ticket else 0, "kind": "money"},
+            {"label": "Disponible", "value": item.available_quantity or 0, "kind": "number"},
+            {"label": "Vendido", "value": item.sold_quantity or 0, "kind": "number"},
+            {"label": "Precio", "value": float(item.price or 0), "kind": "money"},
+            {"label": "Valor inventario", "value": float(inventory_value), "kind": "money"},
+            {"label": "Estado", "value": item.status or "Sin estado", "kind": "text"},
+            {"label": "Revision", "value": item.get_health_status_display(), "kind": "text"},
+        ],
+        "insights": insights[:7],
+        "allocation_note": "Marketplace aun no guarda ventas por SKU diario; Axis atribuye ventas e inversion del canal proporcionalmente al vendido acumulado de cada publicacion y cruza Shopify por coincidencia de nombre cuando existe.",
+    }
+
+
 def build_bali_product_detail(filters, product_title):
     product_title = str(product_title or "").strip()
     if not product_title:
@@ -1484,6 +1639,50 @@ def build_bali_snapshot(filters, include_comparison=True):
     if web_orders_total:
         web_insights.append(f"El ticket promedio web se ubica en {format_cop(web_average_ticket)}.")
 
+    web_recommendations = []
+    top_web_product = top_web_products[0] if top_web_products else None
+    if spend_total and web_roas < Decimal("2.5"):
+        web_recommendations.append(
+            {
+                "title": "Revisar eficiencia Google Ads",
+                "message": f"La inversion web es {format_cop(spend_total)} y el ROAS Shopify queda en {float(web_roas):.2f}.",
+                "action": "Cruzar terminos/campanas con productos de mayor ticket antes de subir presupuesto.",
+            }
+        )
+    elif spend_total and web_roas >= Decimal("3"):
+        web_recommendations.append(
+            {
+                "title": "Escalar con control",
+                "message": f"El canal web sostiene ROAS {float(web_roas):.2f} con {web_orders_total} pedidos.",
+                "action": "Priorizar presupuesto en campanas que empujen los productos top de Shopify.",
+            }
+        )
+    if top_web_product:
+        web_recommendations.append(
+            {
+                "title": "Producto ancla Shopify",
+                "message": f"{top_web_product['title']} lidera con {format_cop(top_web_product['total_sales'])} y {top_web_product['units']} unidades.",
+                "action": "Usarlo como referencia para copies, bundles o campanas de remarketing.",
+            }
+        )
+    no_order_spend_days = [row for row in web_daily if row.get("spend") and not row.get("orders")]
+    if no_order_spend_days:
+        web_recommendations.append(
+            {
+                "title": "Dias con inversion sin pedidos",
+                "message": f"Hay {len(no_order_spend_days)} dias con gasto Google Ads y cero pedidos Shopify.",
+                "action": "Revisar disponibilidad, landing y busquedas de esos dias antes de repetir pauta.",
+            }
+        )
+    if web_sessions_measured and sessions_total and conversion_rate < Decimal("0.01"):
+        web_recommendations.append(
+            {
+                "title": "Conversion web baja",
+                "message": f"La web convierte {float(conversion_rate) * 100:.2f}% sobre {sessions_total} sesiones.",
+                "action": "Auditar friccion de checkout y coherencia producto-anuncio en las campanas activas.",
+            }
+        )
+
     whatsapp_insights = []
     if whatsapp_sales_total:
         whatsapp_insights.append(f"WhatsApp aporta {format_cop(whatsapp_sales_total)} y {whatsapp_orders_total} pedidos en el periodo.")
@@ -1557,6 +1756,7 @@ def build_bali_snapshot(filters, include_comparison=True):
         "insight_cards": _decorate_insights(summary_insights[:5]),
         "web_insights": web_insights[:4],
         "web_insight_cards": _decorate_insights(web_insights[:4]),
+        "web_recommendations": web_recommendations[:4],
         "whatsapp_insights": whatsapp_insights[:4],
         "whatsapp_insight_cards": _decorate_insights(whatsapp_insights[:4]),
         "physical_insights": physical_insights[:4],
@@ -1574,6 +1774,7 @@ def build_bali_snapshot(filters, include_comparison=True):
             "insight_cards": _decorate_insights(community_insights[:4]),
         },
     }
+    snapshot["web_geo_map"] = build_bali_web_geo_map_data(filters, snapshot["kpis"])
     if include_comparison and filters.get("compare_mode") == "previous_period":
         comparison_filters = _previous_period_filters(filters)
         if comparison_filters:
@@ -1804,11 +2005,14 @@ def build_uva_country_snapshot(filters, country_code):
     snapshot = build_sales_snapshot(scoped_filters, include_comparison=False)
     country_names = {"CO": "Colombia", "EC": "Ecuador", "MX": "Mexico"}
     return {
+        "code": country_code,
         "label": country_names.get(country_code, country_code),
         "sales": snapshot["kpis"]["sales_total"],
         "spend": snapshot["kpis"]["ad_spend"],
         "roas": snapshot["kpis"]["roas"],
         "average_ticket": snapshot["kpis"].get("average_ticket", 0),
+        "orders": snapshot["kpis"].get("orders", 0),
+        "units": snapshot["kpis"].get("units", 0),
         "loaded_days": snapshot.get("coverage", {}).get("loaded_days", 0),
         "expected_days": snapshot.get("coverage", {}).get("expected_days", 0),
         "coverage_ratio": snapshot.get("coverage", {}).get("ratio", 0),
@@ -2237,17 +2441,15 @@ def _build_meta_ads_pacing_insights(ads):
     return {"positive": positive[:3], "negative": negative[:3]}
 
 
-def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude"):
-    country_code = (filters.get("country") or "").upper()
-    if not country_code:
-        return {
-            "ads": [],
-            "pacing_insights": {"positive": [], "negative": []},
-            "country_code": "",
-            "country_label": "",
-            "requires_country": True,
-            "message": "Filtra por pais para ver los anuncios activos de la cuenta Meta correspondiente.",
-        }
+def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude", force_refresh=False, timeout=None):
+    """Construye el panel de anuncios activos de Meta.
+
+    `force_refresh` y `timeout` existen para el precalentamiento en segundo
+    plano (ver el comando warm_meta_ads_preview): alli conviene ignorar la
+    cache y esperar a Meta lo que haga falta, porque nadie esta mirando.
+    """
+    requested_country = (filters.get("country") or "").upper()
+    country_code = requested_country or "CO"
 
     country = Country.objects.filter(code__iexact=country_code).first()
     country_label = country.name if country else country_code
@@ -2265,11 +2467,37 @@ def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude"):
 
     date_start = _parse_filter_date(filters.get("date_start")) or timezone.localdate()
     date_end = _parse_filter_date(filters.get("date_end")) or date_start
-    client = MetaAdsClient(token, api_version=getattr(settings, "META_API_VERSION", "v20.0"))
+    cache_key = "uva-meta-ads-preview:{country}:{start}:{end}:{limit}:{scope}".format(
+        country=country_code,
+        start=date_start.isoformat(),
+        end=date_end.isoformat(),
+        limit=limit or "default",
+        scope=comfama_scope,
+    )
+    if not force_refresh:
+        cached_preview = cache.get(cache_key)
+        if cached_preview is not None:
+            return cached_preview
+
+    fallback_ttl = _setting_int("META_ADS_PREVIEW_FALLBACK_CACHE_SECONDS", 120)
+
+    client = MetaAdsClient(
+        token,
+        api_version=getattr(settings, "META_API_VERSION", "v20.0"),
+        timeout=int(timeout) if timeout else _setting_int("META_ADS_PREVIEW_TIMEOUT", 8),
+    )
+    max_records = _setting_int("META_ADS_PREVIEW_MAX_RECORDS", 36)
     try:
-        rows = client.get_active_ads(account_id, limit=limit, date_start=date_start, date_end=date_end)
+        rows = client.get_active_ads(
+            account_id,
+            limit=limit,
+            date_start=date_start,
+            date_end=date_end,
+            max_records=max_records,
+        )
     except Exception:
-        return {
+        logger.exception("Meta Ads preview fallo para %s (%s a %s)", country_code, date_start, date_end)
+        failure = {
             "ads": [],
             "pacing_insights": {"positive": [], "negative": []},
             "country_code": country_code,
@@ -2277,6 +2505,13 @@ def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude"):
             "requires_country": False,
             "message": f"No fue posible cargar anuncios activos de Meta para {country_label}. Intenta actualizar de nuevo en unos minutos.",
         }
+        # Cachear el fallo evita repetir el camino lento en cada request, pero
+        # un precalentamiento fallido no debe borrar un panel bueno ya guardado.
+        if force_refresh and cache.get(cache_key) is not None:
+            logger.warning("Se conserva el preview de Meta en cache para %s tras un precalentamiento fallido", country_code)
+        else:
+            cache.set(cache_key, failure, fallback_ttl)
+        return failure
 
     image_hashes = []
     for row in rows:
@@ -2284,9 +2519,11 @@ def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude"):
     try:
         image_lookup = client.get_ad_images_by_hashes(account_id, image_hashes)
     except Exception:
+        logger.warning("No se pudieron resolver imagenes de Meta para %s", country_code, exc_info=True)
         image_lookup = {}
 
     ads = []
+    max_preview_fetches = _setting_int("META_ADS_PREVIEW_MAX_IFRAMES", 8)
     for row in rows:
         is_comfama = _meta_row_is_comfama(row)
         if comfama_scope == "exclude" and is_comfama:
@@ -2298,8 +2535,20 @@ def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude"):
         campaign = row.get("campaign") or {}
         adset = row.get("adset") or {}
         video_id = _creative_video_id(creative)
-        has_video = bool(video_id)
         display_name = _meta_ad_display_name(row, creative)
+        normalized_ad_text = " ".join(
+            normalize_text(value)
+            for value in (
+                row.get("name"),
+                display_name,
+                creative.get("name"),
+                campaign.get("name"),
+                adset.get("name"),
+            )
+            if value
+        )
+        looks_like_video = any(marker in normalized_ad_text for marker in ("reel", "video", "story"))
+        has_video = bool(video_id or looks_like_video)
         headline = _creative_text(creative, "title")
         destination_url = (
             creative.get("link_url")
@@ -2325,7 +2574,14 @@ def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude"):
                 "image_url": _creative_video_thumbnail_url(creative) or _creative_image_url(creative, image_lookup=image_lookup),
                 "media_kind": "video" if has_video else "image",
                 "video_id": video_id,
-                "preview_url": _meta_ad_preview_url(client, row, has_video, force_preview=is_comfama and not has_video),
+                "preview_url": _meta_ad_preview_url(
+                    client,
+                    row,
+                    has_video,
+                    force_preview=looks_like_video or (is_comfama and not has_video),
+                )
+                if len(ads) < max_preview_fetches
+                else "",
                 "title": display_name,
                 "headline": headline,
                 "body": _creative_text(creative, "body", "message"),
@@ -2339,7 +2595,7 @@ def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude"):
 
     ads.sort(key=lambda item: item.get("created_time") or "", reverse=True)
 
-    return {
+    preview = {
         "ads": ads,
         "pacing_insights": _build_meta_ads_pacing_insights(ads),
         "country_code": country_code,
@@ -2349,7 +2605,305 @@ def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude"):
         "requires_country": False,
         "message": "" if ads else f"No se encontraron anuncios activos en la cuenta Meta de {country_label}.",
     }
+    # Un resultado vacio tambien se cachea (con TTL corto): antes cada request
+    # sin anuncios repetia la ronda completa de llamadas a Meta.
+    ttl = _setting_int("META_ADS_PREVIEW_CACHE_SECONDS", 900) if ads else fallback_ttl
+    cache.set(cache_key, preview, ttl)
+    return preview
 
+
+
+UVA_GEO_COUNTRY_MAPS = {
+    "CO": {"label": "Colombia", "geojson": "reports/maps/CO-adm1.min.geojson"},
+    "EC": {"label": "Ecuador", "geojson": "reports/maps/EC-adm1.min.geojson"},
+    "MX": {"label": "Mexico", "geojson": "reports/maps/MX-adm1.min.geojson"},
+}
+
+GEO_LOCATION_ALIASES = {
+    "bogota": "bogota",
+    "bogota-d-c": "bogota",
+    "bogota-dc": "bogota",
+    "distrito-capital": "bogota",
+    "capital-district": "bogota",
+    "bogota-capital-district": "bogota",
+    "distrito-especial": "bogota",
+    "mexico-city": "distrito-federal",
+    "ciudad-de-mexico": "distrito-federal",
+    "cdmx": "distrito-federal",
+    "distrito-federal": "distrito-federal",
+    "coahuila": "coahuila-de-zaragoza",
+    "estado-de-mexico": "mexico",
+    "edomex": "mexico",
+    "nuevo-leon": "nuevo-leon",
+    "manabi": "manabi",
+    "santo-domingo": "santo-domingo-de-los-tsachilas",
+    "santo-domingo-de-los-tsachilas": "santo-domingo-de-los-tsachilas",
+}
+
+
+# Google Ads y Meta devuelven la misma zona con y sin calificativo ("Guayas" y
+# "Guayas Province"), lo que antes generaba dos claves distintas y partia las
+# metricas de una region en dos filas.
+GEO_NAME_PREFIXES = (
+    "departamento-del-",
+    "departamento-de-",
+    "provincia-del-",
+    "provincia-de-",
+    "estado-del-",
+    "estado-de-",
+    "region-del-",
+    "region-de-",
+    "province-of-",
+    "department-of-",
+    "state-of-",
+)
+GEO_NAME_SUFFIXES = (
+    "-departamento",
+    "-department",
+    "-provincia",
+    "-province",
+    "-estado",
+    "-state",
+    "-region",
+)
+
+
+def _strip_geo_qualifiers(key):
+    current = key
+    while True:
+        previous = current
+        for prefix in GEO_NAME_PREFIXES:
+            if current.startswith(prefix) and len(current) > len(prefix):
+                current = current[len(prefix):]
+                break
+        for suffix in GEO_NAME_SUFFIXES:
+            if current.endswith(suffix) and len(current) > len(suffix):
+                current = current[: -len(suffix)]
+                break
+        if current == previous:
+            return current or key
+
+
+def geo_location_key(value):
+    normalized = unicodedata.normalize("NFKD", str(value or ""))
+    ascii_value = "".join(char for char in normalized if not unicodedata.combining(char))
+    key = slugify(ascii_value)
+    if key in GEO_LOCATION_ALIASES:
+        return GEO_LOCATION_ALIASES[key]
+    stripped = _strip_geo_qualifiers(key)
+    return GEO_LOCATION_ALIASES.get(stripped, stripped)
+
+
+def _geo_metric_payload(row):
+    return {
+        "impressions": int(row.get("impressions", 0)),
+        "reach": int(row.get("reach", 0)),
+        "clicks": int(row.get("clicks", 0)),
+        "purchases": float(row.get("purchases", 0)),
+        "conversion_value": float(row.get("conversion_value", 0)),
+        "spend": float(row.get("spend", 0)),
+    }
+
+
+def _empty_geo_totals():
+    return {
+        "impressions": 0,
+        "reach": 0,
+        "clicks": 0,
+        "purchases": 0,
+        "conversion_value": 0,
+        "spend": 0,
+    }
+
+
+def _static_map_url(path):
+    return f"{settings.STATIC_URL.rstrip('/')}/{path.lstrip('/')}"
+
+
+def json_dumps_safe(value):
+    import json
+
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def build_bali_web_geo_map_data(filters, kpis):
+    code = "CO"
+    config = UVA_GEO_COUNTRY_MAPS[code]
+    queryset = DailyGeoAdMetric.objects.select_related("ad_platform").filter(
+        business_unit__slug="bali", country__code=code,
+        geo_level__in=[DailyGeoAdMetric.GeoLevel.REGION, DailyGeoAdMetric.GeoLevel.CITY],
+    )
+    if filters.get("date_start"):
+        queryset = queryset.filter(metric_date__gte=filters["date_start"])
+    if filters.get("date_end"):
+        queryset = queryset.filter(metric_date__lte=filters["date_end"])
+    region_totals = defaultdict(_empty_geo_totals)
+    city_totals = defaultdict(_empty_geo_totals)
+    region_names = {}
+    city_names = {}
+    platforms = set()
+    latest_date = None
+    for metric in queryset:
+        key = geo_location_key(metric.location_key or metric.location_name)
+        target = city_totals if metric.geo_level == DailyGeoAdMetric.GeoLevel.CITY else region_totals
+        names = city_names if metric.geo_level == DailyGeoAdMetric.GeoLevel.CITY else region_names
+        values = target[key]
+        values["impressions"] += int(metric.impressions or 0)
+        values["reach"] += int(metric.reach or 0)
+        values["clicks"] += int(metric.clicks or 0)
+        values["purchases"] += Decimal(str(metric.purchases or 0))
+        values["conversion_value"] += Decimal(str(metric.conversion_value or 0))
+        values["spend"] += Decimal(str(metric.spend_amount or 0))
+        names.setdefault(key, metric.location_name)
+        platforms.add(metric.ad_platform.name)
+        if latest_date is None or metric.metric_date > latest_date:
+            latest_date = metric.metric_date
+    regions = []
+    for key, values in region_totals.items():
+        payload = _geo_metric_payload(values)
+        row = {"key": key, "name": region_names.get(key, key.replace("-", " ").title())}
+        row.update(payload)
+        regions.append(row)
+    regions.sort(key=lambda item: (item["impressions"], item["purchases"], item["spend"]), reverse=True)
+    source_points = city_totals or region_totals
+    source_names = city_names if city_totals else region_names
+    points = []
+    for key, values in source_points.items():
+        purchases = float(values.get("purchases", 0))
+        if purchases <= 0:
+            continue
+        payload = _geo_metric_payload(values)
+        row = {"key": key, "name": source_names.get(key, key.replace("-", " ").title())}
+        row.update(payload)
+        points.append(row)
+    points.sort(key=lambda item: (item["purchases"], item["conversion_value"], item["spend"]), reverse=True)
+    totals_source = region_totals or city_totals
+    totals = _empty_geo_totals()
+    for values in totals_source.values():
+        for metric_name in totals:
+            totals[metric_name] += values.get(metric_name, 0)
+    total_payload = _geo_metric_payload(totals)
+
+    fallback_payload = _geo_metric_payload({
+        "impressions": kpis.get("sessions_total", 0),
+        "reach": kpis.get("sessions_total", 0),
+        "clicks": 0,
+        "purchases": kpis.get("web_orders_total", 0),
+        "conversion_value": kpis.get("web_sales_total", 0),
+        "spend": kpis.get("spend_total", 0),
+    })
+    display_totals = total_payload if any(total_payload.values()) else fallback_payload
+    has_real_geo = bool(regions or points)
+    return {
+        "code": code,
+        "label": config["label"],
+        "geojson_url": _static_map_url(config["geojson"]),
+        "regions": regions,
+        "regions_json": json_dumps_safe(regions),
+        "points": points[:12],
+        "points_json": json_dumps_safe(points[:12]),
+        "totals": display_totals,
+        "totals_json": json_dumps_safe(display_totals),
+        "has_real_geo": has_real_geo,
+        "platforms": ", ".join(sorted(platforms)) if platforms else "Google Ads",
+        "latest_date": latest_date.isoformat() if latest_date else "",
+        "sessions_total": int(kpis.get("sessions_total", 0) or 0),
+        "web_orders_total": float(kpis.get("web_orders_total", 0) or 0),
+        "web_sales_total": float(kpis.get("web_sales_total", 0) or 0),
+        "spend_total": float(kpis.get("spend_total", 0) or 0),
+        "attribution": "Mapa ADM1: geoBoundaries. Metricas: Shopify y Google Ads sincronizados por Axis; no usa Analytics como fuente principal.",
+    }
+
+
+def build_uva_geo_map_data(filters, country_rows):
+    rows_by_code = {row.get("code"): row for row in country_rows if row.get("code")}
+    selected_country = filters.get("country")
+    if selected_country in UVA_GEO_COUNTRY_MAPS:
+        codes = [selected_country]
+    else:
+        codes = [code for code in ("CO", "EC", "MX") if code in rows_by_code] or ["CO", "EC", "MX"]
+
+    maps = []
+    for code in codes:
+        config = UVA_GEO_COUNTRY_MAPS[code]
+        row = rows_by_code.get(code, {})
+        queryset = DailyGeoAdMetric.objects.select_related("ad_platform").filter(
+            business_unit__slug="uva",
+            country__code=code,
+            geo_level__in=[DailyGeoAdMetric.GeoLevel.REGION, DailyGeoAdMetric.GeoLevel.CITY],
+        )
+        if filters.get("date_start"):
+            queryset = queryset.filter(metric_date__gte=filters["date_start"])
+        if filters.get("date_end"):
+            queryset = queryset.filter(metric_date__lte=filters["date_end"])
+
+        region_totals = defaultdict(_empty_geo_totals)
+        city_totals = defaultdict(_empty_geo_totals)
+        region_names = {}
+        city_names = {}
+        platforms = set()
+        latest_date = None
+        for metric in queryset:
+            key = geo_location_key(metric.location_key or metric.location_name)
+            target = city_totals if metric.geo_level == DailyGeoAdMetric.GeoLevel.CITY else region_totals
+            names = city_names if metric.geo_level == DailyGeoAdMetric.GeoLevel.CITY else region_names
+            values = target[key]
+            values["impressions"] += int(metric.impressions or 0)
+            values["reach"] += int(metric.reach or 0)
+            values["clicks"] += int(metric.clicks or 0)
+            values["purchases"] += Decimal(str(metric.purchases or 0))
+            values["conversion_value"] += Decimal(str(metric.conversion_value or 0))
+            values["spend"] += Decimal(str(metric.spend_amount or 0))
+            names.setdefault(key, metric.location_name)
+            platforms.add(metric.ad_platform.name)
+            if latest_date is None or metric.metric_date > latest_date:
+                latest_date = metric.metric_date
+
+        regions = []
+        for key, values in region_totals.items():
+            payload = _geo_metric_payload(values)
+            regions.append({"key": key, "name": region_names.get(key, key.replace("-", " ").title()), **payload})
+        regions.sort(key=lambda item: (item["impressions"], item["purchases"]), reverse=True)
+
+        source_points = city_totals or region_totals
+        source_names = city_names if city_totals else region_names
+        points = []
+        for key, values in source_points.items():
+            purchases = float(values.get("purchases", 0))
+            if purchases <= 0:
+                continue
+            payload = _geo_metric_payload(values)
+            points.append({"key": key, "name": source_names.get(key, key.replace("-", " ").title()), **payload})
+        points.sort(key=lambda item: item["purchases"], reverse=True)
+
+        totals = _empty_geo_totals()
+        for values in region_totals.values():
+            for metric_name in totals:
+                totals[metric_name] += values.get(metric_name, 0)
+        total_payload = _geo_metric_payload(totals)
+        maps.append({
+            "code": code,
+            "label": config["label"],
+            "geojson_url": _static_map_url(config["geojson"]),
+            "regions": regions,
+            "regions_json": json_dumps_safe(regions),
+            "points": points[:12],
+            "points_json": json_dumps_safe(points[:12]),
+            "totals": total_payload,
+            "totals_json": json_dumps_safe(total_payload),
+            "sales": row.get("sales", 0),
+            "spend": row.get("spend", 0),
+            "roas": row.get("roas", 0),
+            "has_real_geo": bool(regions or points),
+            "platforms": ", ".join(sorted(platforms)) if platforms else "Google Ads / Meta Ads",
+            "latest_date": latest_date.isoformat() if latest_date else "",
+            "attribution": "Mapa ADM1: geoBoundaries. Metricas: Google Ads y Meta Ads sincronizados por Axis.",
+        })
+    return {
+        "maps": maps,
+        "selected_country": selected_country or "",
+        "is_estimated": False,
+    }
 
 def build_copa_uva_country_comparison(filters):
     rows = [build_uva_country_snapshot(filters, code) for code in ("CO", "EC", "MX")]

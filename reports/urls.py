@@ -11,6 +11,7 @@ urlpatterns = [
     path("uva/awn-internacional/", views.awn_internacional_module, name="awn_internacional"),
     path("bali/", views.bali_module, name="bali"),
     path("marketplace/", views.marketplace_module, name="marketplace"),
+    path("distrisex/ecuador/", views.distrisex_ecuador_module, name="distrisex_ecuador"),
     path("webs/", views.websites_module, name="websites"),
     path("tareas/", views.tasks_dashboard, name="tasks"),
     path("tareas/crear/", views.create_user_task_from_calendar, name="task_calendar_create"),

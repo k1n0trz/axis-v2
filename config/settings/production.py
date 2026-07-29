@@ -3,6 +3,10 @@ from decouple import Csv, config
 from .base import *  # noqa: F403
 
 DEBUG = False
+
+# Sin default: si la variable no llega al contenedor el arranque debe fallar en
+# voz alta, no firmar sesiones con una clave que esta en el repositorio.
+SECRET_KEY = config("SECRET_KEY")
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default=".run.app,localhost,127.0.0.1", cast=Csv())
 CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="https://*.run.app", cast=Csv())
 CSRF_COOKIE_SECURE = True

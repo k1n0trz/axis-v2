@@ -151,7 +151,7 @@
             <button type="button" data-command="insertUnorderedList" title="Lista">•</button>
             <button type="button" data-command="createLink" title="Enlace">↗</button>
           </div>
-          <div class="task-editor" contenteditable="true" data-editor>{{ task.employee_response|default:''|safe }}</div>
+          <div class="task-editor" contenteditable="true" data-editor>{{ task.employee_response|default:''|sanitize_html }}</div>
           <div class="d-flex flex-wrap gap-2 mt-3">
             <button class="btn btn-primary btn-sm" type="submit" name="action" value="save">Guardar avance</button>
             <button class="btn btn-primary btn-sm" type="submit" name="action" value="complete">Marcar completada</button>
@@ -185,7 +185,7 @@
             {% if task.sales_target.channel %} · {{ task.sales_target.channel.name }}{% endif %}
           </div>
           {% if task.employee_response %}
-          <div class="operational-meta mt-1">{{ task.employee_response|safe }}</div>
+          <div class="operational-meta mt-1">{{ task.employee_response|sanitize_html }}</div>
           {% endif %}
           {% if task.goal_completion_percent is not None %}
           <div class="operational-completion-pill">{{ task.goal_completion_percent|floatformat:2 }}% cumplimiento meta</div>

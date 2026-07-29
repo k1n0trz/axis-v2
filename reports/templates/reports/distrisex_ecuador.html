@@ -1,0 +1,76 @@
+{% extends "reports/base.html" %}
+{% block content %}
+<style>
+  .diagnostic-grid { display: grid; grid-template-columns: minmax(280px, .82fr) minmax(0, 1.18fr); gap: 1rem; }
+  .diagnostic-list { display: grid; gap: .75rem; }
+  .diagnostic-item { border: 1px solid rgba(154,168,194,.12); border-radius: 12px; background: rgba(255,255,255,.025); padding: .95rem; }
+  .diagnostic-item-title { color: #f4fbff; font-weight: 850; margin-bottom: .28rem; }
+  .diagnostic-endpoint { color: #7cf3ad; font-size: .76rem; font-weight: 800; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .status-chip { display: inline-flex; align-items: center; gap: .45rem; border-radius: 999px; padding: .45rem .7rem; font-weight: 800; font-size: .78rem; border: 1px solid rgba(154,168,194,.16); background: rgba(255,255,255,.04); color: #dce8f8; }
+  .status-chip.warning { border-color: rgba(250,204,21,.28); background: rgba(250,204,21,.08); color: #facc15; }
+  .status-chip.ok { border-color: rgba(124,243,173,.28); background: rgba(124,243,173,.08); color: #7cf3ad; }
+  .opportunity-list { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+  .opportunity-list li { border-left: 3px solid rgba(96,165,250,.5); padding: .55rem .75rem; background: rgba(96,165,250,.05); border-radius: 8px; color: #d8e4f8; }
+  @media (max-width: 992px) { .diagnostic-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="topbar-card filter-card">
+  <div>
+    <h1 class="h4 mb-1">{{ page_title }}</h1>
+    <div class="text-muted">{{ page_subtitle }}</div>
+  </div>
+</div>
+
+<div class="diagnostic-grid mb-4">
+  <section class="surface-card">
+    <div class="section-title mb-2">Estado de credenciales</div>
+    <p class="panel-caption mb-3">{{ credential_status.message }}</p>
+    <div class="diagnostic-list">
+      {% for entry in credential_status.entries %}
+      <div class="diagnostic-item">
+        <div class="d-flex justify-content-between gap-3 align-items-start">
+          <div>
+            <div class="diagnostic-item-title">{{ entry.label }}</div>
+            <div class="panel-caption">Longitud detectada: {{ entry.length }} caracteres.</div>
+          </div>
+          {% if entry.looks_like_conekta_private_key %}
+          <span class="status-chip ok">Formato Conekta probable</span>
+          {% else %}
+          <span class="status-chip warning">No parece llave privada</span>
+          {% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <div class="empty-state p-3">Sin entradas de credencial detectadas.</div>
+      {% endfor %}
+    </div>
+    <div class="alert alert-warning mt-3 mb-0 border-0" style="background:rgba(250,204,21,.08);color:#ffe7a3;">
+      {{ auth_note }}
+    </div>
+  </section>
+
+  <section class="surface-card">
+    <div class="section-title mb-2">Qué podemos traer desde Conekta</div>
+    <p class="panel-caption mb-3">Inventario inicial de fuentes disponibles por API antes de diseñar gráficas o KPIs.</p>
+    <div class="diagnostic-list">
+      {% for resource in conekta_resources %}
+      <div class="diagnostic-item">
+        <div class="diagnostic-item-title">{{ resource.name }}</div>
+        <div class="diagnostic-endpoint mb-2">{{ resource.endpoint }}</div>
+        <div class="text-muted">{{ resource.can_power }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<section class="surface-card">
+  <div class="section-title mb-2">Primer roadmap de datos</div>
+  <p class="panel-caption mb-3">Cuando tengamos una llave privada válida, estas son las primeras lecturas que conviene convertir en tablas y luego en gráficas.</p>
+  <ul class="opportunity-list">
+    {% for item in dashboard_opportunities %}
+    <li>{{ item }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

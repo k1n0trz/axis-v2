@@ -76,7 +76,7 @@ class GoogleAdsWorkbookImportTests(TestCase):
             DailyProductCategoryMetric.objects.get(
                 country__code="CO",
                 metric_date=date(2026, 6, 4),
-                category__slug="cubrepezones-sin-adhesivo",
+                category__slug="cubrepezones",
             ).spend_google,
             Decimal("35000.00"),
         )

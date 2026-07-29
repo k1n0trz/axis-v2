@@ -14,10 +14,32 @@ from reports.models import BusinessUnit, Channel, Country, DailyChannelSale, Sal
 
 
 MONTHS = {
+    "ene": 1,
+    "enero": 1,
+    "feb": 2,
+    "febrero": 2,
     "mar": 3,
+    "marzo": 3,
     "abril": 4,
     "abri": 4,
     "abr": 4,
+    "may": 5,
+    "mayo": 5,
+    "jun": 6,
+    "junio": 6,
+    "jul": 7,
+    "julio": 7,
+    "ago": 8,
+    "agosto": 8,
+    "sep": 9,
+    "sept": 9,
+    "septiembre": 9,
+    "oct": 10,
+    "octubre": 10,
+    "nov": 11,
+    "noviembre": 11,
+    "dic": 12,
+    "diciembre": 12,
 }
 
 CHANNEL_BLOCKS = [
@@ -26,6 +48,10 @@ CHANNEL_BLOCKS = [
     ("Rappi", 10, 11, 12, 13),
     ("Farmatodo", 14, None, None, None),
 ]
+
+CHANNEL_SLUG_ALIASES = {
+    "Mercadolibre": ("mercado-libre", "mercadolibre"),
+}
 
 TARGET_COLUMNS = {
     "Mercadolibre": 4,
@@ -89,6 +115,39 @@ def split_int(total, count):
     return [base + (1 if index < remainder else 0) for index in range(count)]
 
 
+def apply_marketplace_import_row(lookup, source_name, label, sales, spend, orders, units):
+    sale, was_created = DailyChannelSale.objects.get_or_create(
+        **lookup,
+        defaults={
+            "sales_amount": Decimal("0"),
+            "spend_amount": Decimal("0"),
+            "order_count": 0,
+            "units": 0,
+            "source_type": DailyChannelSale.SourceType.IMPORTED,
+            "source_file": source_name,
+            "notes": "",
+        },
+    )
+    update_fields = ["source_type", "source_file", "notes", "updated_at"]
+    if sales is not None:
+        sale.sales_amount = sales
+        update_fields.append("sales_amount")
+    if spend is not None:
+        sale.spend_amount = spend
+        update_fields.append("spend_amount")
+    if orders is not None:
+        sale.order_count = orders
+        update_fields.append("order_count")
+    if units is not None:
+        sale.units = units
+        update_fields.append("units")
+    sale.source_type = DailyChannelSale.SourceType.IMPORTED
+    sale.source_file = source_name
+    sale.notes = f"Distribuido diariamente desde consolidado semanal: {label}."
+    sale.save(update_fields=update_fields)
+    return was_created
+
+
 class Command(BaseCommand):
     help = "Importa ventas semanales de Marketplace y las distribuye de forma diaria."
 
@@ -114,11 +173,14 @@ class Command(BaseCommand):
 
         channels = {}
         for index, (name, *_columns) in enumerate(CHANNEL_BLOCKS, start=1):
-            channel, _ = Channel.objects.get_or_create(
-                business_unit=business_unit,
-                slug=slugify(name),
-                defaults={"name": name, "display_order": index, "is_active": True},
-            )
+            slug_aliases = CHANNEL_SLUG_ALIASES.get(name, (slugify(name),))
+            channel = Channel.objects.filter(business_unit=business_unit, slug__in=slug_aliases).first()
+            if not channel:
+                channel, _ = Channel.objects.get_or_create(
+                    business_unit=business_unit,
+                    slug=slug_aliases[0],
+                    defaults={"name": name, "display_order": index, "is_active": True},
+                )
             channels[name] = channel
 
         workbook = load_workbook(path, data_only=True)
@@ -144,25 +206,24 @@ class Command(BaseCommand):
                 units = parse_int(sheet.cell(row=row_index, column=units_col).value) if units_col else None
                 if sales is None and spend is None and orders is None and units is None:
                     continue
-                sales_values = split_decimal(sales, len(days))
-                spend_values = split_decimal(spend, len(days))
-                order_values = split_int(orders, len(days))
-                unit_values = split_int(units, len(days))
+                sales_values = split_decimal(sales, len(days)) if sales is not None else [None] * len(days)
+                spend_values = split_decimal(spend, len(days)) if spend is not None else [None] * len(days)
+                order_values = split_int(orders, len(days)) if orders is not None else [None] * len(days)
+                unit_values = split_int(units, len(days)) if units is not None else [None] * len(days)
                 for index, sale_date in enumerate(days):
-                    _, was_created = DailyChannelSale.objects.update_or_create(
-                        business_unit=business_unit,
-                        country=country,
-                        channel=channels[channel_name],
-                        sale_date=sale_date,
-                        defaults={
-                            "sales_amount": sales_values[index],
-                            "spend_amount": spend_values[index],
-                            "order_count": order_values[index],
-                            "units": unit_values[index],
-                            "source_type": DailyChannelSale.SourceType.IMPORTED,
-                            "source_file": source_name,
-                            "notes": f"Distribuido diariamente desde consolidado semanal: {label}.",
+                    was_created = apply_marketplace_import_row(
+                        {
+                            "business_unit": business_unit,
+                            "country": country,
+                            "channel": channels[channel_name],
+                            "sale_date": sale_date,
                         },
+                        source_name,
+                        label,
+                        sales_values[index],
+                        spend_values[index],
+                        order_values[index],
+                        unit_values[index],
                     )
                     if was_created:
                         created += 1

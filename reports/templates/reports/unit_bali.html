@@ -112,6 +112,10 @@
   .bali-channel-chart-box {
     min-height: 220px;
   }
+  .bali-value-investment-chart {
+    min-height: 320px;
+    height: 320px;
+  }
   .bali-channel-split {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -319,6 +323,80 @@
     color: #f4fbff;
     font-size: 1.05rem;
   }
+  .shopify-geo-map {
+    display: grid;
+    grid-template-columns: minmax(240px, .75fr) minmax(0, 1.25fr);
+    gap: 1rem;
+    align-items: stretch;
+  }
+  .geo-map-canvas {
+    border: 1px solid rgba(96, 165, 250, .18);
+    border-radius: 14px;
+    background: radial-gradient(circle at 35% 25%, rgba(96, 165, 250, .18), transparent 32%), rgba(12, 19, 31, .82);
+    min-height: 220px;
+    padding: 1rem;
+    display: grid;
+    place-items: center;
+  }
+  .geo-map-shape {
+    width: min(100%, 240px);
+    min-height: 160px;
+    border-radius: 46% 54% 48% 52%;
+    border: 1px solid rgba(124, 243, 173, .34);
+    background: linear-gradient(135deg, rgba(16, 185, 129, .18), rgba(59, 130, 246, .12));
+    display: grid;
+    place-items: center;
+    text-align: center;
+    color: #f4fbff;
+    font-weight: 850;
+  }
+  .geo-map-shape span { display: block; color: #9fb0cd; font-size: .72rem; font-weight: 700; margin-top: .25rem; }
+  .geo-map-list { display: grid; gap: .75rem; }
+  .geo-map-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: .8rem; align-items: center; border: 1px solid rgba(154, 168, 194, .12); border-radius: 12px; background: rgba(255,255,255,.02); padding: .8rem; }
+  .geo-map-country { color: #f4fbff; font-weight: 850; }
+  .geo-map-bars { display: grid; gap: .4rem; min-width: 0; }
+  .geo-map-bar { height: 8px; border-radius: 999px; background: rgba(154, 168, 194, .16); overflow: hidden; }
+  .geo-map-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #60a5fa, #7cf3ad); }
+  .geo-map-fill.purchase { background: linear-gradient(90deg, #facc15, #f87171); }
+  .geo-map-metrics { text-align: right; color: #b8c6dd; font-size: .76rem; line-height: 1.45; }
+  .geo-map-note { color: #91a1bc; font-size: .78rem; line-height: 1.45; margin-top: .85rem; }
+  .shopify-geo-map.geo-country-map-real { grid-template-columns: minmax(420px, 1fr) minmax(320px, .82fr); }
+  .geo-map-canvas-real { min-height: 540px; padding: .65rem; position: relative; overflow: hidden; cursor: grab; display: block; }
+  .geo-map-canvas-real.is-panning { cursor: grabbing; }
+  .geo-country-svg-real { width: 100%; height: 100%; min-height: 500px; display: block; cursor: inherit; touch-action: none; filter: drop-shadow(0 18px 34px rgba(0,0,0,.28)); }
+  .geo-loading { color: #9fb0cd; font-weight: 800; position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; pointer-events: none; }
+  .geo-loading.is-hidden { display: none; }
+  .geo-real-region { cursor: pointer; transition: fill .18s ease, fill-opacity .18s ease, stroke .18s ease; }
+  .geo-real-region:hover { fill-opacity: .95; stroke: rgba(250, 204, 21, .92); stroke-width: 1.4; }
+  .geo-real-label { fill: #f4fbff; font-size: 10px; font-weight: 850; paint-order: stroke; stroke: rgba(7, 12, 22, .86); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+  .geo-real-point { fill: #facc15; stroke: #fff7d6; stroke-width: 2; filter: drop-shadow(0 0 8px rgba(250,204,21,.48)); }
+  .geo-real-hit { fill: transparent; stroke: transparent; cursor: pointer; }
+  .geo-real-empty { fill: rgba(18, 30, 46, .9); stroke: rgba(154,168,194,.18); }
+  .geo-map-controls { position: absolute; top: .75rem; right: .75rem; display: inline-flex; gap: .35rem; padding: .35rem; border: 1px solid rgba(154,168,194,.16); border-radius: 999px; background: rgba(7, 12, 22, .74); backdrop-filter: blur(10px); z-index: 3; }
+  .geo-map-controls button { min-width: 2rem; height: 2rem; border: 0; border-radius: 999px; background: rgba(255,255,255,.08); color: #f4fbff; font-weight: 900; line-height: 1; }
+  .geo-map-controls button:hover { background: rgba(96,165,250,.3); }
+  .geo-map-tooltip { position: absolute; min-width: 220px; max-width: 290px; padding: .78rem .85rem; border: 1px solid rgba(124,243,173,.2); border-radius: 12px; background: rgba(7, 12, 22, .94); box-shadow: 0 18px 38px rgba(0,0,0,.38); color: #dce8f8; pointer-events: none; opacity: 0; transform: translateY(6px); transition: opacity .12s ease, transform .12s ease; z-index: 4; }
+  .geo-map-tooltip.is-visible { opacity: 1; transform: translateY(0); }
+  .geo-tooltip-title { color: #f4fbff; font-weight: 900; margin-bottom: .55rem; }
+  .geo-tooltip-grid { display: grid; grid-template-columns: 1fr auto; gap: .3rem .8rem; font-size: .78rem; }
+  .geo-tooltip-label { color: #9fb0cd; }
+  .geo-tooltip-value { color: #f4fbff; font-weight: 850; text-align: right; }
+  .geo-map-side { display: grid; align-content: start; gap: 1rem; }
+  .geo-map-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+  .geo-zone-list { display: grid; gap: .65rem; }
+  .geo-zone-row { display: grid; grid-template-columns: 118px minmax(0, 1fr) auto; gap: .75rem; align-items: center; padding: .7rem .8rem; border: 1px solid rgba(154,168,194,.12); border-radius: 10px; background: rgba(255,255,255,.025); }
+  .geo-zone-name { color: #f4fbff; font-weight: 850; }
+  .geo-zone-track { height: 8px; border-radius: 999px; background: rgba(154,168,194,.16); overflow: hidden; }
+  .geo-zone-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #12d4d6, #7cf3ad); }
+  .geo-zone-value { color: #b8c6dd; font-size: .76rem; text-align: right; }
+  .geo-point-list { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .geo-point-pill { border: 1px solid rgba(250,204,21,.2); background: rgba(250,204,21,.08); color: #f4fbff; border-radius: 999px; padding: .42rem .62rem; font-size: .78rem; font-weight: 800; }
+  .geo-map-note.strong { border-left: 3px solid rgba(124,243,173,.5); padding-left: .85rem; }
+  .bali-recommendation-list { display: grid; gap: .85rem; }
+  .bali-recommendation-card { border: 1px solid rgba(124, 243, 173, .16); border-radius: 12px; background: rgba(13, 20, 32, .76); padding: .95rem; }
+  .bali-recommendation-title { color: #f4fbff; font-weight: 850; margin-bottom: .35rem; }
+  .bali-recommendation-message { color: #b9c8df; font-size: .84rem; line-height: 1.45; }
+  .bali-recommendation-action { color: #7cf3ad; font-size: .78rem; font-weight: 800; margin-top: .55rem; }
   @media (max-width: 1400px) {
     .bali-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .bali-product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -330,6 +408,7 @@
     .bali-metric-stack,
     .bali-performance-lower,
     .bali-channel-split,
+    .shopify-geo-map,
     .bali-community-layout { grid-template-columns: 1fr; }
     .bali-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
@@ -518,6 +597,74 @@
       {% include "reports/includes/insights.html" with insight_rows=bali_snapshot.web_insight_cards badge="WEB" %}
     </div>
   </div>
+</div>
+<div class="bali-bottom-grid mt-4">
+  <div class="surface-card p-3 p-lg-4">
+    <div class="section-title mb-1">Valor de conversion vs inversion</div>
+    <div class="panel-subtitle mb-3">Ventas Shopify cruzadas contra inversion de Google Ads por fecha para detectar dias de eficiencia y desperdicio.</div>
+    <div class="chart-box bali-value-investment-chart"><canvas id="baliWebValueInvestmentChart"></canvas></div>
+  </div>
+  <div class="surface-card p-3 p-lg-4">
+    <div class="section-title mb-3">Recomendaciones personalizadas</div>
+    <div class="bali-recommendation-list">
+      {% for item in bali_snapshot.web_recommendations %}
+      <div class="bali-recommendation-card">
+        <div class="bali-recommendation-title">{{ item.title }}</div>
+        <div class="bali-recommendation-message">{{ item.message }}</div>
+        <div class="bali-recommendation-action">{{ item.action }}</div>
+      </div>
+      {% empty %}
+      <div class="empty-state p-4">Sin recomendaciones suficientes para este rango. Ejecuta la sincronizacion de Shopify y Google Ads.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<div class="surface-card p-3 p-lg-4 mt-4">
+  <div class="panel-header align-items-start">
+    <div>
+      <div class="section-title mb-1">Mapa Colombia Web Shopify</div>
+      <div class="panel-subtitle mb-0">Mapa real de Colombia por departamentos. Hover para ver sesiones/visibilidad, compras/conversiones y gasto; zoom y arrastre disponibles.</div>
+    </div>
+  </div>
+  {% with map=bali_snapshot.web_geo_map %}
+  <div class="shopify-geo-map geo-country-map-real" data-geo-map data-map-url="{{ map.geojson_url }}" data-regions="{{ map.regions_json|escape }}" data-points="{{ map.points_json|escape }}" data-country="{{ map.code }}">
+    <div class="geo-map-canvas geo-map-canvas-real">
+      <div class="geo-loading" data-geo-loading>Cargando mapa real de Colombia...</div>
+      <svg class="geo-country-svg-real" viewBox="0 0 760 620" role="img" aria-label="Mapa Colombia Web Shopify" data-geo-svg></svg>
+    </div>
+    <div class="geo-map-side">
+      <div>
+        <div class="section-title mb-1">Colombia</div>
+        <div class="panel-subtitle mb-0">Fuente visual: departamentos reales. Plataformas: {{ map.platforms }}{% if map.latest_date %}. Ultima geodata: {{ map.latest_date }}{% endif %}.</div>
+      </div>
+      <div class="geo-map-summary">
+        <div class="bali-mini-metric"><div class="bali-mini-metric-label">Sesiones web</div><div class="bali-mini-metric-value">{{ bali_snapshot.kpis.sessions_total|floatformat:0 }}</div></div>
+        <div class="bali-mini-metric"><div class="bali-mini-metric-label">Compras web</div><div class="bali-mini-metric-value">{{ bali_snapshot.kpis.web_orders_total|floatformat:0 }}</div></div>
+        <div class="bali-mini-metric"><div class="bali-mini-metric-label">Ventas Shopify</div><div class="bali-mini-metric-value">{{ bali_snapshot.kpis.web_sales_total|cop }}</div></div>
+        <div class="bali-mini-metric"><div class="bali-mini-metric-label">Gasto geo</div><div class="bali-mini-metric-value">{{ map.totals.spend|cop }}</div></div>
+      </div>
+      {% if map.has_real_geo %}
+      <div class="geo-zone-list">
+        {% for region in map.regions|slice:":8" %}
+        <div class="geo-zone-row">
+          <div class="geo-zone-name">{{ region.name }}</div>
+          <div class="geo-zone-track"><div class="geo-zone-fill" style="width: {% widthratio region.impressions map.totals.impressions 100 %}%;"></div></div>
+          <div class="geo-zone-value">{{ region.impressions|floatformat:0 }} imp.</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if map.points %}
+      <div class="geo-point-list">
+        {% for point in map.points %}<div class="geo-point-pill">{{ point.name }} - {{ point.purchases|floatformat:0 }}</div>{% endfor %}
+      </div>
+      {% endif %}
+      {% else %}
+      <div class="geo-map-note strong">Mapa real listo. Aun no hay desglose geografico guardado para Bali por departamento/ciudad en este rango; cuando el sync de Google Ads traiga la dimension geografica, se colorean zonas y aparecen puntos de compra.</div>
+      {% endif %}
+      <div class="geo-map-note">{{ map.attribution }}</div>
+    </div>
+  </div>
+  {% endwith %}
 </div>
 <div class="surface-card p-3 p-lg-4">
   <div class="section-title mb-1">Top 20 productos vendidos</div>
@@ -867,6 +1014,37 @@ function renderWebChart() {
   });
 }
 
+function renderWebValueInvestmentChart() {
+  const canvas = document.getElementById('baliWebValueInvestmentChart');
+  if (!canvas) return;
+  if (!baliWebDaily.length) return replaceWithEmpty(canvas, 'Sin datos Shopify/Google Ads para graficar.');
+  const options = baseOptions();
+  options.scales.y.title = { display: true, text: 'COP', color: '#95a6c4' };
+  options.scales.y1 = {
+    position: 'right',
+    ticks: { color: '#7cf3ad', callback: value => `${Number(value).toFixed(1)}x` },
+    grid: { drawOnChartArea: false },
+    title: { display: true, text: 'ROAS', color: '#7cf3ad' }
+  };
+  options.plugins.tooltip.callbacks = {
+    label(context) {
+      if (context.dataset.label === 'ROAS') return `ROAS: ${Number(context.raw || 0).toFixed(2)}`;
+      return `${context.dataset.label}: ${formatCop(context.raw)}`;
+    }
+  };
+  new Chart(canvas, {
+    data: {
+      labels: baliWebDaily.map(item => item.label),
+      datasets: [
+        { type: 'bar', label: 'Valor de conversion Shopify', data: baliWebDaily.map(item => Number(item.sales || 0)), backgroundColor: 'rgba(124, 243, 173, .72)', borderColor: '#7cf3ad', borderWidth: 1, borderRadius: 7, yAxisID: 'y' },
+        { type: 'bar', label: 'Inversion Google Ads', data: baliWebDaily.map(item => Number(item.spend || 0)), backgroundColor: 'rgba(96, 165, 250, .72)', borderColor: '#60a5fa', borderWidth: 1, borderRadius: 7, yAxisID: 'y' },
+        { type: 'line', label: 'ROAS', data: baliWebDaily.map(item => Number(item.roas || 0)), borderColor: '#7cf3ad', backgroundColor: '#7cf3ad', borderWidth: 3, pointRadius: 3, tension: .28, yAxisID: 'y1' }
+      ]
+    },
+    options
+  });
+}
+
 function renderWhatsappChart() {
   const canvas = document.getElementById('baliWhatsappChart');
   if (!canvas) return;
@@ -1100,10 +1278,13 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Escape') closeProductDetail();
 });
 
+{% include "reports/includes/geo_map_renderer.js" %}
+setupGeoMaps();
 renderPerformanceChart('baliPerformanceChart', baliDaily);
 renderChannelChart();
 renderDemandChart();
 renderWebChart();
+renderWebValueInvestmentChart();
 renderWhatsappChart();
 renderPhysicalChart();
 renderCommunityChart();

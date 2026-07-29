@@ -864,6 +864,50 @@ class DailyAdSpend(TimestampedModel):
         return f"{self.business_unit} - {self.country} - {self.ad_platform} - {self.spend_date}"
 
 
+class DailyGeoAdMetric(TimestampedModel):
+    class SourceType(models.TextChoices):
+        MANUAL = "manual", "Manual"
+        IMPORTED = "imported", "Importado"
+
+    class GeoLevel(models.TextChoices):
+        COUNTRY = "country", "Pais"
+        REGION = "region", "Region"
+        CITY = "city", "Ciudad"
+
+    business_unit = models.ForeignKey(BusinessUnit, on_delete=models.CASCADE, related_name="daily_geo_ad_metrics")
+    country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name="daily_geo_ad_metrics")
+    ad_platform = models.ForeignKey(AdPlatform, on_delete=models.CASCADE, related_name="daily_geo_metrics")
+    metric_date = models.DateField()
+    geo_level = models.CharField(max_length=20, choices=GeoLevel.choices, default=GeoLevel.REGION)
+    location_key = models.SlugField(max_length=140)
+    location_name = models.CharField(max_length=160)
+    platform_location_id = models.CharField(max_length=120, blank=True)
+    impressions = models.PositiveBigIntegerField(default=0)
+    reach = models.PositiveBigIntegerField(default=0)
+    clicks = models.PositiveBigIntegerField(default=0)
+    purchases = models.DecimalField(max_digits=18, decimal_places=2, default=ZERO)
+    conversion_value = models.DecimalField(max_digits=18, decimal_places=2, default=ZERO)
+    spend_amount = models.DecimalField(max_digits=18, decimal_places=2, default=ZERO)
+    source_type = models.CharField(max_length=20, choices=SourceType.choices, default=SourceType.IMPORTED)
+    source_file = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-metric_date", "business_unit__display_order", "country__display_order", "ad_platform__name", "geo_level", "location_name"]
+        verbose_name = "Metrica geografica de pauta"
+        verbose_name_plural = "Metricas geograficas de pauta"
+        constraints = [
+            models.UniqueConstraint(fields=["business_unit", "country", "ad_platform", "metric_date", "geo_level", "location_key"], name="reports_geo_metric_unique"),
+        ]
+        indexes = [
+            models.Index(fields=["metric_date", "business_unit", "country", "ad_platform"], name="reports_geo_date_dims_idx"),
+            models.Index(fields=["country", "geo_level", "location_key"], name="reports_geo_location_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.business_unit} - {self.country} - {self.ad_platform} - {self.location_name} - {self.metric_date}"
+
+
 class Website(TimestampedModel):
     class Platform(models.TextChoices):
         WORDPRESS = "wordpress", "WordPress"

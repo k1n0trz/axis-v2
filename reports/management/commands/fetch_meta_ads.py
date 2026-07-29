@@ -8,8 +8,8 @@ from django.conf import settings
 
 from reports.integrations.axis_sync import AxisSyncService
 from reports.integrations.clients import ExchangeRateClient, MetaAdsClient, load_json_mapping, match_rule
-from reports.integrations.schema import AdSpendRecord, CategoryMetricRecord, ComfamaAdMetricRecord, FollowerMetricRecord
-from reports.services.sales_dashboard import uva_exchange_rate_for_country
+from reports.integrations.schema import AdSpendRecord, CategoryMetricRecord, ComfamaAdMetricRecord, FollowerMetricRecord, GeoAdMetricRecord
+from reports.services.sales_dashboard import geo_location_key, uva_exchange_rate_for_country
 
 
 def action_value(actions, action_type):
@@ -85,6 +85,7 @@ class Command(BaseCommand):
         parser.add_argument("--fx-key", default="")
         parser.add_argument("--level", default="adset")
         parser.add_argument("--debug-actions", action="store_true")
+        parser.add_argument("--skip-geo", action="store_true")
         parser.add_argument("--sync-axis", action="store_true")
 
     def handle(self, *args, **options):
@@ -105,6 +106,13 @@ class Command(BaseCommand):
         fx = ExchangeRateClient(fx_url, api_key=fx_key)
         client = MetaAdsClient(meta_token, api_version=api_version)
         insights = client.get_campaign_insights(account_id, target_date, level=options["level"])
+        geo_metrics = []
+        geo_error = ""
+        if not options["skip_geo"]:
+            try:
+                geo_metrics = self._build_geo_metrics(client, account_id, target_date, country_code, options, fx)
+            except Exception as exc:
+                geo_error = str(exc)
         spend_total = Decimal("0")
         comfama_spend_total = Decimal("0")
         spend_by_category = defaultdict(lambda: {"meta": Decimal("0"), "results": Decimal("0"), "name": "", "campaign": ""})
@@ -287,6 +295,8 @@ class Command(BaseCommand):
                 sync.sync_ad_spends([comfama_spend_record])
             if comfama_metrics:
                 sync.sync_comfama_ad_metrics(comfama_metrics)
+            if geo_metrics:
+                sync.sync_geo_ad_metrics(geo_metrics)
 
         self.stdout.write(
             json.dumps(
@@ -297,9 +307,57 @@ class Command(BaseCommand):
                     "follower_debug_rows": follower_debug_rows,
                     "comfama_daily_spend": comfama_spend_record.to_dict() if comfama_spend_record else None,
                     "comfama_metrics": [item.to_dict() for item in comfama_metrics],
+                    "geo_metrics": [item.to_dict() for item in geo_metrics],
+                    "geo_error": geo_error,
                     "unmatched_campaigns": unmatched_campaigns,
                 },
                 indent=2,
                 default=str,
             )
         )
+    def _convert_amount(self, amount, account_currency, country_code, target_currency, target_date, fx):
+        if account_currency == target_currency:
+            return amount
+        fixed_rate = uva_exchange_rate_for_country(country_code, account_currency)
+        return amount * fixed_rate if fixed_rate != Decimal("1") else fx.convert(account_currency, target_currency, amount, target_date=target_date)
+
+    def _build_geo_metrics(self, client, account_id, target_date, country_code, options, fx):
+        rows = []
+        breakdown_used = "region"
+        try:
+            rows = client.get_geo_insights(account_id, target_date, level="account", breakdown="region")
+        except RuntimeError:
+            breakdown_used = "country"
+            rows = client.get_geo_insights(account_id, target_date, level="account", breakdown="country")
+        records = []
+        for row in rows:
+            location_name = str(row.get(breakdown_used) or row.get("region") or row.get("country") or "").strip()
+            if not location_name:
+                continue
+            spend = Decimal(str(row.get("spend") or "0"))
+            account_currency = row.get("account_currency") or options["currency"]
+            spend_cop = self._convert_amount(spend, account_currency, country_code, options["target_currency"], target_date, fx)
+            purchases = action_value(row.get("actions"), "purchase") or action_value(row.get("actions"), "onsite_web_purchase") or action_value_contains(row.get("actions"), ["purchase"])
+            conversion_value = action_value(row.get("action_values"), "purchase") or action_value(row.get("action_values"), "onsite_web_purchase") or action_value_contains(row.get("action_values"), ["purchase"])
+            records.append(
+                GeoAdMetricRecord(
+                    business_unit_slug=options["business_unit"],
+                    country_code=country_code,
+                    ad_platform_slug="meta-ads",
+                    metric_date=target_date,
+                    geo_level="region" if breakdown_used == "region" else "country",
+                    location_key=geo_location_key(location_name),
+                    location_name=location_name,
+                    platform_location_id=location_name,
+                    impressions=int(Decimal(str(row.get("impressions") or "0"))),
+                    reach=int(Decimal(str(row.get("reach") or "0"))),
+                    clicks=int(Decimal(str(row.get("clicks") or row.get("inline_link_clicks") or "0"))),
+                    purchases=purchases,
+                    conversion_value=conversion_value,
+                    spend_amount=spend_cop,
+                    source_file="meta-ads-api-geo",
+                    notes=f"Cuenta Meta {account_id}. Breakdown: {breakdown_used}.",
+                )
+            )
+        return records
+

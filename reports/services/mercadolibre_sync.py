@@ -126,11 +126,16 @@ def sync_orders_for_day(target_date, client=None):
             sale_date=target_date,
             defaults={"sales_amount": Decimal("0"), "spend_amount": Decimal("0"), "order_count": 0, "units": 0},
         )
-        sale.sales_amount = sales_amount
-        sale.order_count = order_count
-        sale.units = units
+        preserved_existing_sales = False
+        if not sales_amount and not order_count and not units and (sale.sales_amount or sale.order_count or sale.units):
+            preserved_existing_sales = True
+            sale.notes = "Mercado Libre no devolvio ventas para este dia; se conservaron ventas/pedidos/unidades existentes."
+        else:
+            sale.sales_amount = sales_amount
+            sale.order_count = order_count
+            sale.units = units
+            sale.notes = "Ventas importadas desde Mercado Libre. La inversion publicitaria se conserva para carga manual."
         sale.source_type = DailyChannelSale.SourceType.IMPORTED
         sale.source_file = "mercadolibre-api"
-        sale.notes = "Ventas importadas desde Mercado Libre. La inversion publicitaria se conserva para carga manual."
         sale.save(update_fields=["sales_amount", "order_count", "units", "source_type", "source_file", "notes", "updated_at"])
-    return {"date": target_date.isoformat(), "sales_amount": sales_amount, "order_count": order_count, "units": units}
+    return {"date": target_date.isoformat(), "sales_amount": sales_amount, "order_count": order_count, "units": units, "preserved_existing_sales": preserved_existing_sales}

@@ -74,6 +74,29 @@ class CategoryMetricRecord:
 
 
 @dataclass
+class GeoAdMetricRecord:
+    business_unit_slug: str
+    country_code: str
+    ad_platform_slug: str
+    metric_date: date
+    geo_level: str
+    location_key: str
+    location_name: str
+    platform_location_id: str = ""
+    impressions: int = 0
+    reach: int = 0
+    clicks: int = 0
+    purchases: Decimal = Decimal("0")
+    conversion_value: Decimal = Decimal("0")
+    spend_amount: Decimal = Decimal("0")
+    source_file: str = ""
+    notes: str = ""
+
+    def to_dict(self):
+        return asdict(self)
+
+
+@dataclass
 class FollowerMetricRecord:
     country_code: str
     metric_date: date

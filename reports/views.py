@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 from datetime import datetime, time, timedelta
 from pathlib import Path
@@ -18,6 +18,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -41,7 +42,7 @@ from .models import AdPlatform, Attachment, BusinessUnit, Channel, Country, Dail
 from .services.analytics import attachments, build_dashboard_summary, build_filter_dict, build_unit_summary, weekly_tasks
 from .services.excel_master import build_master_workbook, commit_master_import, create_export_job, preview_master_import
 from .services.marketplace_inventory import marketplace_inventory_snapshot
-from .services.sales_dashboard import build_ad_platform_performance, build_awn_international_snapshot, build_bali_product_detail, build_bali_snapshot, build_comfama_snapshot, build_copa_uva_country_comparison, build_ecuador_snapshot, build_sales_snapshot, build_uva_category_country_comparison, build_uva_category_snapshot, build_uva_meta_ads_preview, build_uva_product_detail, ensure_ad_platform_catalogs, ensure_bali_catalogs, ensure_marketplace_catalogs, ensure_uva_catalogs, remove_colombia_vat
+from .services.sales_dashboard import build_ad_platform_performance, build_awn_international_snapshot, build_bali_product_detail, build_bali_snapshot, build_comfama_snapshot, build_copa_uva_country_comparison, build_ecuador_snapshot, build_marketplace_product_detail, build_sales_snapshot, build_uva_category_country_comparison, build_uva_category_snapshot, build_uva_geo_map_data, build_uva_meta_ads_preview, build_uva_product_detail, ensure_ad_platform_catalogs, ensure_bali_catalogs, ensure_marketplace_catalogs, ensure_uva_catalogs, remove_colombia_vat
 from .services.website_monitor import latest_checks_by_website, seed_websites
 
 MASTER_IMPORT_SESSION_KEY = "master_import_preview"
@@ -49,6 +50,7 @@ MARKETPLACE_GROUP = "Marketplace"
 BALI_WHATSAPP_GROUP = "Bali WhatsApp"
 KATERINE_USERNAME = "katerine"
 EDITRAFFICKER_USERNAME = "editrafficker"
+FEATURE_TASKS_GOALS_ENABLED = False
 
 
 def _bonus_tier(fulfillment):
@@ -126,11 +128,11 @@ def _has_own_goals(user):
 
 
 def _can_view_goals_dashboard(user):
-    return user.is_authenticated and (user.is_superuser or UserProfile.objects.filter(manager=user).exists() or _has_own_goals(user))
+    return FEATURE_TASKS_GOALS_ENABLED and user.is_authenticated and (user.is_superuser or UserProfile.objects.filter(manager=user).exists() or _has_own_goals(user))
 
 
 def _can_view_tasks_dashboard(user):
-    return user.is_authenticated
+    return FEATURE_TASKS_GOALS_ENABLED and user.is_authenticated
 
 
 def _sidebar_context(active, request=None):
@@ -155,14 +157,13 @@ def _sidebar_context(active, request=None):
             ],
             "active_nav": active,
             "current_user_profile": current_user_profile,
+            "tasks_goals_enabled": FEATURE_TASKS_GOALS_ENABLED,
             **sync_context,
         }
     if request and _is_marketplace_only_user(request.user):
         sidebar_items = [
             {"label": "Inicio", "url": reverse("reports:dashboard"), "key": "dashboard"},
             {"label": "Marketplace", "url": reverse("reports:marketplace"), "key": "marketplace"},
-            {"label": "Tareas", "url": reverse("reports:tasks"), "key": "tasks"},
-            {"label": "Metas", "url": reverse("reports:goals"), "key": "goals"},
         ]
         if _is_editrafficker_user(request.user):
             sidebar_items.append({"label": "Webs", "url": reverse("reports:websites"), "key": "websites"})
@@ -171,18 +172,18 @@ def _sidebar_context(active, request=None):
             "sidebar_items": sidebar_items,
             "active_nav": active,
             "current_user_profile": current_user_profile,
+            "tasks_goals_enabled": FEATURE_TASKS_GOALS_ENABLED,
             **sync_context,
         }
     if request and _is_bali_whatsapp_only_user(request.user):
         return {
             "sidebar_items": [
                 {"label": "Bali", "url": reverse("reports:bali"), "key": "bali"},
-                {"label": "Tareas", "url": reverse("reports:tasks"), "key": "tasks"},
-                {"label": "Metas", "url": reverse("reports:goals"), "key": "goals"},
                 {"label": "Mi perfil", "url": reverse("reports:settings"), "key": "settings"},
             ],
             "active_nav": active,
             "current_user_profile": current_user_profile,
+            "tasks_goals_enabled": FEATURE_TASKS_GOALS_ENABLED,
             **sync_context,
         }
     sidebar_items = [
@@ -192,6 +193,8 @@ def _sidebar_context(active, request=None):
             {"label": "Awn Internacional", "url": reverse("reports:awn_internacional"), "key": "awn_internacional", "parent": "uva"},
             {"label": "Bali", "url": reverse("reports:bali"), "key": "bali"},
             {"label": "Marketplace", "url": reverse("reports:marketplace"), "key": "marketplace"},
+            {"label": "DistriSex", "url": reverse("reports:distrisex_ecuador"), "key": "distrisex"},
+            {"label": "DistriSex Ecuador", "url": reverse("reports:distrisex_ecuador"), "key": "distrisex_ecuador", "parent": "distrisex"},
             {"label": "Webs", "url": reverse("reports:websites"), "key": "websites"},
             {"label": "Mi perfil", "url": reverse("reports:settings"), "key": "settings"},
     ]
@@ -217,6 +220,7 @@ def _sidebar_context(active, request=None):
         "sidebar_items": grouped_items,
         "active_nav": active,
         "current_user_profile": current_user_profile,
+        "tasks_goals_enabled": FEATURE_TASKS_GOALS_ENABLED,
         **sync_context,
     }
 
@@ -720,7 +724,7 @@ def _marketplace_goal_summary(target_rows, snapshot):
         if remaining:
             rows.append({"label": "Faltante", "value": remaining, "kind": "money"})
     if best and best["fulfillment_label"]:
-        rows.append({"label": "Canal mas avanzado", "value": f"{best['label']} · {best['fulfillment_label']:.1f}%", "kind": "text"})
+        rows.append({"label": "Canal mas avanzado", "value": f"{best['label']} - {best['fulfillment_label']:.1f}%", "kind": "text"})
     if snapshot["kpis"].get("orders"):
         rows.append({"label": "Ticket por pedido", "value": snapshot["kpis"].get("average_ticket", 0), "kind": "money"})
     return rows
@@ -1240,6 +1244,7 @@ def _executive_dashboard_context(request, active_key, title, subtitle, filter_ov
         context["home_ecuador_snapshot"] = build_ecuador_snapshot(filters)
         context["home_ecuador_categories_json"] = json.dumps(context["home_ecuador_snapshot"].get("categories", []))
         context["home_country_comparison"] = country_comparison
+        context["uva_geo_map"] = build_uva_geo_map_data(filters, country_comparison)
         context["copa_uva_country_comparison_json"] = json.dumps(country_comparison)
     if active_key == "dashboard":
         context["filter_fields"] = [filter_form["date_start"], filter_form["date_end"]]
@@ -1249,6 +1254,11 @@ def _executive_dashboard_context(request, active_key, title, subtitle, filter_ov
         context["home_bali_snapshot"] = build_bali_snapshot(bali_filters)
         context["home_bali_channels_json"] = json.dumps(context["home_bali_snapshot"].get("channels", []))
         context["home_bali_daily_json"] = json.dumps(context["home_bali_snapshot"].get("daily_series", []))
+        marketplace_filters = dict(filters)
+        marketplace_filters["business_unit"] = "marketplace"
+        context["home_marketplace_snapshot"] = build_sales_snapshot(marketplace_filters, include_comparison=False)
+        context["home_marketplace_channels_json"] = json.dumps(context["home_marketplace_snapshot"].get("sales_by_channel", []))
+        context["home_marketplace_daily_json"] = json.dumps(context["home_marketplace_snapshot"].get("combined_series", []))
     return context
 
 
@@ -1269,6 +1279,7 @@ def _build_attachment_ref(index):
     return f"ATT-UP-{index:04d}"
 
 
+@never_cache
 def dashboard(request):
     if _is_katerine_limited_user(request.user):
         return redirect(f"{reverse('reports:bali')}?tab=physical")
@@ -1428,6 +1439,7 @@ def _website_cards(websites, latest_checks, history_by_website=None):
 
 
 @require_http_methods(["GET"])
+@never_cache
 def websites_module(request):
     limited_redirect = _redirect_katerine_limited_user(request)
     if limited_redirect:
@@ -1475,6 +1487,7 @@ def websites_module(request):
 
 
 @require_http_methods(["GET", "POST"])
+@never_cache
 def web_sales_report(request):
     limited_redirect = _redirect_katerine_limited_user(request)
     if limited_redirect:
@@ -1645,6 +1658,7 @@ def _unit_module(request, unit_slug, template_name, nav_key, title, subtitle, fi
     return render(request, template_name, context)
 
 
+@never_cache
 def uva_module(request):
     limited_redirect = _redirect_katerine_limited_user(request)
     if limited_redirect:
@@ -1699,7 +1713,7 @@ def awn_internacional_module(request):
     context = {
         **_sidebar_context("awn_internacional", request),
         "page_title": "Awn Internacional",
-        "page_subtitle": "Seguimiento de campañas de seguidores en Instagram para Ecuador y Mexico.",
+        "page_subtitle": "Seguimiento de campanas de seguidores en Instagram para Ecuador y Mexico.",
         "filter_form": filter_form,
         "filters": filters,
         "awn_snapshot": awn_snapshot,
@@ -1709,6 +1723,79 @@ def awn_internacional_module(request):
     return render(request, "reports/awn_internacional.html", context)
 
 
+def _conekta_local_credential_status():
+    credential_path = Path(r"C:\Users\trafficker.digital\Documents\conekta-api.txt")
+    if not credential_path.exists():
+        return {
+            "file_found": False,
+            "message": "No encontré el archivo local de credenciales de Conekta.",
+            "entries": [],
+        }
+    entries = []
+    try:
+        for line in credential_path.read_text(encoding="utf-8").splitlines():
+            if ":" not in line:
+                continue
+            label, value = line.split(":", 1)
+            clean_value = value.strip().strip('"').strip("'")
+            if not clean_value:
+                continue
+            entries.append(
+                {
+                    "label": label.strip(),
+                    "length": len(clean_value),
+                    "looks_like_conekta_private_key": clean_value.startswith("key_"),
+                }
+            )
+    except OSError:
+        return {
+            "file_found": True,
+            "message": "Encontré el archivo, pero no pude leerlo desde Axis.",
+            "entries": [],
+        }
+    return {
+        "file_found": True,
+        "message": "Archivo localizado. Las credenciales deben validarse contra Conekta antes de sincronizar datos.",
+        "entries": entries,
+    }
+
+
+@never_cache
+def distrisex_ecuador_module(request):
+    conekta_resources = [
+        {"name": "Órdenes", "endpoint": "GET /orders", "can_power": "Ventas, estado de pago, moneda, productos/line_items, cliente, método de pago, impuestos, descuentos y envíos."},
+        {"name": "Cargos", "endpoint": "GET /charges", "can_power": "Detalle transaccional: monto cobrado, estado, payment_method, referencia, order_id y búsquedas por cliente/correo/referencia."},
+        {"name": "Clientes", "endpoint": "GET /customers", "can_power": "Base de clientes, recurrencia, medios de pago asociados y posibles cohortes de recompra."},
+        {"name": "Balance", "endpoint": "GET /balance", "can_power": "Saldo disponible/pendiente para conciliación financiera de DistriSex Ecuador."},
+        {"name": "Transacciones", "endpoint": "GET /transactions", "can_power": "Movimientos contables del balance: cargos, fees, refunds, payouts y ajustes según disponibilidad de cuenta."},
+        {"name": "Transfers / Payouts", "endpoint": "GET /transfers y GET /payout_orders", "can_power": "Retiros/liquidaciones: montos, fechas, estados y conciliación contra bancos."},
+        {"name": "Links de pago", "endpoint": "GET /payment_links", "can_power": "Ventas por links, links activos/cancelados, expiración y seguimiento para canales como WhatsApp."},
+        {"name": "Eventos y webhooks", "endpoint": "GET /events, GET /webhooks", "can_power": "Auditoría de cambios de estado y sincronización automática casi en tiempo real."},
+        {"name": "Suscripciones / Planes", "endpoint": "GET /subscriptions, GET /plans", "can_power": "Cobros recurrentes, churn, pausas/cancelaciones y eventos de retry si DistriSex usa billing."},
+    ]
+    dashboard_opportunities = [
+        "Ventas aprobadas vs pendientes/fallidas por día.",
+        "Valor cobrado, fees estimados y neto conciliable.",
+        "Métodos de pago: tarjeta, efectivo, transferencia u otros habilitados por la cuenta.",
+        "Tasa de aprobación y motivos de rechazo por método.",
+        "Órdenes por producto o line_items si las órdenes se crean con carrito detallado.",
+        "Clientes nuevos vs recurrentes y frecuencia de recompra.",
+        "Links de pago activos, expirados, cancelados y conversión por canal.",
+        "Eventos/webhooks fallidos para monitorear problemas de sincronización.",
+    ]
+    context = {
+        **_sidebar_context("distrisex_ecuador", request),
+        "page_title": "DistriSex Ecuador",
+        "page_subtitle": "Diagnóstico inicial de integración Conekta para DistriSex Ecuador.",
+        "credential_status": _conekta_local_credential_status(),
+        "conekta_resources": conekta_resources,
+        "dashboard_opportunities": dashboard_opportunities,
+        "auth_note": "La auditoría local contra Conekta devolvió 401 con los dos valores del archivo. Para traer datos reales necesitamos una llave privada válida de Conekta, normalmente generada en el Panel y usada como Authorization Bearer.",
+    }
+    return render(request, "reports/distrisex_ecuador.html", context)
+
+
+@never_cache
 def bali_module(request):
     ensure_bali_catalogs()
     tab = request.GET.get("tab", "resumen")
@@ -1747,6 +1834,9 @@ def product_detail_api(request):
     elif unit == "uva":
         filters = _detail_filter_context(request, overrides={"business_unit": "uva"})
         payload = build_uva_product_detail(filters, request.GET.get("category_id") or request.GET.get("product"))
+    elif unit == "marketplace":
+        filters = _detail_filter_context(request, overrides={"business_unit": "marketplace"})
+        payload = build_marketplace_product_detail(filters, request.GET.get("marketplace"), request.GET.get("item_id") or request.GET.get("product"))
     else:
         return JsonResponse({"detail": "Unidad no soportada."}, status=400)
 
@@ -1755,6 +1845,7 @@ def product_detail_api(request):
     return JsonResponse(payload)
 
 
+@never_cache
 def marketplace_module(request):
     limited_redirect = _redirect_bali_whatsapp_user(request)
     if limited_redirect:
@@ -1778,7 +1869,7 @@ def marketplace_module(request):
                 "active": selected_channel == channel.slug,
             }
         )
-    target_rows = _marketplace_target_rows(request.user, filters)
+    target_rows = _marketplace_target_rows(request.user, filters) if FEATURE_TASKS_GOALS_ENABLED else []
     comparisons = sales_snapshot.get("comparison", {})
     visible_kpis = [
         {
@@ -1811,7 +1902,7 @@ def marketplace_module(request):
         **_sidebar_context("marketplace", request),
         **_operational_task_context(request.user),
         "page_title": "Ventas Marketplace",
-        "page_subtitle": "Detalle diario por canal: ventas, inversion, pedidos, unidades y cumplimiento de metas.",
+        "page_subtitle": "Detalle diario por canal: ventas, inversion, pedidos y unidades.",
         "filter_form": filter_form,
         "summary": {"kpis": sales_snapshot["kpis"]},
         "snapshot": sales_snapshot,
@@ -1832,6 +1923,8 @@ def marketplace_module(request):
 
 @require_http_methods(["GET"])
 def goals_dashboard(request):
+    if not FEATURE_TASKS_GOALS_ENABLED:
+        raise Http404()
     limited_redirect = _redirect_katerine_limited_user(request)
     if limited_redirect:
         return limited_redirect
@@ -1871,6 +1964,8 @@ def goals_dashboard(request):
 
 @require_http_methods(["GET"])
 def tasks_dashboard(request):
+    if not FEATURE_TASKS_GOALS_ENABLED:
+        raise Http404()
     limited_redirect = _redirect_katerine_limited_user(request)
     if limited_redirect:
         return limited_redirect
@@ -2048,7 +2143,7 @@ def update_operational_task(request, pk):
     form = OperationalGoalTaskUpdateForm(request.POST, instance=task)
     if not form.is_valid():
         messages.error(request, "No fue posible guardar la actualizacion de la tarea.")
-        return redirect(request.POST.get("next") or "reports:dashboard")
+        return redirect(_safe_next_url(request))
 
     task = form.save(commit=False)
     action = request.POST.get("action")
@@ -2063,7 +2158,7 @@ def update_operational_task(request, pk):
         message = "Avance guardado."
     task.save()
     messages.success(request, message)
-    return redirect(request.POST.get("next") or "reports:dashboard")
+    return redirect(_safe_next_url(request))
 
 
 @require_http_methods(["GET"])
