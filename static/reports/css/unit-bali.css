@@ -1,0 +1,419 @@
+/* Estilos de unit_bali.html.
+ * Extraido del <style> inline para que el navegador lo pueda cachear:
+ * el HTML se sirve con no-store, los estaticos no.
+ */
+
+.bali-tab-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .7rem;
+  margin-bottom: 1.4rem;
+}
+.bali-tab-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .72rem 1rem;
+  border-radius: 999px;
+  text-decoration: none;
+  border: 1px solid rgba(154, 168, 194, 0.14);
+  background: rgba(18, 26, 41, 0.82);
+  color: #b9c8df;
+  font-weight: 600;
+  transition: .18s ease;
+}
+.bali-tab-link.active,
+.bali-tab-link:hover {
+  color: #f4fbff;
+  border-color: rgba(124, 243, 173, 0.28);
+  box-shadow: 0 0 0 1px rgba(124, 243, 173, 0.14), 0 0 18px rgba(124, 243, 173, 0.12);
+  background: linear-gradient(90deg, rgba(124, 243, 173, 0.14), rgba(44, 59, 83, 0.22));
+}
+.bali-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.bali-kpi-grid .kpi-card { padding: 1rem 1.05rem; }
+.bali-kpi-grid .kpi-value { font-size: clamp(1rem, 1.16vw, 1.35rem); }
+.kpi-tax-note {
+  color: #91a1bc;
+  font-size: .73rem;
+  line-height: 1.25;
+  margin-top: .3rem;
+}
+.bali-comparison {
+  display: inline-flex;
+  margin-top: .45rem;
+  padding: .18rem .48rem;
+  border-radius: 999px;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, .12);
+  font-size: .72rem;
+  font-weight: 700;
+}
+.bali-comparison.up {
+  color: #7cf3ad;
+  background: rgba(16, 185, 129, .12);
+}
+.bali-comparison.down {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, .12);
+}
+.bali-top-grid,
+.bali-bottom-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(340px, .9fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.bali-double-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.bali-double-grid > .surface-card:only-child {
+  grid-column: 1 / -1;
+}
+.bali-metric-stack {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .8rem;
+  margin-bottom: 1rem;
+}
+.bali-mini-metric {
+  border: 1px solid rgba(154, 168, 194, 0.12);
+  border-radius: 14px;
+  background: rgba(20, 29, 46, 0.72);
+  padding: 1rem;
+}
+.bali-mini-metric-label {
+  color: #9caecc;
+  font-size: .8rem;
+  margin-bottom: .45rem;
+}
+.bali-mini-metric-value {
+  color: #f4f8ff;
+  font-size: clamp(1rem, 1.08vw, 1.26rem);
+  font-weight: 700;
+  line-height: 1.05;
+}
+.bali-performance-card {
+  display: grid;
+  gap: 1rem;
+}
+.bali-performance-lower {
+  display: grid;
+  grid-template-columns: minmax(260px, .72fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+.bali-channel-chart-box {
+  min-height: 220px;
+}
+.bali-value-investment-chart {
+  min-height: 320px;
+  height: 320px;
+}
+.bali-channel-split {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .8rem;
+}
+.bali-channel-card {
+  border: 1px solid rgba(154, 168, 194, 0.12);
+  border-radius: 14px;
+  background: rgba(20, 29, 46, 0.72);
+  padding: 1rem;
+  display: grid;
+  align-content: center;
+  min-height: 120px;
+}
+.bali-channel-card small {
+  color: #9caecc;
+  font-size: .8rem;
+}
+.bali-channel-card strong {
+  color: #f4f8ff;
+  font-size: clamp(1.05rem, 1.24vw, 1.42rem);
+  line-height: 1.1;
+}
+.bali-channel-card span {
+  color: #b9c8df;
+  font-size: .85rem;
+}
+.bali-channel-card .kpi-tax-note {
+  margin-top: 0;
+}
+.bali-channel-card .bali-comparison {
+  justify-self: start;
+}
+.bali-insight-list {
+  display: grid;
+  gap: .75rem;
+}
+.bali-data-warning {
+  margin-bottom: 1rem;
+  padding: .85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, .32);
+  background: rgba(245, 158, 11, .1);
+  color: #fcd34d;
+  font-size: .86rem;
+}
+.bali-insight-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: .85rem 1rem;
+  border-radius: 12px;
+  background: rgba(20, 29, 46, 0.74);
+  border: 1px solid rgba(154, 168, 194, 0.1);
+}
+.bali-insight-pill {
+  min-width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(46, 134, 255, 0.14);
+  color: #d6e6ff;
+  font-weight: 700;
+}
+.bali-product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .9rem;
+}
+.bali-product-card {
+  position: relative;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  min-height: 370px;
+  padding: 1rem;
+  border-radius: 15px;
+  border: 1px solid rgba(154, 168, 194, 0.12);
+  background: rgba(20, 29, 46, 0.72);
+  display: grid;
+  align-content: start;
+  gap: .85rem;
+  font: inherit;
+  transition: border-color .2s ease, transform .2s ease, background .2s ease;
+}
+.bali-product-card:hover {
+  border-color: rgba(124, 243, 173, .42);
+  background: rgba(20, 29, 46, .9);
+  transform: translateY(-2px);
+}
+.bali-product-media {
+  height: 160px;
+  margin: -1rem -1rem .05rem;
+  overflow: hidden;
+  border-radius: 15px 15px 11px 11px;
+  background: linear-gradient(135deg, rgba(124, 243, 173, .16), rgba(46, 134, 255, .12));
+}
+.bali-product-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bali-product-placeholder {
+  display: grid;
+  place-content: center;
+  width: 100%;
+  height: 100%;
+  color: rgba(244, 248, 255, .8);
+  font-size: 2.5rem;
+  font-weight: 700;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(124, 243, 173, .19), transparent 48%),
+    linear-gradient(135deg, rgba(27, 42, 63, .95), rgba(14, 22, 36, .95));
+}
+.bali-product-rank {
+  position: absolute;
+  top: .9rem;
+  right: .9rem;
+  color: #7cf3ad;
+  background: rgba(16, 185, 129, .12);
+  padding: .16rem .5rem;
+  border-radius: 999px;
+  font-size: .74rem;
+  font-weight: 700;
+}
+.bali-product-name {
+  color: #f4f8ff;
+  font-weight: 700;
+  line-height: 1.28;
+  min-height: 2.55rem;
+  padding-right: 2.8rem;
+}
+.bali-product-sales {
+  color: #f4f8ff;
+  font-size: 1.18rem;
+  font-weight: 700;
+}
+.bali-product-units {
+  color: #7cf3ad;
+  font-weight: 700;
+  font-size: .88rem;
+}
+.bali-product-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .65rem;
+}
+.bali-product-detail {
+  padding-top: .55rem;
+  border-top: 1px solid rgba(154, 168, 194, .1);
+}
+.bali-product-detail small {
+  display: block;
+  color: #9caecc;
+  font-size: .72rem;
+  margin-bottom: .18rem;
+}
+.bali-product-detail strong {
+  color: #d9e5f7;
+  font-size: .84rem;
+}
+.bali-product-adjustments {
+  color: #fca5a5;
+  font-size: .76rem;
+  line-height: 1.4;
+}
+.bali-community-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.bali-story-frame {
+  width: min(100%, 320px);
+  aspect-ratio: 9 / 16;
+  margin-inline: auto;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(124, 243, 173, 0.26);
+  background:
+    linear-gradient(180deg, rgba(124, 243, 173, .14), rgba(96, 165, 250, .08)),
+    rgba(13, 20, 32, .92);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .26), inset 0 0 0 1px rgba(255, 255, 255, .04);
+}
+.bali-story-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.bali-story-empty {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  gap: .65rem;
+  padding: 1.4rem;
+  text-align: center;
+  color: #b9c8df;
+}
+.bali-story-empty strong {
+  color: #f4fbff;
+  font-size: 1.05rem;
+}
+.shopify-geo-map {
+  display: grid;
+  grid-template-columns: minmax(240px, .75fr) minmax(0, 1.25fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+.geo-map-canvas {
+  border: 1px solid rgba(96, 165, 250, .18);
+  border-radius: 14px;
+  background: radial-gradient(circle at 35% 25%, rgba(96, 165, 250, .18), transparent 32%), rgba(12, 19, 31, .82);
+  min-height: 220px;
+  padding: 1rem;
+  display: grid;
+  place-items: center;
+}
+.geo-map-shape {
+  width: min(100%, 240px);
+  min-height: 160px;
+  border-radius: 46% 54% 48% 52%;
+  border: 1px solid rgba(124, 243, 173, .34);
+  background: linear-gradient(135deg, rgba(16, 185, 129, .18), rgba(59, 130, 246, .12));
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: #f4fbff;
+  font-weight: 850;
+}
+.geo-map-shape span { display: block; color: #9fb0cd; font-size: .72rem; font-weight: 700; margin-top: .25rem; }
+.geo-map-list { display: grid; gap: .75rem; }
+.geo-map-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: .8rem; align-items: center; border: 1px solid rgba(154, 168, 194, .12); border-radius: 12px; background: rgba(255,255,255,.02); padding: .8rem; }
+.geo-map-country { color: #f4fbff; font-weight: 850; }
+.geo-map-bars { display: grid; gap: .4rem; min-width: 0; }
+.geo-map-bar { height: 8px; border-radius: 999px; background: rgba(154, 168, 194, .16); overflow: hidden; }
+.geo-map-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #60a5fa, #7cf3ad); }
+.geo-map-fill.purchase { background: linear-gradient(90deg, #facc15, #f87171); }
+.geo-map-metrics { text-align: right; color: #b8c6dd; font-size: .76rem; line-height: 1.45; }
+.geo-map-note { color: #91a1bc; font-size: .78rem; line-height: 1.45; margin-top: .85rem; }
+.shopify-geo-map.geo-country-map-real { grid-template-columns: minmax(420px, 1fr) minmax(320px, .82fr); }
+.geo-map-canvas-real { min-height: 540px; padding: .65rem; position: relative; overflow: hidden; cursor: grab; display: block; }
+.geo-map-canvas-real.is-panning { cursor: grabbing; }
+.geo-country-svg-real { width: 100%; height: 100%; min-height: 500px; display: block; cursor: inherit; touch-action: none; filter: drop-shadow(0 18px 34px rgba(0,0,0,.28)); }
+.geo-loading { color: #9fb0cd; font-weight: 800; position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; pointer-events: none; }
+.geo-loading.is-hidden { display: none; }
+.geo-real-region { cursor: pointer; transition: fill .18s ease, fill-opacity .18s ease, stroke .18s ease; }
+.geo-real-region:hover { fill-opacity: .95; stroke: rgba(250, 204, 21, .92); stroke-width: 1.4; }
+.geo-real-label { fill: #f4fbff; font-size: 10px; font-weight: 850; paint-order: stroke; stroke: rgba(7, 12, 22, .86); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.geo-real-point { fill: #facc15; stroke: #fff7d6; stroke-width: 2; filter: drop-shadow(0 0 8px rgba(250,204,21,.48)); }
+.geo-real-hit { fill: transparent; stroke: transparent; cursor: pointer; }
+.geo-real-empty { fill: rgba(18, 30, 46, .9); stroke: rgba(154,168,194,.18); }
+.geo-map-controls { position: absolute; top: .75rem; right: .75rem; display: inline-flex; gap: .35rem; padding: .35rem; border: 1px solid rgba(154,168,194,.16); border-radius: 999px; background: rgba(7, 12, 22, .74); backdrop-filter: blur(10px); z-index: 3; }
+.geo-map-controls button { min-width: 2rem; height: 2rem; border: 0; border-radius: 999px; background: rgba(255,255,255,.08); color: #f4fbff; font-weight: 900; line-height: 1; }
+.geo-map-controls button:hover { background: rgba(96,165,250,.3); }
+.geo-map-tooltip { position: absolute; min-width: 220px; max-width: 290px; padding: .78rem .85rem; border: 1px solid rgba(124,243,173,.2); border-radius: 12px; background: rgba(7, 12, 22, .94); box-shadow: 0 18px 38px rgba(0,0,0,.38); color: #dce8f8; pointer-events: none; opacity: 0; transform: translateY(6px); transition: opacity .12s ease, transform .12s ease; z-index: 4; }
+.geo-map-tooltip.is-visible { opacity: 1; transform: translateY(0); }
+.geo-tooltip-title { color: #f4fbff; font-weight: 900; margin-bottom: .55rem; }
+.geo-tooltip-grid { display: grid; grid-template-columns: 1fr auto; gap: .3rem .8rem; font-size: .78rem; }
+.geo-tooltip-label { color: #9fb0cd; }
+.geo-tooltip-value { color: #f4fbff; font-weight: 850; text-align: right; }
+.geo-map-side { display: grid; align-content: start; gap: 1rem; }
+.geo-map-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.geo-zone-list { display: grid; gap: .65rem; }
+.geo-zone-row { display: grid; grid-template-columns: 118px minmax(0, 1fr) auto; gap: .75rem; align-items: center; padding: .7rem .8rem; border: 1px solid rgba(154,168,194,.12); border-radius: 10px; background: rgba(255,255,255,.025); }
+.geo-zone-name { color: #f4fbff; font-weight: 850; }
+.geo-zone-track { height: 8px; border-radius: 999px; background: rgba(154,168,194,.16); overflow: hidden; }
+.geo-zone-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #12d4d6, #7cf3ad); }
+.geo-zone-value { color: #b8c6dd; font-size: .76rem; text-align: right; }
+.geo-point-list { display: flex; flex-wrap: wrap; gap: .5rem; }
+.geo-point-pill { border: 1px solid rgba(250,204,21,.2); background: rgba(250,204,21,.08); color: #f4fbff; border-radius: 999px; padding: .42rem .62rem; font-size: .78rem; font-weight: 800; }
+.geo-map-note.strong { border-left: 3px solid rgba(124,243,173,.5); padding-left: .85rem; }
+.bali-recommendation-list { display: grid; gap: .85rem; }
+.bali-recommendation-card { border: 1px solid rgba(124, 243, 173, .16); border-radius: 12px; background: rgba(13, 20, 32, .76); padding: .95rem; }
+.bali-recommendation-title { color: #f4fbff; font-weight: 850; margin-bottom: .35rem; }
+.bali-recommendation-message { color: #b9c8df; font-size: .84rem; line-height: 1.45; }
+.bali-recommendation-action { color: #7cf3ad; font-size: .78rem; font-weight: 800; margin-top: .55rem; }
+@media (max-width: 1400px) {
+  .bali-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .bali-product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 992px) {
+  .bali-top-grid,
+  .bali-bottom-grid,
+  .bali-double-grid,
+  .bali-metric-stack,
+  .bali-performance-lower,
+  .bali-channel-split,
+  .shopify-geo-map,
+  .bali-community-layout { grid-template-columns: 1fr; }
+  .bali-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .bali-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bali-product-grid { grid-template-columns: 1fr; }
+}
