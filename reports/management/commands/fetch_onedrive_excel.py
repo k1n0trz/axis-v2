@@ -103,7 +103,13 @@ class Command(BaseCommand):
         mapping = load_json_mapping(options["column_map"]) if options["column_map"] else {
             "date": ["fecha"],
             "product": ["producto"],
-            "amount": ["ventas", "valor", "total cop"],
+            # `amount` son columnas que ya traen el total de la linea.
+            # `unit_amount` son precios por unidad: hay que multiplicarlos por
+            # CANTIDAD. En las hojas de despachos, VALOR es precio unitario, y
+            # tratarlo como total hacia que toda linea de 2 o mas unidades se
+            # contara como una sola.
+            "amount": ["ventas", "total cop"],
+            "unit_amount": ["valor"],
             "shipping": ["envio"],
             "quantity": ["cantidad"],
             "currency": ["moneda"],
@@ -180,14 +186,24 @@ class Command(BaseCommand):
                 product_name = str(pick(mapping["product"]) or "").strip()
                 if not product_name:
                     continue
-                original_amount = parse_decimal(pick(mapping["amount"]))
-                if not original_amount:
-                    original_amount = fallback_amount(normalized_row)
+                qty = int(parse_decimal(pick(mapping["quantity"])) or 0)
+                # Una linea sin cantidad legible se cuenta como una unidad, que
+                # es el comportamiento anterior.
+                qty_factor = qty if qty > 0 else 1
+
+                line_amount = parse_decimal(pick(mapping.get("amount", [])))
+                if not line_amount:
+                    # VALOR (y el barrido de respaldo, que apunta a la misma
+                    # columna) es precio unitario: se multiplica por la cantidad.
+                    unit_amount = parse_decimal(pick(mapping.get("unit_amount", [])))
+                    if not unit_amount:
+                        unit_amount = fallback_amount(normalized_row)
+                    line_amount = unit_amount * qty_factor
+
                 shipping_amount = parse_decimal(pick(mapping.get("shipping", [])))
-                original_amount += shipping_amount
+                original_amount = line_amount + shipping_amount
                 currency_value = pick(mapping.get("currency", []))
                 currency = str(currency_value or fallback_currency).upper()
-                qty = int(parse_decimal(pick(mapping["quantity"])) or 0)
                 row_channel_slug = channel_slug_for_row(options["country"], pick(mapping.get("channel", [])), options["channel_slug"])
                 effective_rate = uva_exchange_rate_for_country(options["country"].upper(), currency, rate)
                 if currency != "COP" and effective_rate == Decimal("1"):

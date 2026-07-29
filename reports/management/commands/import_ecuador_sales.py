@@ -102,8 +102,12 @@ class Command(BaseCommand):
                 if not category:
                     sales_skipped += 1
                     continue
+                row_quantity = parse_quantity(row[column_map["cantidad"]])
                 if has_detailed_totals:
-                    amount_usd = parse_decimal(row[column_map["valor"]]) + parse_decimal(row[column_map["envio"]])
+                    # VALOR es precio unitario: sin multiplicar por CANTIDAD,
+                    # toda linea de 2 o mas unidades se contaba como una sola.
+                    unit_value = parse_decimal(row[column_map["valor"]])
+                    amount_usd = unit_value * (row_quantity if row_quantity > 0 else 1) + parse_decimal(row[column_map["envio"]])
                     sales_cop = amount_usd * ECUADOR_USD_TO_COP_RATE if amount_usd else parse_decimal(row[column_map["total cop"]])
                 else:
                     amount_usd = parse_decimal(0)
@@ -113,7 +117,7 @@ class Command(BaseCommand):
                 aggregated_sales[key]["channel"] = channel
                 aggregated_sales[key]["sales_cop"] += sales_cop
                 aggregated_sales[key]["amount_usd"] += amount_usd
-                aggregated_sales[key]["quantity"] += parse_quantity(row[column_map["cantidad"]])
+                aggregated_sales[key]["quantity"] += row_quantity
                 aggregated_sales[key]["products"].add(product_name)
         finally:
             workbook.close()
