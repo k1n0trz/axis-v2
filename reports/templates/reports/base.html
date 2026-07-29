@@ -624,15 +624,73 @@
     ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
+    .sidebar-toggle {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 auto;
+      padding: 0;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      color: var(--axis-text);
+      cursor: pointer;
+    }
+    .sidebar-toggle:focus-visible {
+      outline: 2px solid var(--axis-accent);
+      outline-offset: 2px;
+    }
+    .sidebar-toggle-bars,
+    .sidebar-toggle-bars::before,
+    .sidebar-toggle-bars::after {
+      display: block;
+      width: 18px;
+      height: 2px;
+      border-radius: 2px;
+      background: currentColor;
+    }
+    .sidebar-toggle-bars { position: relative; }
+    .sidebar-toggle-bars::before,
+    .sidebar-toggle-bars::after {
+      content: "";
+      position: absolute;
+      left: 0;
+    }
+    .sidebar-toggle-bars::before { top: -6px; }
+    .sidebar-toggle-bars::after { top: 6px; }
+
+    .sidebar-scrim { display: none; }
+
     @media (max-width: 991px) {
-      .sidebar { position: fixed; transform: translateX(-100%); transition: transform 0.3s; }
+      .sidebar {
+        position: fixed;
+        transform: translateX(-100%);
+        transition: transform 0.3s;
+      }
       .sidebar.open { transform: translateX(0); }
+      .sidebar-toggle { display: inline-flex; }
+      .sidebar-scrim {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 99;
+        background: rgba(7, 11, 20, 0.6);
+        backdrop-filter: blur(2px);
+      }
+      .sidebar-scrim[hidden] { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .sidebar { transition: none; }
     }
   </style>
 </head>
 <body data-active-nav="{{ active_nav }}">
   <div class="d-lg-flex app-shell">
-    <aside class="sidebar">
+    <div class="sidebar-scrim" data-sidebar-scrim hidden></div>
+    <aside class="sidebar" id="axis-sidebar">
       <div class="sidebar-brand">
         <img class="sidebar-brand-logo" src="{% static 'branding/logo-helti.png' %}" alt="Helti">
       </div>
@@ -666,8 +724,13 @@
 
     <main class="main-panel p-3 p-lg-4">
       <div class="topbar-shell">
-        <div class="app-breadcrumb">
-          Dashboard &nbsp; <span class="opacity-25">/</span> &nbsp; <strong>{{ page_title }}</strong>
+        <div class="d-flex align-items-center gap-2 gap-lg-0">
+          <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Abrir menu de navegacion" aria-controls="axis-sidebar" aria-expanded="false">
+            <span class="sidebar-toggle-bars" aria-hidden="true"></span>
+          </button>
+          <div class="app-breadcrumb">
+            Dashboard &nbsp; <span class="opacity-25">/</span> &nbsp; <strong>{{ page_title }}</strong>
+          </div>
         </div>
         <div class="d-flex align-items-center gap-3">
           {% if can_run_external_sync %}
@@ -753,6 +816,37 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
+    // Sidebar movil: bajo 992px la barra sale de pantalla y solo vuelve con .open
+    (function () {
+      const sidebar = document.getElementById('axis-sidebar');
+      const toggle = document.querySelector('[data-sidebar-toggle]');
+      const scrim = document.querySelector('[data-sidebar-scrim]');
+      if (!sidebar || !toggle || !scrim) return;
+
+      function setSidebar(open) {
+        sidebar.classList.toggle('open', open);
+        scrim.hidden = !open;
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggle.setAttribute('aria-label', open ? 'Cerrar menu de navegacion' : 'Abrir menu de navegacion');
+      }
+
+      toggle.addEventListener('click', () => setSidebar(!sidebar.classList.contains('open')));
+      scrim.addEventListener('click', () => setSidebar(false));
+      document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && sidebar.classList.contains('open')) {
+          setSidebar(false);
+          toggle.focus();
+        }
+      });
+      // Navegar cierra el panel; volver al escritorio lo deja en su sitio.
+      sidebar.querySelectorAll('a[href]').forEach(link => {
+        link.addEventListener('click', () => setSidebar(false));
+      });
+      window.matchMedia('(min-width: 992px)').addEventListener('change', event => {
+        if (event.matches) setSidebar(false);
+      });
+    })();
+
     // Navigation toggles
     document.querySelectorAll('[data-nav-group]').forEach(group => {
       if (group.dataset.initialOpen === 'true') {
@@ -902,6 +996,22 @@
       } catch (error) {
         window.localStorage.removeItem(syncStorageKey);
       }
+    }
+
+    const globalFilterForm = document.getElementById('global-filter-form');
+    if (globalFilterForm) {
+      globalFilterForm.addEventListener('submit', () => {
+        const currentParams = new URLSearchParams(window.location.search);
+        const preservedKeys = ['tab', 'channel'];
+        preservedKeys.forEach(key => {
+          if (!currentParams.has(key) || globalFilterForm.elements[key]) return;
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = currentParams.get(key);
+          globalFilterForm.appendChild(input);
+        });
+      });
     }
 
     // Chart.js Default Styling

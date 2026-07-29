@@ -13,7 +13,7 @@ from django.urls import reverse
 
 from reports import views
 from reports.forms import ProfileForm
-from reports.models import BaliDailyMetric, DailyChannelSale, InsightAchievement, MarketplaceProductInventory, SalesTarget, UserProfile
+from reports.models import AdPlatform, BaliDailyMetric, DailyAdSpend, DailyChannelSale, InsightAchievement, MarketplaceProductInventory, SalesTarget, UserProfile
 from reports.services.sales_dashboard import ensure_bali_catalogs, ensure_marketplace_catalogs, ensure_uva_catalogs
 
 
@@ -38,6 +38,86 @@ class DashboardViewRenderTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response["X-Robots-Tag"], "noindex, nofollow, noarchive, nosnippet")
                 self.assertIn("no-store", response["Cache-Control"])
+                if url.startswith("/uva/"):
+                    self.assertContains(response, "data-geo-map")
+                    self.assertContains(response, "/static/reports/maps/CO-adm1.min.geojson")
+                    self.assertContains(response, "Mapa real de Colombia para Uva")
+                    self.assertContains(response, "geo-map-controls")
+                    self.assertNotContains(response, "CO / EC / MX")
+                if url.startswith("/bali/"):
+                    self.assertContains(response, "data-geo-map")
+                    self.assertContains(response, "/static/reports/maps/CO-adm1.min.geojson")
+                    self.assertContains(response, "Mapa Colombia Web Shopify")
+                    self.assertContains(response, "geo-map-controls")
+                    self.assertNotContains(response, "Colombia<span>Web Shopify")
+
+    def test_marketplace_goals_tasks_and_objectives_are_temporarily_hidden(self):
+        response = self.client.get(
+            "/marketplace/?period_type=custom&date_start=2026-07-01&date_end=2026-07-09&business_unit=marketplace&country=CO"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ventas por canal")
+        self.assertNotContains(response, "Logros y metas")
+        self.assertNotContains(response, "Cumplimiento de meta")
+        self.assertNotContains(response, "No aplica bono")
+        self.assertNotContains(response, "Meta $")
+
+    def test_marketplace_product_detail_api_returns_modal_payload(self):
+        catalogs = ensure_marketplace_catalogs()
+        business_unit = catalogs["business_unit"]
+        country = catalogs["countries"]["CO"]
+        channel = catalogs["channels"]["mercado-libre"]
+        google_ads, _ = AdPlatform.objects.get_or_create(slug="google-ads", defaults={"name": "Google Ads"})
+        MarketplaceProductInventory.objects.create(
+            marketplace="mercadolibre",
+            item_id="MCO123",
+            title="Vibrador Lovense Nora",
+            sku="SKU-123",
+            gtin="7701234567890",
+            brand="Lovense",
+            status="active",
+            price=Decimal("120000"),
+            available_quantity=8,
+            sold_quantity=4,
+            health_status=MarketplaceProductInventory.HealthStatus.OK,
+        )
+        DailyChannelSale.objects.create(
+            business_unit=business_unit,
+            country=country,
+            channel=channel,
+            sale_date=date(2026, 7, 2),
+            sales_amount=Decimal("480000"),
+            order_count=4,
+            units=4,
+            spend_amount=Decimal("60000"),
+        )
+        DailyAdSpend.objects.create(
+            business_unit=business_unit,
+            country=country,
+            ad_platform=google_ads,
+            spend_date=date(2026, 7, 2),
+            spend_amount=Decimal("60000"),
+        )
+
+        response = self.client.get(
+            reverse("reports:product_detail_api"),
+            {
+                "unit": "marketplace",
+                "marketplace": "mercadolibre",
+                "item_id": "MCO123",
+                "date_start": "2026-07-01",
+                "date_end": "2026-07-09",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["type"], "marketplace")
+        self.assertEqual(payload["title"], "Vibrador Lovense Nora")
+        self.assertTrue(payload["daily_series"])
+        self.assertIn("Marketplace aun no guarda ventas por SKU diario", payload["allocation_note"])
+        self.assertTrue(any(item["label"] == "Inversion Google" for item in payload["stats"]))
 
     def test_general_sidebar_shows_webs_menu_item(self):
         response = self.client.get(reverse("reports:dashboard"))
@@ -407,19 +487,17 @@ class MarketplaceInsightAndAchievementTests(TestCase):
         self.assertContains(response, "Ventas vs. periodo anterior")
         self.assertContains(response, "smart-insight-success")
 
-    def test_goals_creates_green_monthly_achievements_automatically(self):
+    def test_goals_dashboard_is_temporarily_disabled(self):
         response = self.client.get(
             "/metas/?period_type=custom&date_start=2026-05-01&date_end=2026-05-31&business_unit=marketplace&country=CO"
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Logros del mes")
-        self.assertContains(response, "Meta de ventas alcanzada")
-        self.assertContains(response, "Aumento de ventas")
-        self.assertTrue(
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(
             InsightAchievement.objects.filter(
                 user=self.user,
                 month=date(2026, 5, 1),
                 achievement_type=InsightAchievement.AchievementType.SALES_TARGET,
             ).exists()
         )
+

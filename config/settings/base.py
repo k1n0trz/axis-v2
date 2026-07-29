@@ -67,6 +67,9 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 
+DB_CONN_MAX_AGE = config("DB_CONN_MAX_AGE", default=60, cast=int)
+
+
 def database_from_url(url):
     parsed = urlparse(url)
     query = parse_qs(parsed.query)
@@ -78,6 +81,10 @@ def database_from_url(url):
         "PASSWORD": parsed.password or "",
         "HOST": host,
         "PORT": parsed.port or "",
+        # Sin esto Django abre y cierra una conexion por request, lo que en
+        # Cloud Run suma el handshake de Cloud SQL a cada carga de pagina.
+        "CONN_MAX_AGE": DB_CONN_MAX_AGE,
+        "CONN_HEALTH_CHECKS": True,
     }
 
 
@@ -204,6 +211,36 @@ META_REPORTS_IMAP_SUBJECT_FILTER = config("META_REPORTS_IMAP_SUBJECT_FILTER", de
 META_REPORTS_IMAP_FROM_FILTER = config("META_REPORTS_IMAP_FROM_FILTER", default="")
 META_REPORTS_DOWNLOAD_DIR = config("META_REPORTS_DOWNLOAD_DIR", default=str(BASE_DIR / "data" / "meta-reports"))
 
+# Caché compartida entre workers e instancias. El backend por defecto de Django
+# es local al proceso, asi que con gunicorn --workers 2 cada worker mantenia su
+# propia copia y el TTL de las vistas caras (Meta Ads) casi nunca se aprovechaba.
+CACHE_TABLE_NAME = "axis_cache"
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": CACHE_TABLE_NAME,
+        "TIMEOUT": 300,
+        "OPTIONS": {"MAX_ENTRIES": 5000, "CULL_FREQUENCY": 4},
+    },
+    # Para lecturas muy repetidas dentro de un mismo render (filtros de
+    # plantilla). Ir a la cache compartida aqui solo cambiaria una consulta por
+    # otra; esta vive en memoria del proceso y no toca la base de datos.
+    "local": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "axis-local",
+        "TIMEOUT": 60,
+    },
+}
+
+META_ADS_PREVIEW_TIMEOUT = config("META_ADS_PREVIEW_TIMEOUT", default=8, cast=int)
+# La llamada a Meta tarda ~12 s, asi que la cache se precalienta en segundo
+# plano (comando warm_meta_ads_preview) y el TTL debe cubrir con holgura el
+# intervalo entre precalentamientos.
+META_ADS_PREVIEW_CACHE_SECONDS = config("META_ADS_PREVIEW_CACHE_SECONDS", default=14400, cast=int)
+# Los resultados vacios o con error tambien se cachean, con un TTL corto, para
+# que un fallo de Meta no obligue a repetir el camino lento en cada request.
+META_ADS_PREVIEW_FALLBACK_CACHE_SECONDS = config("META_ADS_PREVIEW_FALLBACK_CACHE_SECONDS", default=120, cast=int)
+
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
 }
@@ -211,15 +248,28 @@ REST_FRAMEWORK = {
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "formatters": {
+        "axis": {
+            "format": "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
+            "formatter": "axis",
         },
     },
     "loggers": {
         "django.request": {
             "handlers": ["console"],
             "level": "ERROR",
+            "propagate": False,
+        },
+        # Sin esto los fallos de integracion se perdian en silencio.
+        "reports": {
+            "handlers": ["console"],
+            "level": config("AXIS_LOG_LEVEL", default="INFO"),
             "propagate": False,
         },
     },

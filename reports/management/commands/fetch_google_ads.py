@@ -9,9 +9,9 @@ from django.core.management.base import BaseCommand, CommandError
 
 from reports.integrations.axis_sync import AxisSyncService
 from reports.integrations.clients import ExchangeRateClient, GoogleAdsClient, load_json_mapping, match_rule
-from reports.integrations.schema import AdSpendRecord, BaliMetricRecord, CategoryMetricRecord
+from reports.integrations.schema import AdSpendRecord, BaliMetricRecord, CategoryMetricRecord, GeoAdMetricRecord
 from reports.models import BaliDailyMetric
-from reports.services.sales_dashboard import uva_exchange_rate_for_country
+from reports.services.sales_dashboard import geo_location_key, uva_exchange_rate_for_country
 
 
 MICRO = Decimal("1000000")
@@ -59,6 +59,7 @@ class Command(BaseCommand):
         parser.add_argument("--currency", default="COP")
         parser.add_argument("--target-currency", default="COP")
         parser.add_argument("--bali-whatsapp-conversion-name", default="")
+        parser.add_argument("--skip-geo", action="store_true")
         parser.add_argument("--sync-axis", action="store_true")
 
     def handle(self, *args, **options):
@@ -83,14 +84,30 @@ class Command(BaseCommand):
         else:
             payload = self._build_uva_payload(client, customer_id, target_date, country_code, options)
 
+        geo_metrics = []
+        geo_error = ""
+        if not options["skip_geo"]:
+            try:
+                geo_metrics = self._build_geo_metrics(client, customer_id, target_date, business_unit, country_code, options)
+            except Exception as exc:
+                geo_error = str(exc)
+        payload["geo_metrics"] = geo_metrics
+        payload["geo_error"] = geo_error
+        payload["output"]["geo_metrics"] = [item.to_dict() for item in geo_metrics]
+        payload["output"]["geo_error"] = geo_error
+
         if options["sync_axis"]:
             sync = AxisSyncService()
             if business_unit == "bali":
                 sync.sync_bali_metrics(payload["bali_metrics"])
                 sync.sync_ad_spends(payload["daily_spend_records"])
+                if payload.get("geo_metrics"):
+                    sync.sync_geo_ad_metrics(payload["geo_metrics"])
             else:
                 sync.sync_ad_spends([payload["daily_spend"]])
                 sync.sync_category_metrics(payload["category_metric_records"])
+                if payload.get("geo_metrics"):
+                    sync.sync_geo_ad_metrics(payload["geo_metrics"])
 
         self.stdout.write(json.dumps(payload["output"], indent=2, default=str))
 
@@ -131,6 +148,100 @@ class Command(BaseCommand):
             FROM customer
             WHERE segments.date = '{target_date.isoformat()}'
         """
+
+    def _geo_query(self, target_date):
+        return f"""
+            SELECT
+              segments.geo_target_region,
+              customer.currency_code,
+              metrics.cost_micros,
+              metrics.impressions,
+              metrics.clicks,
+              metrics.conversions,
+              metrics.conversions_value
+            FROM geographic_view
+            WHERE segments.date = '{target_date.isoformat()}'
+        """
+
+    def _geo_target_names_query(self, resource_names):
+        quoted = ", ".join(f"'{name}'" for name in resource_names)
+        return f"""
+            SELECT
+              geo_target_constant.resource_name,
+              geo_target_constant.name,
+              geo_target_constant.country_code,
+              geo_target_constant.target_type
+            FROM geo_target_constant
+            WHERE geo_target_constant.resource_name IN ({quoted})
+        """
+
+    def _lookup_geo_target_names(self, client, customer_id, resource_names):
+        names = {}
+        resource_names = [name for name in dict.fromkeys(resource_names or []) if name]
+        for index in range(0, len(resource_names), 80):
+            chunk = resource_names[index:index + 80]
+            if not chunk:
+                continue
+            for batch in client.search(customer_id, self._geo_target_names_query(chunk)):
+                for row in batch.get("results", []):
+                    target = row.get("geoTargetConstant") or {}
+                    resource_name = target.get("resourceName")
+                    if resource_name:
+                        names[resource_name] = {
+                            "name": target.get("name") or resource_name.rsplit("/", 1)[-1],
+                            "country_code": target.get("countryCode") or "",
+                            "target_type": target.get("targetType") or "",
+                        }
+        return names
+
+    def _build_geo_metrics(self, client, customer_id, target_date, business_unit, country_code, options):
+        rows = client.search(customer_id, self._geo_query(target_date))
+        raw_rows = []
+        region_resources = []
+        for batch in rows:
+            for row in batch.get("results", []):
+                region_resource = (row.get("segments") or {}).get("geoTargetRegion") or ""
+                if not region_resource:
+                    continue
+                raw_rows.append(row)
+                region_resources.append(region_resource)
+        try:
+            region_lookup = self._lookup_geo_target_names(client, customer_id, region_resources)
+        except Exception:
+            region_lookup = {}
+
+        records = []
+        for row in raw_rows:
+            segments = row.get("segments") or {}
+            metrics = row.get("metrics") or {}
+            customer = row.get("customer") or {}
+            region_resource = segments.get("geoTargetRegion") or ""
+            lookup = region_lookup.get(region_resource, {})
+            location_name = lookup.get("name") or region_resource.rsplit("/", 1)[-1]
+            currency_code = customer.get("currencyCode") or options["currency"]
+            spend = decimal_from_micros(metrics.get("costMicros"))
+            spend_cop = self._convert_spend(spend, currency_code, country_code, options["target_currency"], target_date)
+            records.append(
+                GeoAdMetricRecord(
+                    business_unit_slug=business_unit,
+                    country_code=country_code,
+                    ad_platform_slug="google-ads",
+                    metric_date=target_date,
+                    geo_level="region",
+                    location_key=geo_location_key(location_name),
+                    location_name=location_name,
+                    platform_location_id=region_resource,
+                    impressions=rounded_int(metrics.get("impressions") or 0),
+                    reach=0,
+                    clicks=rounded_int(metrics.get("clicks") or 0),
+                    purchases=Decimal(str(metrics.get("conversions") or "0")),
+                    conversion_value=Decimal(str(metrics.get("conversionsValue") or "0")),
+                    spend_amount=spend_cop,
+                    source_file="google-ads-api-geo",
+                    notes=f"Cuenta Google Ads {customer_id}. geographic_view por region.",
+                )
+            )
+        return records
 
     def _build_uva_payload(self, client, customer_id, target_date, country_code, options):
         rules = load_json_mapping(options["rules"]).get("rules", []) if options["rules"] else []

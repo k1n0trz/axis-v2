@@ -111,6 +111,36 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    position: relative;
+    overflow: hidden;
+    transform: translateY(0);
+    transition: border-color .2s ease, background .2s ease, box-shadow .2s ease, transform .2s ease;
+  }
+  .category-country-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(96,165,250,.14), transparent 30%),
+      linear-gradient(135deg, rgba(124,243,173,.08), transparent 46%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+  }
+  .category-country-card:hover,
+  .category-country-card:focus-visible {
+    transform: translateY(-3px);
+    border-color: rgba(124,243,173,.34);
+    background: rgba(255,255,255,.035);
+    box-shadow: 0 18px 42px rgba(0,0,0,.28), 0 0 0 1px rgba(96,165,250,.08) inset;
+  }
+  .category-country-card:hover::before,
+  .category-country-card:focus-visible::before {
+    opacity: 1;
+  }
+  .category-country-card > * {
+    position: relative;
+    z-index: 1;
   }
   .category-country-header {
     display: flex;
@@ -153,6 +183,17 @@
     background: rgba(255,255,255,.02);
     border: 1px solid rgba(255,255,255,.04);
     padding: .85rem;
+    max-height: 46px;
+    overflow: hidden;
+    transition: max-height .24s ease, background .18s ease, border-color .18s ease, transform .18s ease;
+  }
+  .category-country-card:hover .category-country-row,
+  .category-country-card:focus-visible .category-country-row,
+  .category-country-row:hover {
+    max-height: 168px;
+    background: rgba(15, 23, 42, .72);
+    border-color: rgba(124,243,173,.18);
+    transform: translateX(2px);
   }
   .category-country-row-head {
     display: flex;
@@ -1005,16 +1046,148 @@
     .category-carousel { gap: 1rem; }
   }
 
+
+  .uva-geo-map, .shopify-geo-map {
+    display: grid;
+    grid-template-columns: minmax(260px, .75fr) minmax(0, 1.25fr);
+    gap: 1rem;
+    align-items: stretch;
+  }
+  .geo-map-canvas {
+    border: 1px solid rgba(96, 165, 250, .18);
+    border-radius: 14px;
+    background: radial-gradient(circle at 35% 25%, rgba(96, 165, 250, .18), transparent 32%), rgba(12, 19, 31, .82);
+    min-height: 230px;
+    padding: 1rem;
+    display: grid;
+    place-items: center;
+  }
+  .geo-map-shape {
+    width: min(100%, 260px);
+    min-height: 172px;
+    border-radius: 46% 54% 48% 52%;
+    border: 1px solid rgba(124, 243, 173, .34);
+    background: linear-gradient(135deg, rgba(16, 185, 129, .18), rgba(59, 130, 246, .12));
+    display: grid;
+    place-items: center;
+    text-align: center;
+    color: #f4fbff;
+    font-weight: 850;
+    box-shadow: inset 0 0 30px rgba(124, 243, 173, .08), 0 18px 50px rgba(0,0,0,.24);
+  }
+  .geo-map-shape span { display: block; color: #9fb0cd; font-size: .72rem; font-weight: 700; margin-top: .25rem; }
+  .geo-map-list { display: grid; gap: .75rem; }
+  .geo-map-row {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr) auto;
+    gap: .8rem;
+    align-items: center;
+    border: 1px solid rgba(154, 168, 194, .12);
+    border-radius: 12px;
+    background: rgba(255,255,255,.02);
+    padding: .8rem;
+  }
+  .geo-map-country { color: #f4fbff; font-weight: 850; }
+  .geo-map-bars { display: grid; gap: .4rem; min-width: 0; }
+  .geo-map-bar { height: 8px; border-radius: 999px; background: rgba(154, 168, 194, .16); overflow: hidden; }
+  .geo-map-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #60a5fa, #7cf3ad); }
+  .geo-map-fill.purchase { background: linear-gradient(90deg, #facc15, #f87171); }
+  .geo-map-metrics { text-align: right; color: #b8c6dd; font-size: .76rem; line-height: 1.45; }
+  .geo-map-note { color: #91a1bc; font-size: .78rem; line-height: 1.45; margin-top: .85rem; }
+  .uva-geo-map-real { grid-template-columns: 1fr; }
+  .geo-country-map-card { display: grid; grid-template-columns: minmax(320px, .95fr) minmax(300px, 1.05fr); gap: 1rem; align-items: stretch; }
+  .geo-country-svg { width: 100%; height: 100%; min-height: 340px; filter: drop-shadow(0 18px 34px rgba(0,0,0,.28)); }
+  .geo-country-outline { fill: rgba(12, 30, 42, .92); stroke: rgba(124, 243, 173, .72); stroke-width: 2.2; }
+  .geo-zone { fill: #12d4d6; fill-opacity: var(--zone-opacity, .28); stroke: rgba(244,251,255,.28); stroke-width: 1.1; transition: fill-opacity .18s ease, filter .18s ease; }
+  .geo-zone:hover { fill-opacity: .92; filter: drop-shadow(0 0 12px rgba(18, 212, 214, .42)); }
+  .geo-purchase-dot { fill: #facc15; stroke: #fff7d6; stroke-width: 2; filter: drop-shadow(0 0 8px rgba(250,204,21,.5)); }
+  .geo-purchase-label { fill: #f4fbff; font-size: 10px; font-weight: 800; paint-order: stroke; stroke: rgba(7, 12, 22, .78); stroke-width: 3px; stroke-linejoin: round; }
+  .geo-map-side { display: grid; align-content: start; gap: 1rem; }
+  .geo-map-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+  .geo-map-summary .mini-metric { min-height: auto; padding: .85rem; }
+  .geo-zone-list { display: grid; gap: .65rem; }
+  .geo-zone-row { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: .75rem; align-items: center; padding: .7rem .8rem; border: 1px solid rgba(154,168,194,.12); border-radius: 10px; background: rgba(255,255,255,.025); }
+  .geo-zone-name { color: #f4fbff; font-weight: 850; }
+  .geo-zone-track { height: 8px; border-radius: 999px; background: rgba(154,168,194,.16); overflow: hidden; }
+  .geo-zone-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #12d4d6, #7cf3ad); }
+  .geo-zone-value { color: #b8c6dd; font-size: .76rem; text-align: right; }
+  .geo-point-list { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .geo-point-pill { border: 1px solid rgba(250,204,21,.2); background: rgba(250,204,21,.08); color: #f4fbff; border-radius: 999px; padding: .42rem .62rem; font-size: .78rem; font-weight: 800; }
+  .geo-map-note.strong { border-left: 3px solid rgba(124,243,173,.5); padding-left: .85rem; }
+  .geo-country-map-real { grid-template-columns: minmax(440px, 1fr) minmax(330px, .78fr); }
+  .geo-map-canvas-real { min-height: 560px; padding: .65rem; position: relative; overflow: hidden; cursor: grab; background: radial-gradient(circle at 50% 45%, rgba(18,212,214,.08), transparent 42%), rgba(9, 15, 26, .64); }
+  .geo-map-canvas-real.is-panning { cursor: grabbing; }
+  .geo-country-svg-real { min-height: 520px; display: block; cursor: inherit; touch-action: none; }
+  .geo-map-controls { position: absolute; top: .75rem; right: .75rem; display: inline-flex; gap: .35rem; padding: .35rem; border: 1px solid rgba(154,168,194,.16); border-radius: 999px; background: rgba(7, 12, 22, .74); backdrop-filter: blur(10px); z-index: 3; }
+  .geo-map-controls button { min-width: 2rem; height: 2rem; border: 0; border-radius: 999px; background: rgba(255,255,255,.08); color: #f4fbff; font-weight: 900; line-height: 1; }
+  .geo-map-controls button:hover { background: rgba(96,165,250,.3); }
+  .geo-map-tooltip { position: absolute; min-width: 220px; max-width: 290px; padding: .78rem .85rem; border: 1px solid rgba(124,243,173,.2); border-radius: 12px; background: rgba(7, 12, 22, .94); box-shadow: 0 18px 38px rgba(0,0,0,.38); color: #dce8f8; pointer-events: none; opacity: 0; transform: translateY(6px); transition: opacity .12s ease, transform .12s ease; z-index: 4; }
+  .geo-map-tooltip.is-visible { opacity: 1; transform: translateY(0); }
+  .geo-tooltip-title { color: #f4fbff; font-weight: 900; margin-bottom: .55rem; }
+  .geo-tooltip-grid { display: grid; grid-template-columns: 1fr auto; gap: .3rem .8rem; font-size: .78rem; }
+  .geo-tooltip-label { color: #9fb0cd; }
+  .geo-tooltip-value { color: #f4fbff; font-weight: 850; text-align: right; }
+  .geo-loading { color: #9fb0cd; font-weight: 800; position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; pointer-events: none; }
+  .geo-loading.is-hidden { display: none; }
+  .geo-real-region { cursor: pointer; transition: fill .18s ease, fill-opacity .18s ease, stroke .18s ease, filter .18s ease; }
+  .geo-real-region:hover { fill-opacity: .97; stroke: rgba(250, 204, 21, .92); stroke-width: 1.4; filter: drop-shadow(0 0 10px rgba(18,212,214,.22)); }
+  .geo-real-label { fill: #f4fbff; font-size: 10px; font-weight: 850; paint-order: stroke; stroke: rgba(7, 12, 22, .86); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; transition: opacity .16s ease, font-size .16s ease; }
+  .geo-real-point { fill: #facc15; stroke: #fff7d6; stroke-width: 2; filter: drop-shadow(0 0 8px rgba(250,204,21,.48)); transition: r .16s ease, opacity .16s ease; }
+  .geo-real-hit { fill: transparent; stroke: transparent; cursor: pointer; }
+  .geo-real-point-pulse { fill: none; stroke: rgba(250,204,21,.34); stroke-width: 1.5; pointer-events: none; transform-box: fill-box; transform-origin: center; animation: geoPulse 2.4s ease-out infinite; }
+  @keyframes geoPulse { 0% { opacity: .52; transform: scale(.72); } 72%, 100% { opacity: 0; transform: scale(1.9); } }
+  .geo-real-empty { fill: rgba(18, 30, 46, .9); stroke: rgba(154,168,194,.18); }
+  .category-country-grid { grid-template-columns: 1fr; }
+  .category-country-card { display: grid; grid-template-columns: minmax(220px, .65fr) minmax(260px, .8fr) minmax(320px, 1.2fr); align-items: start; border-radius: 10px; }
+  .category-country-rows { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .uva-country-category-carousel .category-slide { flex: 0 0 clamp(360px, 23vw, 400px); min-width: 360px; }
+  .uva-country-category-carousel .category-card {
+    display: flex;
+    flex-direction: column;
+    aspect-ratio: 1 / 1;
+    min-height: auto;
+    height: auto;
+    gap: .72rem;
+    border-radius: 16px;
+    padding: 1rem;
+    padding-bottom: 2.05rem;
+  }
+  .uva-country-category-carousel .cat-header,
+  .uva-country-category-carousel .cat-main-kpi,
+  .uva-country-category-carousel .cat-stats-grid,
+  .uva-country-category-carousel .cat-channels,
+  .uva-country-category-carousel .cat-info { min-width: 0; }
+  .uva-country-category-carousel .cat-header { align-items: center; gap: .85rem; }
+  .uva-country-category-carousel .cat-img-wrapper { width: 52px; height: 52px; }
+  .uva-country-category-carousel .cat-info h3 { line-height: 1.12; overflow-wrap: anywhere; }
+  .uva-country-category-carousel .cat-main-kpi { min-height: 82px; align-items: flex-end; padding: .85rem; }
+  .uva-country-category-carousel .cat-main-val,
+  .uva-country-category-carousel .cat-stat-val,
+  .uva-country-category-carousel .cat-chan-val { overflow-wrap: anywhere; line-height: 1.15; }
+  .uva-country-category-carousel .cat-main-val { font-size: clamp(1.18rem, 1.55vw, 1.48rem); }
+  .uva-country-category-carousel .cat-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .58rem .75rem; }
+  .uva-country-category-carousel .cat-stat-item { gap: .12rem; }
+  .uva-country-category-carousel .cat-stat-label { line-height: 1.1; }
+  .uva-country-category-carousel .cat-stat-val { font-size: .88rem; }
+  .uva-country-category-carousel .cat-channels { border-left: 0; border-top: 1px solid var(--axis-border); padding-left: 0; padding-top: .65rem; gap: .45rem; margin-top: auto; }
+  .uva-country-category-carousel .cat-chan-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .55rem; align-items: start; font-size: .76rem; }
+  .uva-country-category-carousel .cat-chan-label { min-width: 0; line-height: 1.22; }
+  .uva-country-category-carousel .cat-chan-val { min-width: 0; text-align: right; }
   @media (max-width: 1400px) {
     .kpi-grid-compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
   @media (max-width: 992px) {
     .kpi-grid-compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .category-summary-grid, .category-kpi-grid, .home-priority-grid { grid-template-columns: 1fr; }
+    .category-summary-grid, .category-kpi-grid, .home-priority-grid, .uva-geo-map, .shopify-geo-map, .geo-country-map-card, .geo-map-summary { grid-template-columns: 1fr; }
     .home-metric-grid { grid-template-columns: 1fr; }
+    .uva-country-category-carousel .category-slide { flex-basis: clamp(350px, 44vw, 390px); min-width: 350px; }
   }
   @media (max-width: 640px) {
-    .kpi-grid-compact, .mini-metric-grid, .category-kpi-grid, .whatsapp-country-grid { grid-template-columns: 1fr; }
+    .kpi-grid-compact, .mini-metric-grid, .category-kpi-grid, .whatsapp-country-grid, .category-country-card { grid-template-columns: 1fr; }
+    .uva-country-category-carousel .category-slide { flex-basis: min(360px, calc(100vw - 3rem)); min-width: min(360px, calc(100vw - 3rem)); }
+    .uva-country-category-carousel .category-card { padding: .95rem; padding-bottom: 2.05rem; }
+    .uva-country-category-carousel .cat-chan-row { grid-template-columns: minmax(0, 1fr); }
+    .uva-country-category-carousel .cat-chan-val { text-align: left; }
   }
 </style>
 
@@ -1035,15 +1208,15 @@
         <div class="section-title">Ventas, inversion, ROAS y ticket promedio</div>
         <div class="panel-caption">
           Serie filtrada para
-          {% if summary.filters.country == "CO" %}Colombia{% elif summary.filters.country == "EC" %}Ecuador{% elif summary.filters.country == "MX" %}Mexico{% else %}el pais seleccionado{% endif %}
+          {% if summary.filters.country == "CO" %}Colombia{% elif summary.filters.country == "EC" %}Ecuador{% elif summary.filters.country == "MX" %}México{% else %}el pais seleccionado{% endif %}
           {% if summary.filters.country == "CO" %}. Comfama se conserva como bloque independiente dentro de Uva.{% endif %}
         </div>
         {% elif active_nav == "uva" %}
         <div class="section-title">Ventas, inversion, ROAS y ticket promedio</div>
-        <div class="panel-caption">Comparativa consolidada de Colombia, Ecuador y Mexico para el rango filtrado. No incluye Comfama.</div>
+        <div class="panel-caption">Comparativa consolidada de Colombia, Ecuador y México para el rango filtrado. No incluye Comfama.</div>
         {% else %}
         <div class="section-title">Ventas generales de Copa Uva</div>
-        <div class="panel-caption">Comparacion por pais entre Colombia, Ecuador y Mexico segun el filtro seleccionado: ventas totales, inversion, ROAS y ticket promedio. No incluye Comfama.</div>
+        <div class="panel-caption">Comparacion por pais entre Colombia, Ecuador y México segun el filtro seleccionado: ventas totales, inversion, ROAS y ticket promedio. No incluye Comfama.</div>
         {% endif %}
       </div>
     </div>
@@ -1056,7 +1229,7 @@
     {% if active_nav == "dashboard" and not summary.filters.country %}
     <div class="mt-4 pt-4 border-top border-secondary border-opacity-10">
       <div class="section-title mb-2">Participacion por pais</div>
-      <div class="panel-caption mb-3">Vista separada por Colombia, Ecuador y Mexico para no mezclar lecturas entre operaciones.</div>
+      <div class="panel-caption mb-3">Vista separada por Colombia, Ecuador y México para no mezclar lecturas entre operaciones.</div>
       <div class="chart-box" style="min-height: 280px;"><canvas id="countryMixChart"></canvas></div>
       <div class="whatsapp-country-grid">
         <div class="whatsapp-country-card">
@@ -1144,7 +1317,7 @@
       </div>
       {% else %}
         {% for country in home_country_comparison %}
-        <div class="country-metric {% if country.label == 'Colombia' %}country-co{% elif country.label == 'Ecuador' %}country-ec{% elif country.label == 'Mexico' %}country-mx{% endif %}">
+        <div class="country-metric {% if country.label == 'Colombia' %}country-co{% elif country.label == 'Ecuador' %}country-ec{% elif country.label == 'México' %}country-mx{% endif %}">
           <div class="country-metric-label-row">
             <div class="country-metric-label">Uva {{ country.label }}</div>
             <span class="country-badge">{{ country.label|slice:":2"|upper }}</span>
@@ -1335,11 +1508,89 @@
     </div>
   </div>
 </div>
+
+<div class="surface-card p-3 p-lg-4 mb-4">
+  <div class="panel-header">
+    <div>
+      <div class="section-title">Marketplace</div>
+      <div class="panel-caption">Lectura ejecutiva de marketplaces: ventas, inversion, ROAS, pedidos y canales.</div>
+    </div>
+    <a class="dashboard-action-btn" href="{% url 'reports:marketplace' %}?{{ request.GET.urlencode }}">Ver Marketplace</a>
+  </div>
+  <div class="category-kpi-grid mb-4">
+    <div class="mini-metric"><div class="mini-metric-label">Ventas Marketplace</div><div class="mini-metric-value">{{ home_marketplace_snapshot.kpis.sales_total|cop }}</div>{% if home_marketplace_snapshot.kpis.sales_total_with_vat %}<div class="category-compare text-muted">Total con IVA {{ home_marketplace_snapshot.kpis.sales_total_with_vat|cop }}</div>{% endif %}</div>
+    <div class="mini-metric"><div class="mini-metric-label">Inversion pauta</div><div class="mini-metric-value">{{ home_marketplace_snapshot.kpis.ad_spend|cop }}</div></div>
+    <div class="mini-metric"><div class="mini-metric-label">ROAS</div><div class="mini-metric-value {{ home_marketplace_snapshot.kpis.roas|roas_value_class }}">{{ home_marketplace_snapshot.kpis.roas|floatformat:2 }}</div></div>
+    <div class="mini-metric"><div class="mini-metric-label">Pedidos</div><div class="mini-metric-value">{{ home_marketplace_snapshot.kpis.orders|floatformat:0 }}</div></div>
+  </div>
+  <div class="row g-4">
+    <div class="col-xl-7">
+      <div class="section-title mb-2">Tendencia Marketplace</div>
+      <div class="panel-caption mb-3">Ventas e inversion del rango seleccionado.</div>
+      <div class="chart-box"><canvas id="homeMarketplacePerformanceChart"></canvas></div>
+    </div>
+    <div class="col-xl-5">
+      <div class="section-title mb-2">Canales Marketplace</div>
+      <div class="panel-caption mb-3">Separacion por canal activo.</div>
+      <div class="chart-box"><canvas id="homeMarketplaceChannelChart"></canvas></div>
+    </div>
+  </div>
+</div>
 {% endif %}
 {% endif %}
 
 {% if active_nav == "uva" %}
-{% if summary.filters.country %}
+<div class="surface-card p-3 p-lg-4 mb-4">
+  <div class="panel-header align-items-start">
+    <div>
+      <h2 class="section-title h4 mb-1">Mapa geografico objetivo Uva</h2>
+      <p class="panel-caption mb-0">Mapa real por pais con departamentos/estados/provincias. Zonas coloreadas = impresiones o vistas; puntos = compras/conversiones registradas desde Google Ads y Meta Ads.</p>
+    </div>
+  </div>
+  <div class="uva-geo-map uva-geo-map-real">
+    {% for map in uva_geo_map.maps %}
+    <div class="geo-country-map-card geo-country-map-real" data-geo-map data-map-url="{{ map.geojson_url }}" data-regions="{{ map.regions_json|escape }}" data-points="{{ map.points_json|escape }}" data-country="{{ map.code }}">
+      <div class="geo-map-canvas geo-map-canvas-real">
+        <div class="geo-loading" data-geo-loading>Cargando mapa real de {{ map.label }}...</div>
+        <svg class="geo-country-svg geo-country-svg-real" viewBox="0 0 760 620" role="img" aria-label="Mapa real de {{ map.label }} para Uva" data-geo-svg></svg>
+      </div>
+      <div class="geo-map-side">
+        <div>
+          <div class="section-title mb-1">{{ map.label }}</div>
+          <div class="panel-caption">Fuente visual: departamentos/estados/provincias reales. Plataformas: {{ map.platforms }}{% if map.latest_date %}. Ultima geodata: {{ map.latest_date }}{% endif %}.</div>
+        </div>
+        <div class="geo-map-summary">
+          <div class="mini-metric"><div class="mini-metric-label">Impresiones</div><div class="mini-metric-value">{{ map.totals.impressions|floatformat:0 }}</div></div>
+          <div class="mini-metric"><div class="mini-metric-label">Reach/Vistas</div><div class="mini-metric-value">{{ map.totals.reach|floatformat:0 }}</div></div>
+          <div class="mini-metric"><div class="mini-metric-label">Compras</div><div class="mini-metric-value">{{ map.totals.purchases|floatformat:0 }}</div></div>
+          <div class="mini-metric"><div class="mini-metric-label">Gasto geo</div><div class="mini-metric-value">{{ map.totals.spend|cop }}</div></div>
+        </div>
+        {% if map.has_real_geo %}
+        <div class="geo-zone-list">
+          {% for region in map.regions|slice:":8" %}
+          <div class="geo-zone-row">
+            <div class="geo-zone-name">{{ region.name }}</div>
+            <div class="geo-zone-track"><div class="geo-zone-fill" style="width: {% widthratio region.impressions map.totals.impressions 100 %}%;"></div></div>
+            <div class="geo-zone-value">{{ region.impressions|floatformat:0 }} imp.</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% if map.points %}
+        <div class="geo-point-list">
+          {% for point in map.points %}<div class="geo-point-pill">{{ point.name }} - {{ point.purchases|floatformat:0 }}</div>{% endfor %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="geo-map-note strong">Mapa real listo. Aún no hay desglose geografico guardado para este rango; el proximo sync/backfill de Google Ads y Meta Ads llenara impresiones, vistas y compras por region.</div>
+        {% endif %}
+        <div class="geo-map-note">{{ map.attribution }}</div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="empty-state p-4">Sin mapa disponible para este filtro.</div>
+    {% endfor %}
+  </div>
+</div>
 <div class="surface-card p-3 p-lg-4 mb-4" data-meta-ads-section data-page-size="12">
   <div class="panel-header align-items-start">
     <div>
@@ -1391,7 +1642,7 @@
           <div class="meta-pacing-item-message">{{ insight.message }}</div>
         </div>
         {% empty %}
-        <div class="meta-pacing-empty">Aun no hay un ganador claro.</div>
+        <div class="meta-pacing-empty">Aún no hay un ganador claro.</div>
         {% endfor %}
       </div>
     </div>
@@ -1560,10 +1811,10 @@
 <div class="surface-card p-3 p-lg-4 mb-4">
   <div class="panel-header align-items-start">
     <div>
-      <h2 class="section-title h4 mb-1">CategorÃ­as de producto Uva</h2>
-      <p class="panel-caption mb-0">Comparativa por categorÃ­a entre Colombia, Ecuador y Mexico para el rango filtrado.</p>
+      <h2 class="section-title h4 mb-1">Categorías de producto Uva</h2>
+      <p class="panel-caption mb-0">Comparativa por categoría entre Colombia, Ecuador y México para el rango filtrado.</p>
     </div>
-    <span class="badge bg-white bg-opacity-10 text-white-50 border-0">{{ uva_category_country_snapshot.category_count }} categorÃ­as</span>
+    <span class="badge bg-white bg-opacity-10 text-white-50 border-0">{{ uva_category_country_snapshot.category_count }} categorías</span>
   </div>
   <div class="chart-box mb-4" style="min-height: 320px;"><canvas id="uvaCategoryCountryComparisonChart"></canvas></div>
   <div class="category-country-grid">
@@ -1580,7 +1831,7 @@
         </div>
         <div>
           <div class="category-country-title">{{ card.name }}</div>
-          <div class="panel-caption">Comparativa por paÃ­s</div>
+          <div class="panel-caption">Comparativa por país</div>
         </div>
       </div>
       <div class="category-country-summary">
@@ -1589,7 +1840,7 @@
           <div class="category-country-stat-value">{{ card.combined_sales_total|cop }}</div>
         </div>
         <div class="category-country-stat">
-          <div class="category-country-stat-label">InversiÃ³n</div>
+          <div class="category-country-stat-label">Inversión</div>
           <div class="category-country-stat-value">{{ card.spend_total|cop }}</div>
         </div>
         <div class="category-country-stat">
@@ -1618,7 +1869,7 @@
     </div>
     {% empty %}
     <div class="w-100 text-center py-5">
-      <div class="empty-state">Aun no hay mÃ©tricas importadas para este filtro.</div>
+      <div class="empty-state">Aún no hay métricas importadas para este filtro.</div>
     </div>
     {% endfor %}
   </div>
@@ -1644,7 +1895,7 @@
   </div>
 
   <div class="category-carousel-wrapper">
-    <div class="category-carousel" id="category-slider">
+    <div class="category-carousel uva-country-category-carousel" id="category-slider">
       {% for card in product_category_snapshot.cards %}
         <div class="category-slide">
           <div class="category-card product-detail-trigger" role="button" tabindex="0" data-product-unit="uva" data-product-key="{{ card.category_id }}">
@@ -1728,7 +1979,7 @@
         </div>
       {% empty %}
         <div class="w-100 text-center py-5">
-          <div class="empty-state">Aun no hay métricas importadas para este filtro.</div>
+          <div class="empty-state">Aún no hay métricas importadas para este filtro.</div>
         </div>
       {% endfor %}
     </div>
@@ -1738,7 +1989,6 @@
     </div>
   </div>
 </div>
-{% endif %}
 {% endif %}
 
 {% if show_non_dashboard_kpis %}
@@ -1861,6 +2111,146 @@ function compactMoney(value) {
 
 function fullNumber(value) {
   return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(toNumber(value));
+}
+
+function geoNormalizeKey(value) {
+  const raw = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const key = raw.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const aliases = {
+    'bogota-d-c': 'bogota',
+    'bogota-dc': 'bogota',
+    'distrito-capital': 'bogota',
+    'capital-district': 'bogota',
+    'bogota-capital-district': 'bogota',
+    'distrito-especial': 'bogota',
+    'mexico-city': 'distrito-federal',
+    'ciudad-de-mexico': 'distrito-federal',
+    'cdmx': 'distrito-federal',
+    'coahuila': 'coahuila-de-zaragoza',
+    'estado-de-mexico': 'mexico',
+    'edomex': 'mexico',
+    'santo-domingo': 'santo-domingo-de-los-tsachilas'
+  };
+  return aliases[key] || key;
+}
+
+function safeJsonParse(value, fallback) {
+  try { return JSON.parse(value || ''); } catch (error) { return fallback; }
+}
+
+function flattenGeoPoints(input, output = []) {
+  if (!Array.isArray(input)) return output;
+  if (typeof input[0] === 'number' && typeof input[1] === 'number') {
+    output.push(input);
+    return output;
+  }
+  input.forEach(item => flattenGeoPoints(item, output));
+  return output;
+}
+
+function geoFeatureName(feature) {
+  const props = feature?.properties || {};
+  return props.name || props.shapeName || props.NAME_1 || props.name_local || 'Region';
+}
+
+function geoPathFromGeometry(geometry, project) {
+  if (!geometry) return '';
+  const ringPath = ring => ring.map((point, index) => {
+    const [x, y] = project(point);
+    return `${index ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(' ') + ' Z';
+  if (geometry.type === 'Polygon') {
+    return (geometry.coordinates || []).map(ringPath).join(' ');
+  }
+  if (geometry.type === 'MultiPolygon') {
+    return (geometry.coordinates || []).flatMap(poly => poly.map(ringPath)).join(' ');
+  }
+  return '';
+}
+
+function geoCentroid(geometry, project) {
+  const points = flattenGeoPoints(geometry?.coordinates || []);
+  if (!points.length) return [380, 310];
+  const totals = points.reduce((acc, point) => [acc[0] + point[0], acc[1] + point[1]], [0, 0]);
+  return project([totals[0] / points.length, totals[1] / points.length]);
+}
+
+function geoColor(metric, maxImpressions) {
+  const impressions = toNumber(metric?.impressions);
+  if (!impressions || !maxImpressions) return 'rgba(18, 30, 46, .92)';
+  const ratio = Math.max(0.08, Math.min(1, impressions / maxImpressions));
+  const light = 18 + ratio * 44;
+  return `hsl(181 72% ${light}%)`;
+}
+
+async function renderGeoMap(card) {
+  const svg = card.querySelector('[data-geo-svg]');
+  const loading = card.querySelector('[data-geo-loading]');
+  if (!svg || !card.dataset.mapUrl) return;
+  const regions = safeJsonParse(card.dataset.regions, []);
+  const points = safeJsonParse(card.dataset.points, []);
+  const metricByKey = new Map(regions.map(item => [geoNormalizeKey(item.key || item.name), item]));
+  const pointByKey = new Map(points.map(item => [geoNormalizeKey(item.key || item.name), item]));
+  const maxImpressions = Math.max(1, ...regions.map(item => toNumber(item.impressions)));
+  try {
+    const response = await fetch(card.dataset.mapUrl, { cache: 'force-cache' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const geojson = await response.json();
+    const features = geojson.features || [];
+    const allPoints = flattenGeoPoints(features.map(feature => feature.geometry?.coordinates));
+    const xs = allPoints.map(point => point[0]);
+    const ys = allPoints.map(point => point[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const width = 760, height = 620, padding = 22;
+    const scale = Math.min((width - padding * 2) / Math.max(maxX - minX, 0.01), (height - padding * 2) / Math.max(maxY - minY, 0.01));
+    const offsetX = (width - (maxX - minX) * scale) / 2;
+    const offsetY = (height - (maxY - minY) * scale) / 2;
+    const project = point => [offsetX + (point[0] - minX) * scale, offsetY + (maxY - point[1]) * scale];
+    svg.textContent = '';
+    features.forEach(feature => {
+      const name = geoFeatureName(feature);
+      const key = geoNormalizeKey(name);
+      const metric = metricByKey.get(key) || {};
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', geoPathFromGeometry(feature.geometry, project));
+      path.setAttribute('class', `geo-real-region ${metric.impressions ? '' : 'geo-real-empty'}`);
+      path.setAttribute('fill', geoColor(metric, maxImpressions));
+      path.setAttribute('fill-opacity', metric.impressions ? String(0.28 + Math.min(0.67, toNumber(metric.impressions) / maxImpressions * 0.67)) : '0.74');
+      path.setAttribute('stroke', 'rgba(244,251,255,.32)');
+      path.setAttribute('stroke-width', '0.75');
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = `${name}: ${fullNumber(metric.impressions || 0)} impresiones, ${fullNumber(metric.purchases || 0)} compras`;
+      path.appendChild(title);
+      svg.appendChild(path);
+      const pointMetric = pointByKey.get(key);
+      if (pointMetric && toNumber(pointMetric.purchases) > 0) {
+        const [cx, cy] = geoCentroid(feature.geometry, project);
+        const radius = Math.max(5, Math.min(17, 5 + Math.sqrt(toNumber(pointMetric.purchases))));
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('class', 'geo-real-point');
+        circle.setAttribute('cx', cx.toFixed(1));
+        circle.setAttribute('cy', cy.toFixed(1));
+        circle.setAttribute('r', radius.toFixed(1));
+        const circleTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        circleTitle.textContent = `${pointMetric.name}: ${fullNumber(pointMetric.purchases)} compras`;
+        circle.appendChild(circleTitle);
+        svg.appendChild(circle);
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('class', 'geo-real-label');
+        label.setAttribute('x', (cx + radius + 4).toFixed(1));
+        label.setAttribute('y', (cy + 4).toFixed(1));
+        label.textContent = pointMetric.name;
+        svg.appendChild(label);
+      }
+    });
+    loading?.classList.add('is-hidden');
+  } catch (error) {
+    if (loading) loading.textContent = 'No se pudo cargar el mapa geografico.';
+  }
+}
+
+function setupGeoMaps() {
+  document.querySelectorAll('[data-geo-map]').forEach(card => { renderGeoMap(card); });
 }
 
 function decimalNumber(value, digits = 2) {
@@ -2328,7 +2718,7 @@ function renderCategoryCountryComparisonChart(id, rows) {
           borderRadius: 7
         },
         {
-          label: 'Mexico',
+          label: 'México',
           data: rows.map(item => Number(item.MX ?? 0)),
           backgroundColor: 'rgba(239, 68, 68, 0.82)',
           borderRadius: 7
@@ -2539,6 +2929,8 @@ document.addEventListener('keydown', event => {
   const uvaCategoryCountryComparison = {{ uva_category_country_comparison_json|safe|default:"[]" }};
   const homeBaliDaily = {{ home_bali_daily_json|safe|default:"[]" }};
   const homeBaliChannels = {{ home_bali_channels_json|safe|default:"[]" }};
+  const homeMarketplaceDaily = {{ home_marketplace_daily_json|safe|default:"[]" }};
+  const homeMarketplaceChannels = {{ home_marketplace_channels_json|safe|default:"[]" }};
   const countryProfitabilityFallback = copaUvaCountryComparison
     .filter(item => Number(item.sales || 0) || Number(item.spend || 0) || Number(item.roas || 0))
     .map(item => ({ label: item.label, value: Number(item.roas || 0), sales: Number(item.sales || 0), spend: Number(item.spend || 0) }));
@@ -2549,6 +2941,8 @@ document.addEventListener('keydown', event => {
   renderAdPlatformChart('adPlatformChart', adPlatformPerformance);
   renderProfitabilityChart('categoryProfitabilityChart', categoryProfitability);
   renderCountryMixChart('countryMixChart', copaUvaCountryComparison);
+{% include "reports/includes/geo_map_renderer.js" %}
+  setupGeoMaps();
   renderCategoryCountryComparisonChart('uvaCategoryCountryComparisonChart', uvaCategoryCountryComparison);
   
   if (typeof renderCountryComparisonChart === 'function') {
@@ -2558,8 +2952,9 @@ document.addEventListener('keydown', event => {
   {% if active_nav == "dashboard" %}
     renderPerformanceChart('homeBaliPerformanceChart', homeBaliDaily);
     renderChannelChart('homeBaliChannelChart', homeBaliChannels);
+    renderPerformanceChart('homeMarketplacePerformanceChart', homeMarketplaceDaily);
+    renderChannelChart('homeMarketplaceChannelChart', homeMarketplaceChannels);
   {% endif %}
 })();
 </script>
 {% endblock %}
-

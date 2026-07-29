@@ -2,7 +2,6 @@ from django import forms
 
 import json
 import os
-import re
 import struct
 
 from django.utils import timezone
@@ -10,6 +9,7 @@ from django.utils import timezone
 from django.contrib.auth.models import User
 
 from .models import AdPlatform, BusinessUnit, Channel, Country, DailyAdSpend, DailyChannelSale, OperationalGoalTask, Product, UserProfile, WeeklyTask
+from .sanitizers import sanitize_rich_text
 
 
 VIEW_CHOICES = (("weekly", "Semana"), ("monthly", "Mes"), ("custom", "Personalizado"))
@@ -18,6 +18,11 @@ COMPARE_CHOICES = (("none", "Sin comparacion"), ("previous_period", "Periodo ant
 EXPORT_SCOPE_CHOICES = (("master", "Periodo completo"), ("metrics", "Metricas filtradas"), ("tasks", "Tareas filtradas"))
 PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024
 IMAGE_UPLOAD_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024
+ATTACHMENT_UPLOAD_EXTENSIONS = {
+    ".csv", ".doc", ".docx", ".jpeg", ".jpg", ".pdf",
+    ".png", ".ppt", ".pptx", ".xls", ".xlsx",
+}
 
 
 class GlobalFilterForm(forms.Form):
@@ -93,10 +98,27 @@ class MultiFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
 
 
+class MultiFileField(forms.FileField):
+    """FileField que acepta varios archivos.
+
+    Con `allow_multiple_selected` el widget entrega una lista, y el `clean` de
+    FileField no sabe leerla: rechazaba cualquier envio con «No se ha enviado
+    ningun fichero». Aqui se valida archivo por archivo.
+    """
+
+    def clean(self, data, initial=None):
+        single_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            if not data:
+                return single_clean(None, initial)
+            return [single_clean(item, initial) for item in data]
+        return [single_clean(data, initial)]
+
+
 class AttachmentUploadForm(forms.Form):
-    files = forms.FileField(
+    files = MultiFileField(
         label="Archivos",
-        widget=MultiFileInput(attrs={"class": "form-control", "multiple": True, "accept": ".pdf,.ppt,.pptx,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx"}),
+        widget=MultiFileInput(attrs={"class": "form-control", "multiple": True, "accept": ".pdf,.ppt,.pptx,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx,.csv"}),
     )
     business_unit = forms.ModelChoiceField(label="Unidad", queryset=BusinessUnit.objects.filter(is_active=True), required=False, widget=forms.Select(attrs={"class": "form-select"}))
     country = forms.ModelChoiceField(label="Pais", queryset=Country.objects.filter(is_active=True), required=False, widget=forms.Select(attrs={"class": "form-select"}))
@@ -107,9 +129,19 @@ class AttachmentUploadForm(forms.Form):
     tags = forms.CharField(label="Etiquetas", required=False, widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "reporte, pauta, analisis"}))
 
     def clean_files(self):
-        files = self.files.getlist("files")
+        files = [item for item in (self.cleaned_data.get("files") or []) if item]
         if not files:
             raise forms.ValidationError("Debes seleccionar al menos un archivo.")
+        for uploaded in files:
+            extension = os.path.splitext(uploaded.name)[1].lower()
+            if extension not in ATTACHMENT_UPLOAD_EXTENSIONS:
+                allowed = ", ".join(sorted(ATTACHMENT_UPLOAD_EXTENSIONS))
+                raise forms.ValidationError(
+                    f"«{uploaded.name}» no es un tipo permitido. Se aceptan: {allowed}."
+                )
+            if getattr(uploaded, "size", 0) > ATTACHMENT_MAX_BYTES:
+                limit_mb = ATTACHMENT_MAX_BYTES // (1024 * 1024)
+                raise forms.ValidationError(f"«{uploaded.name}» supera el limite de {limit_mb} MB.")
         return files
 
 
@@ -463,9 +495,5 @@ class OperationalGoalTaskUpdateForm(forms.ModelForm):
         }
 
     def clean_employee_response(self):
-        value = self.cleaned_data.get("employee_response", "").strip()
-        value = re.sub(r"<\s*(script|style)[^>]*>.*?<\s*/\s*\1\s*>", "", value, flags=re.IGNORECASE | re.DOTALL)
-        value = re.sub(r"\s+on\w+\s*=\s*(['\"]).*?\1", "", value, flags=re.IGNORECASE | re.DOTALL)
-        value = re.sub(r"javascript\s*:", "", value, flags=re.IGNORECASE)
-        return value
+        return sanitize_rich_text(self.cleaned_data.get("employee_response", ""))
 

@@ -1,8 +1,9 @@
-﻿from datetime import date, datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import admin
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from django.db.models import Q, Sum
 from django import forms
 from django.contrib import messages
@@ -16,7 +17,7 @@ from openpyxl import Workbook, load_workbook
 
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.models import User
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 
 from .admin_forms import AxisUserChangeForm, AxisUserCreationForm, BusinessUnitAdminForm
 from .models import (
@@ -36,6 +37,7 @@ from .models import (
     Country,
     DailyAdSpend,
     DailyChannelSale,
+    DailyGeoAdMetric,
     DailyProductCategoryMetric,
     DailyProductCategorySale,
     ExportJob,
@@ -62,6 +64,7 @@ from .models import (
     WeeklyReport,
     WeeklyTask,
 )
+from .sanitizers import sanitize_rich_text
 from .services.comfama_import import import_comfama_ad_spend_workbook, import_comfama_sales_workbook
 from .utils.admin_export import export_queryset_to_excel, get_excel_response
 
@@ -79,6 +82,10 @@ class ExportExcelMixin:
         return my_urls + urls
 
     def export_excel_universal_view(self, request):
+        # get_changelist_instance no valida permisos por si mismo (a diferencia
+        # de changelist_view), y todos los usuarios de Axis son is_staff.
+        if not self.has_view_permission(request):
+            raise PermissionDenied
         cl = self.get_changelist_instance(request)
         queryset = cl.get_queryset(request)
         wb = export_queryset_to_excel(queryset, self.model)
@@ -417,6 +424,10 @@ def _parse_int(value, default=0):
     return int(_parse_decimal(value, Decimal(default)))
 
 
+
+def _has_import_value(value):
+    return value is not None and str(value).strip() != ""
+
 class DropdownListFilter(admin.SimpleListFilter):
     template = "admin/dropdown_filter.html"
 
@@ -478,6 +489,9 @@ class DailySaleExcelAdminMixin:
         raw_date, sales, orders, notes = (list(row) + [None] * 4)[:4]
         return raw_date, None, sales, None, orders, None, notes
 
+    def save_import_row(self, lookup, defaults):
+        return DailyChannelSale.objects.update_or_create(**lookup, defaults=defaults)
+
     def import_excel(self, request):
         form = MarketplaceExcelImportForm(request.POST or None, request.FILES or None)
         if request.method == "POST" and form.is_valid():
@@ -516,7 +530,7 @@ class DailySaleExcelAdminMixin:
                 if not lookup:
                     skipped += 1
                     continue
-                sale, was_created = DailyChannelSale.objects.update_or_create(**lookup, defaults=defaults)
+                sale, was_created = self.save_import_row(lookup, defaults)
                 if was_created:
                     created += 1
                 else:
@@ -1002,14 +1016,40 @@ class MarketplaceSaleAdmin(DailySaleExcelAdminMixin, AxisModelAdmin):
 
     def build_import_defaults(self, filename, sales, spend, orders, units, notes):
         return {
-            "sales_amount": _parse_decimal(sales),
-            "spend_amount": _parse_decimal(spend),
-            "order_count": _parse_int(orders),
-            "units": _parse_int(units),
+            "sales_amount": _parse_decimal(sales) if _has_import_value(sales) else None,
+            "spend_amount": _parse_decimal(spend) if _has_import_value(spend) else None,
+            "order_count": _parse_int(orders) if _has_import_value(orders) else None,
+            "units": _parse_int(units) if _has_import_value(units) else None,
             "notes": notes or "",
             "source_type": DailyChannelSale.SourceType.IMPORTED,
             "source_file": filename,
         }
+
+    def save_import_row(self, lookup, defaults):
+        sale, was_created = DailyChannelSale.objects.get_or_create(
+            **lookup,
+            defaults={
+                "sales_amount": defaults["sales_amount"] or Decimal("0"),
+                "spend_amount": defaults["spend_amount"] or Decimal("0"),
+                "order_count": defaults["order_count"] or 0,
+                "units": defaults["units"] or 0,
+                "notes": defaults["notes"],
+                "source_type": defaults["source_type"],
+                "source_file": defaults["source_file"],
+            },
+        )
+        update_fields = ["notes", "source_type", "source_file", "updated_at"]
+        for field in ("sales_amount", "spend_amount", "order_count", "units"):
+            value = defaults[field]
+            if value is None:
+                continue
+            setattr(sale, field, value)
+            update_fields.append(field)
+        sale.notes = defaults["notes"]
+        sale.source_type = defaults["source_type"]
+        sale.source_file = defaults["source_file"]
+        sale.save(update_fields=update_fields)
+        return sale, was_created
 
     @admin.display(description="Marca")
     def business_unit_display(self, obj):
@@ -1183,6 +1223,7 @@ class OperationalGoalTaskAdmin(AxisModelAdmin):
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def save_model(self, request, obj, form, change):
+        obj.employee_response = sanitize_rich_text(obj.employee_response)
         if is_operational_task_employee(request.user):
             original = OperationalGoalTask.objects.get(pk=obj.pk)
             original.status = obj.status
@@ -1208,7 +1249,7 @@ class OperationalGoalTaskAdmin(AxisModelAdmin):
     def employee_response_preview(self, obj):
         if not obj or not obj.employee_response:
             return "Sin respuesta registrada."
-        return format_html('<div style="max-width:760px; line-height:1.5;">{}</div>', format_html(obj.employee_response))
+        return format_html('<div style="max-width:760px; line-height:1.5;">{}</div>', mark_safe(sanitize_rich_text(obj.employee_response)))
 
     class Media:
         js = ("admin/operational_task_editor.js",)
@@ -1397,6 +1438,19 @@ class DailyAdSpendAdmin(AdminGuideMixin, AxisModelAdmin):
         ("Trazabilidad", {"fields": ("source_type", "source_file", "notes")}),
     )
     readonly_fields = ("admin_guide",)
+
+
+@admin.register(DailyGeoAdMetric)
+class DailyGeoAdMetricAdmin(AxisModelAdmin):
+    list_display = ("metric_date", "business_unit", "country", "ad_platform", "geo_level", "location_name", "impressions", "purchases", "spend_amount")
+    list_filter = ("business_unit", "country", "ad_platform", "geo_level", "source_type", "metric_date")
+    search_fields = ("location_name", "location_key", "platform_location_id", "notes", "source_file")
+    readonly_fields = ("created_at", "updated_at")
+    fieldsets = (
+        ("Contexto", {"fields": ("business_unit", "country", "ad_platform", "metric_date", "geo_level", "location_name", "location_key", "platform_location_id")}),
+        ("Metricas", {"fields": ("impressions", "reach", "clicks", "purchases", "conversion_value", "spend_amount")}),
+        ("Trazabilidad", {"fields": ("source_type", "source_file", "notes", "created_at", "updated_at")}),
+    )
 
     def get_urls(self):
         urls = super().get_urls()

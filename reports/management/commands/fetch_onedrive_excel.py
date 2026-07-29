@@ -29,7 +29,6 @@ def display_name_for_category(slug):
         "kits": "Kits",
         "lubricantes": "Lubricantes",
         "panties-menstruales": "Panties Menstruales",
-        "cubrepezones-sin-adhesivo": "Cubrepezones sin adhesivo",
         "cubrepezones": "Cubrepezones",
         "copa-con-esterilizador-electrico": "Copa con Esterilizador Eléctrico",
     }

@@ -203,6 +203,19 @@
     color: #f8fafc;
     text-decoration: none;
   }
+  .ml-inventory-row.product-detail-trigger:hover {
+    background: rgba(96, 165, 250, .045);
+  }
+  .ml-product-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+  }
+  .ml-product-detail-button {
+    color: #7cf3ad;
+    border-color: rgba(124, 243, 173, .4);
+    background: rgba(16, 185, 129, .11);
+  }
   .ml-health-pill {
     display: inline-flex;
     border-radius: 999px;
@@ -277,15 +290,18 @@
       </thead>
       <tbody>
         {% for item in marketplace_inventory.rows %}
-        <tr>
+        <tr class="product-detail-trigger ml-inventory-row" tabindex="0" data-product-unit="marketplace" data-product-marketplace="{{ marketplace_inventory.marketplace }}" data-product-key="{{ item.item_id }}">
           <td>
             <div class="ml-product-cell">
               {% if item.thumbnail_url %}<img class="ml-product-thumb" src="{{ item.thumbnail_url }}" alt="{{ item.title }}">{% endif %}
               <div class="ml-product-copy">
                 <div class="ml-product-title">{{ item.title }}</div>
-                {% if item.permalink %}
-                <a class="ml-product-link-button" href="{{ item.permalink }}" target="_blank" rel="noopener">Abrir publicacion</a>
-                {% endif %}
+                <div class="ml-product-actions">
+                  <button type="button" class="ml-product-link-button ml-product-detail-button" data-product-detail-open>Ver detalle</button>
+                  {% if item.permalink %}
+                  <a class="ml-product-link-button" href="{{ item.permalink }}" target="_blank" rel="noopener" data-product-link>Abrir publicacion</a>
+                  {% endif %}
+                </div>
                 <div class="marketplace-meta">{{ item.item_id }}{% if item.brand %} · {{ item.brand }}{% endif %}</div>
               </div>
             </div>
@@ -309,7 +325,7 @@
 </div>
 {% endif %}
 
-{% if marketplace_goal_summary %}
+{% if tasks_goals_enabled and marketplace_goal_summary %}
 <div class="surface-card p-3 p-lg-4 mb-4 marketplace-goal-summary">
   <div class="section-title mb-3">Logros y metas</div>
   <div class="marketplace-insight-grid mb-0">
@@ -370,6 +386,7 @@
 </div>
 
 <div class="marketplace-channel-grid">
+  {% if tasks_goals_enabled %}
   {% for target in marketplace_targets %}
   <div class="marketplace-channel-card">
     <div class="marketplace-channel-head">
@@ -380,21 +397,38 @@
       <div class="marketplace-channel-value">{{ target.fulfillment_label|floatformat:1 }}%</div>
     </div>
     <div class="marketplace-meta">Ventas {{ target.sales|cop }}</div>
-    {% if target.sales_with_vat %}
-    <div class="marketplace-tax-note">Total con IVA: {{ target.sales_with_vat|cop }}</div>
-    {% endif %}
-    <div class="target-bar">
-      <div class="target-fill" style="width: {{ target.fulfillment_width }}%;"></div>
-    </div>
+    {% if target.sales_with_vat %}<div class="marketplace-tax-note">Total con IVA: {{ target.sales_with_vat|cop }}</div>{% endif %}
+    <div class="target-bar"><div class="target-fill" style="width: {{ target.fulfillment_width }}%;"></div></div>
     <div class="marketplace-meta">Meta {{ target.target|cop }}</div>
     <div class="bonus-pill">{{ target.bonus_tier.name }} · {{ target.bonus_tier.payout }}</div>
   </div>
   {% empty %}
   <div class="empty-state p-4 text-muted">Sin canales activos de Marketplace.</div>
   {% endfor %}
+  {% else %}
+  {% for channel in snapshot.sales_by_channel %}
+  <div class="marketplace-channel-card">
+    <div class="marketplace-channel-head">
+      <div>
+        <div class="marketplace-channel-name">{{ channel.label }}</div>
+        <div class="marketplace-meta">Ventas por canal</div>
+      </div>
+      <div class="marketplace-channel-value">{{ channel.value|cop }}</div>
+    </div>
+    {% if channel.value_with_vat %}<div class="marketplace-tax-note">Total con IVA: {{ channel.value_with_vat|cop }}</div>{% endif %}
+    <div class="marketplace-meta">Pedidos {{ channel.orders|floatformat:0 }}</div>
+    <div class="marketplace-meta">Unidades {{ channel.units|floatformat:0 }}</div>
+    {% if channel.spend %}<div class="marketplace-meta">Inversion {{ channel.spend|cop }}</div>{% endif %}
+  </div>
+  {% empty %}
+  <div class="empty-state p-4 text-muted">Sin canales activos de Marketplace.</div>
+  {% endfor %}
+  {% endif %}
 </div>
 
 </div>
+
+{% include "reports/includes/product_detail_modal.html" %}
 
 <script>
 (() => {
@@ -495,6 +529,119 @@ function renderChannels() {
     options
   });
 }
+
+
+let productDetailChart = null;
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
+}
+
+function productDetailValue(value, kind) {
+  if (kind === 'money') return formatCop(value);
+  if (kind === 'ratio') return Number(value || 0).toFixed(2);
+  if (kind === 'percent') return `${(Number(value || 0) * 100).toFixed(1)}%`;
+  if (kind === 'number') return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(value || 0);
+  return value || '--';
+}
+
+function closeProductDetail() {
+  const overlay = document.getElementById('productDetailOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+function renderProductDetail(payload) {
+  document.getElementById('productDetailTitle').textContent = payload.title || 'Detalle de producto';
+  document.getElementById('productDetailSubtitle').textContent = payload.subtitle || '';
+  document.getElementById('productDetailNote').textContent = payload.allocation_note || '';
+  const imageBox = document.getElementById('productDetailImage');
+  const imageUrl = payload.image_url || payload.image_fallback_url || '';
+  const initial = escapeHtml((payload.title || 'M').slice(0, 1).toUpperCase());
+  imageBox.innerHTML = imageUrl
+    ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(payload.title || 'Producto')}" onerror="this.parentElement.innerHTML='<div class=&quot;product-detail-placeholder&quot;>${initial}</div>'">`
+    : `<div class="product-detail-placeholder">${initial}</div>`;
+  document.getElementById('productDetailStats').innerHTML = (payload.stats || []).slice(0, 10).map(item => (
+    `<div class="product-detail-stat"><small>${escapeHtml(item.label)}</small><strong>${escapeHtml(productDetailValue(item.value, item.kind))}</strong></div>`
+  )).join('');
+  document.getElementById('productDetailInsights').innerHTML = (payload.insights || []).length
+    ? payload.insights.map(item => `<div class="product-detail-insight">${escapeHtml(item)}</div>`).join('')
+    : '<div class="product-detail-empty">Sin insights suficientes para este producto.</div>';
+
+  const canvas = document.getElementById('productDetailChart');
+  if (productDetailChart) productDetailChart.destroy();
+  const rows = payload.daily_series || [];
+  if (!rows.length) {
+    canvas.parentElement.innerHTML = '<div class="product-detail-empty">Sin serie diaria para graficar.</div>';
+    return;
+  }
+  productDetailChart = new Chart(canvas, {
+    data: {
+      labels: rows.map(item => item.label),
+      datasets: [
+        { type: 'bar', label: 'Ventas', data: rows.map(item => item.sales || 0), backgroundColor: 'rgba(96, 165, 250, .78)', borderColor: '#60a5fa', borderWidth: 1, borderRadius: 7, yAxisID: 'money' },
+        { type: 'bar', label: 'Inversion', data: rows.map(item => item.spend || 0), backgroundColor: 'rgba(16, 185, 129, .72)', borderColor: '#10b981', borderWidth: 1, borderRadius: 7, yAxisID: 'money' },
+        { type: 'line', label: 'ROAS', data: rows.map(item => item.roas || 0), borderColor: '#ef4444', backgroundColor: '#ef4444', borderWidth: 3, pointRadius: 3, tension: .28, yAxisID: 'ratio' },
+        { type: 'line', label: 'Ticket promedio', data: rows.map(item => item.average_ticket || 0), borderColor: '#f59e0b', backgroundColor: '#f59e0b', borderWidth: 3, pointRadius: 3, tension: .28, yAxisID: 'ticket' }
+      ]
+    },
+    options: {
+      ...baseOptions(),
+      scales: {
+        x: { ticks: { color: '#95a6c4', maxRotation: 0, autoSkip: true }, grid: { display: false } },
+        money: { position: 'left', ticks: { color: '#95a6c4', callback: compactMoney }, grid: { color: 'rgba(154,168,194,.12)' } },
+        ratio: { position: 'right', ticks: { color: '#fca5a5', callback: value => Number(value).toFixed(1) }, grid: { drawOnChartArea: false } },
+        ticket: { position: 'right', offset: true, ticks: { color: '#facc15', callback: value => formatCop(value).replace('COP', '').trim() }, grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+}
+
+async function openProductDetail(trigger) {
+  const overlay = document.getElementById('productDetailOverlay');
+  const loading = document.getElementById('productDetailLoading');
+  if (!overlay || !loading) return;
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  loading.style.display = 'block';
+  loading.textContent = 'Cargando detalle...';
+  document.getElementById('productDetailStats').innerHTML = '';
+  document.getElementById('productDetailInsights').innerHTML = '';
+  const params = new URLSearchParams(window.location.search);
+  params.set('unit', 'marketplace');
+  params.set('marketplace', trigger.dataset.productMarketplace || 'mercadolibre');
+  params.set('item_id', trigger.dataset.productKey || '');
+  try {
+    const response = await fetch(`{% url 'reports:product_detail_api' %}?${params.toString()}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    if (!response.ok) throw new Error('No se pudo cargar el detalle.');
+    const payload = await response.json();
+    loading.style.display = 'none';
+    renderProductDetail(payload);
+  } catch (error) {
+    loading.textContent = error.message || 'No se pudo cargar el detalle.';
+  }
+}
+
+document.querySelectorAll('.product-detail-trigger').forEach(trigger => {
+  trigger.addEventListener('click', event => {
+    if (event.target.closest('[data-product-link]')) return;
+    openProductDetail(trigger);
+  });
+  trigger.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openProductDetail(trigger);
+    }
+  });
+});
+document.getElementById('productDetailClose')?.addEventListener('click', closeProductDetail);
+document.getElementById('productDetailOverlay')?.addEventListener('click', event => {
+  if (event.target.id === 'productDetailOverlay') closeProductDetail();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') closeProductDetail();
+});
 
 renderSeries();
 renderChannels();

@@ -193,7 +193,7 @@
         <div class="bonus-pill">{{ task.goal_completion_percent|floatformat:2 }}% cumplimiento meta</div>
         {% endif %}
         {% if task.employee_response %}
-        <div class="goal-meta mt-2">{{ task.employee_response|safe }}</div>
+        <div class="goal-meta mt-2">{{ task.employee_response|sanitize_html }}</div>
         {% endif %}
       </div>
       {% empty %}

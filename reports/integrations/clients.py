@@ -313,15 +313,43 @@ class MetaAdsClient(BaseAPIClient):
             params = None
         return payload
 
+    def get_geo_insights(self, account_id, target_date, level="account", breakdown="region"):
+        payload = []
+        url = f"/act_{account_id}/insights"
+        params = {
+            "access_token": self.access_token,
+            "level": level,
+            "breakdowns": breakdown,
+            "fields": ",".join([
+                "spend",
+                "impressions",
+                "reach",
+                "clicks",
+                "inline_link_clicks",
+                "actions",
+                "action_values",
+                "account_currency",
+            ]),
+            "time_range": json.dumps({"since": target_date.isoformat(), "until": target_date.isoformat()}),
+            "limit": 500,
+        }
+        while True:
+            response = self._get_meta_json(url, params=params, action=f"consultar breakdown geografico {breakdown}")
+            payload.extend(response.get("data", []))
+            next_url = response.get("paging", {}).get("next")
+            if not next_url:
+                break
+            url = next_url
+            params = None
+        return payload
+
     def get_active_ads(self, account_id, limit=None, date_start=None, date_end=None, max_records=500):
         return self._get_active_ads(account_id, limit=limit, date_start=date_start, date_end=date_end, max_records=max_records)
 
     def _get_active_ads(self, account_id, limit=None, date_start=None, date_end=None, include_insights=True, max_records=500):
-        payload = []
         target_count = int(limit) if limit else int(max_records or 500)
         page_size = min(max(target_count if limit else 100, 1), 100)
-        url = f"/act_{account_id}/ads"
-        fields = [
+        base_fields = [
             "id",
             "name",
             "status",
@@ -330,37 +358,60 @@ class MetaAdsClient(BaseAPIClient):
             "updated_time",
             "campaign{id,name,status,effective_status}",
             "adset{id,name,status,effective_status}",
-            "creative{id,name,title,body,thumbnail_url,image_url,object_url,link_url,call_to_action_type,object_story_spec,asset_feed_spec}",
         ]
-        if include_insights and date_start and date_end:
-            time_range = json.dumps({"since": date_start.isoformat(), "until": date_end.isoformat()})
-            fields.append(
-                "insights.time_range("
-                + time_range
-                + "){spend,impressions,reach,clicks,inline_link_clicks,ctr,cpc,cpm,actions,action_values,cost_per_action_type,purchase_roas,website_purchase_roas}"
-            )
-        params = {
-            "access_token": self.access_token,
-            "effective_status": json.dumps(["ACTIVE"]),
-            "fields": ",".join(fields),
-            "limit": page_size,
-        }
-        while True:
-            try:
+        creative_field_sets = [
+            "creative{id,name,title,body,thumbnail_url,image_url,object_url,link_url,call_to_action_type,object_story_spec,asset_feed_spec}",
+            "creative{id,name,title,body,thumbnail_url,image_url,object_url,link_url,call_to_action_type}",
+            "creative{id,name,thumbnail_url,image_url}",
+            "creative{id,name}",
+        ]
+
+        def collect(field_list, with_insights):
+            payload = []
+            url = f"/act_{account_id}/ads"
+            fields = list(field_list)
+            if with_insights and date_start and date_end:
+                time_range = json.dumps({"since": date_start.isoformat(), "until": date_end.isoformat()})
+                fields.append(
+                    "insights.time_range("
+                    + time_range
+                    + "){spend,impressions,reach,clicks,inline_link_clicks,ctr,cpc,cpm,actions,action_values,cost_per_action_type,purchase_roas,website_purchase_roas}"
+                )
+            params = {
+                "access_token": self.access_token,
+                "effective_status": json.dumps(["ACTIVE"]),
+                "fields": ",".join(fields),
+                "limit": page_size,
+            }
+            while True:
                 response = self._get_meta_json(url, params=params, action="consultar anuncios activos")
-            except RuntimeError:
-                if include_insights and date_start and date_end and url.startswith("/"):
-                    return self._get_active_ads(account_id, limit=limit, date_start=date_start, date_end=date_end, include_insights=False, max_records=max_records)
-                raise
-            payload.extend(response.get("data", []))
-            if len(payload) >= target_count:
-                return payload[:target_count]
-            next_url = response.get("paging", {}).get("next")
-            if not next_url:
-                break
-            url = next_url
-            params = None
-        return payload
+                payload.extend(response.get("data", []))
+                if len(payload) >= target_count:
+                    return payload[:target_count]
+                next_url = response.get("paging", {}).get("next")
+                if not next_url:
+                    break
+                url = next_url
+                params = None
+            return payload
+
+        attempts = []
+        for creative_fields in creative_field_sets:
+            fields = [*base_fields, creative_fields]
+            if include_insights and date_start and date_end:
+                attempts.append((fields, True))
+            attempts.append((fields, False))
+
+        last_error = None
+        for fields, with_insights in attempts:
+            try:
+                return collect(fields, with_insights)
+            except RuntimeError as exc:
+                last_error = exc
+                continue
+        if last_error:
+            raise last_error
+        return []
 
     def get_ad_preview_iframe_src(self, ad_id, ad_format="INSTAGRAM_STANDARD"):
         response = self._get_meta_json(
