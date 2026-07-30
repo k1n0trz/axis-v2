@@ -42,7 +42,7 @@ from .models import AdPlatform, Attachment, BusinessUnit, Channel, Country, Dail
 from .services.analytics import attachments, build_dashboard_summary, build_filter_dict, build_unit_summary, weekly_tasks
 from .services.excel_master import build_master_workbook, commit_master_import, create_export_job, preview_master_import
 from .services.marketplace_inventory import marketplace_inventory_snapshot
-from .services.sales_dashboard import build_ad_platform_performance, build_awn_international_snapshot, build_bali_product_detail, build_bali_snapshot, build_comfama_snapshot, build_copa_uva_country_comparison, build_ecuador_snapshot, build_marketplace_product_detail, build_sales_snapshot, build_uva_category_country_comparison, build_uva_category_snapshot, build_uva_geo_map_data, build_uva_meta_ads_preview, build_uva_product_detail, ensure_ad_platform_catalogs, ensure_bali_catalogs, ensure_marketplace_catalogs, ensure_uva_catalogs, remove_colombia_vat
+from .services.sales_dashboard import build_ad_platform_performance, build_awn_international_snapshot, build_bali_product_detail, build_bali_snapshot, build_comfama_snapshot, build_copa_uva_country_comparison, build_ecuador_snapshot, build_marketplace_product_detail, build_sales_snapshot, build_uva_category_country_comparison, build_uva_category_snapshot, build_uva_geo_map_data, build_uva_meta_ads_preview, build_uva_product_detail, remove_colombia_vat
 from .services.website_monitor import latest_checks_by_website
 
 MASTER_IMPORT_SESSION_KEY = "master_import_preview"
@@ -1523,7 +1523,8 @@ def web_sales_report(request):
     limited_redirect = _redirect_bali_whatsapp_user(request)
     if limited_redirect:
         return limited_redirect
-    ensure_uva_catalogs()
+    # Los catalogos se siembran con `manage.py ensure_axis_catalogs` y en los
+    # comandos de importacion. Hacerlo aqui escribia en la base en cada carga.
     filter_form, filters = _global_filter_context(request, defaults=_web_sales_default_filters())
 
     initial_business_unit = BusinessUnit.objects.filter(slug=filters.get("business_unit") or "uva").first()
@@ -1588,8 +1589,9 @@ def ad_spend_report(request):
     limited_redirect = _redirect_bali_whatsapp_user(request)
     if limited_redirect:
         return limited_redirect
-    ensure_uva_catalogs()
-    platforms = ensure_ad_platform_catalogs()
+    # Los catalogos se siembran con `manage.py ensure_axis_catalogs` y en los
+    # comandos de importacion. Hacerlo aqui escribia en la base en cada carga.
+    platforms = {platform.slug: platform for platform in AdPlatform.objects.filter(is_active=True)}
     filter_form, filters = _global_filter_context(request, defaults=_ad_spend_default_filters())
 
     initial_business_unit = BusinessUnit.objects.filter(slug=filters.get("business_unit") or "uva").first()
@@ -1825,7 +1827,8 @@ def distrisex_ecuador_module(request):
 
 @never_cache
 def bali_module(request):
-    ensure_bali_catalogs()
+    # Los catalogos se siembran con `manage.py ensure_axis_catalogs` y en los
+    # comandos de importacion. Hacerlo aqui escribia en la base en cada carga.
     tab = request.GET.get("tab", "resumen")
     filter_form, filters = _global_filter_context(request, defaults=_dashboard_default_filters(), overrides={"business_unit": "bali", "country": "CO"})
     snapshot = build_bali_snapshot(filters)
@@ -1878,7 +1881,8 @@ def marketplace_module(request):
     limited_redirect = _redirect_bali_whatsapp_user(request)
     if limited_redirect:
         return limited_redirect
-    ensure_marketplace_catalogs()
+    # Los catalogos se siembran con `manage.py ensure_axis_catalogs` y en los
+    # comandos de importacion. Hacerlo aqui escribia en la base en cada carga.
     filter_form, filters = _global_filter_context(request, defaults=_dashboard_default_filters(), overrides={"business_unit": "marketplace"})
     selected_channel = request.GET.get("channel", "")
     if selected_channel:
