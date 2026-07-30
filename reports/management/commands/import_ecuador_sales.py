@@ -1,12 +1,12 @@
 from collections import defaultdict
 from pathlib import Path
-import unicodedata
 
 from django.core.management.base import BaseCommand, CommandError
 from openpyxl import load_workbook
 
 from reports.models import Channel, Country, DailyAdSpend, DailyProductCategoryMetric, DailyProductCategorySale, ProductCategory
-from reports.services.sales_dashboard import ECUADOR_USD_TO_COP_RATE, ensure_ad_platform_catalogs, ensure_uva_catalogs, parse_decimal, parse_excel_date, parse_quantity, uva_category_slug_from_product_name
+from reports.services.sales_dashboard import ECUADOR_USD_TO_COP_RATE, ensure_ad_platform_catalogs, ensure_uva_catalogs, parse_excel_date, uva_category_slug_from_product_name
+from reports.utils.numbers import normalize_header, parse_decimal, parse_quantity
 
 
 CHANNEL_BY_LABEL = {
@@ -19,9 +19,6 @@ CHANNEL_BY_LABEL = {
 }
 
 
-def normalize_header(value):
-    raw = unicodedata.normalize("NFKD", str(value or "").strip().lower())
-    return "".join(char for char in raw if not unicodedata.combining(char))
 
 
 def category_for_product(product_name, file_name):

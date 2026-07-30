@@ -16,6 +16,7 @@ from django.utils.text import slugify
 from reports.integrations.clients import MetaAdsClient
 from reports.query_cache import memoize_per_request
 from reports.models import AdPlatform, AwnInternationalFollowerMetric, BaliCommunityWebcamMetric, BaliDailyMetric, BaliWebProductDailyMetric, BusinessUnit, Channel, ComfamaAdMetric, ComfamaSale, Country, DailyAdSpend, DailyChannelSale, DailyGeoAdMetric, DailyProductCategoryMetric, DailyProductCategorySale, MarketplaceProductInventory, Product, ProductCategory, SalesTransaction
+from reports.utils.numbers import parse_decimal, parse_quantity
 
 logger = logging.getLogger(__name__)
 
@@ -232,19 +233,6 @@ def parse_excel_date(value):
     return None
 
 
-def parse_decimal(value):
-    raw = str(value or "").strip().replace(",", "")
-    if not raw:
-        return ZERO
-    try:
-        return Decimal(raw)
-    except (InvalidOperation, TypeError, ValueError):
-        return ZERO
-
-
-def parse_quantity(value):
-    number = parse_decimal(value)
-    return int(number) if number > 0 else 0
 
 
 def ensure_uva_catalogs():

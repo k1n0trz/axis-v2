@@ -6,7 +6,8 @@ from django.db import transaction
 from openpyxl import load_workbook
 
 from reports.models import Channel, Country, DailyProductCategorySale, ProductCategory
-from reports.services.sales_dashboard import ensure_uva_catalogs, parse_decimal, parse_excel_date, parse_quantity, uva_category_slug_from_product_name
+from reports.services.sales_dashboard import ensure_uva_catalogs, parse_excel_date, uva_category_slug_from_product_name
+from reports.utils.numbers import parse_decimal, parse_quantity
 
 
 class Command(BaseCommand):

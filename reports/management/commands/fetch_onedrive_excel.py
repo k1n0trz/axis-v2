@@ -1,8 +1,7 @@
 import json
 from collections import defaultdict
 from datetime import date, timedelta
-from decimal import Decimal, InvalidOperation
-import unicodedata
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -13,11 +12,9 @@ from reports.integrations.clients import ExchangeRateClient, MicrosoftGraphClien
 from reports.integrations.schema import CategorySaleRecord, ChannelSaleRecord
 from reports.services.sales_dashboard import category_slug_from_product_name, parse_excel_date, uva_category_slug_from_product_name, uva_exchange_rate_for_country
 from reports.utils import onedrive
+from reports.utils.numbers import normalize_header, parse_decimal
 
 
-def normalize_header(value):
-    raw = unicodedata.normalize("NFKD", str(value or "").strip().lower())
-    return "".join(char for char in raw if not unicodedata.combining(char))
 
 
 def display_name_for_category(slug):
@@ -123,15 +120,6 @@ class Command(BaseCommand):
         rate = Decimal(str(options["exchange_rate"]))
         aggregated = defaultdict(lambda: {"sales": Decimal("0"), "original": Decimal("0"), "qty": 0, "products": set()})
         channel_totals = defaultdict(lambda: {"sales": Decimal("0"), "original": Decimal("0"), "qty": 0, "rows": 0})
-
-        def parse_decimal(value):
-            raw = str(value or "").strip().replace(",", "")
-            if not raw:
-                return Decimal("0")
-            try:
-                return Decimal(raw)
-            except (InvalidOperation, TypeError, ValueError):
-                return Decimal("0")
 
         def fallback_amount(normalized_row):
             keys = list(normalized_row.keys())

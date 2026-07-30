@@ -14,7 +14,8 @@ from django.conf import settings
 
 from reports.integrations.clients import ExchangeRateClient
 from reports.models import AwnInternationalFollowerMetric, Country
-from reports.services.sales_dashboard import ensure_uva_catalogs, parse_decimal, parse_excel_date
+from reports.services.sales_dashboard import ensure_uva_catalogs, parse_excel_date
+from reports.utils.numbers import parse_decimal
 
 
 COUNTRY_ALIASES = {
