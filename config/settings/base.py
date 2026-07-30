@@ -161,6 +161,23 @@ WOOCOMMERCE_MX_BASE_URL = config("WOOCOMMERCE_MX_BASE_URL", default="")
 WOOCOMMERCE_MX_CONSUMER_KEY = config("WOOCOMMERCE_MX_CONSUMER_KEY", default="")
 WOOCOMMERCE_MX_CONSUMER_SECRET = config("WOOCOMMERCE_MX_CONSUMER_SECRET", default="")
 
+# DistriSex es la tienda mayorista (catalogo Bali + Uva). Vende en Colombia, pero
+# con tienda y credenciales propias, asi que se identifica por tienda y no por
+# pais: fetch_woocommerce_sales --store DISTRISEX --country CO. Los legacy WC_*
+# apuntan a esta misma tienda y se aceptan como respaldo.
+WOOCOMMERCE_DISTRISEX_BASE_URL = config(
+    "WOOCOMMERCE_DISTRISEX_BASE_URL",
+    default=config("WC_STORE_URL", default=""),
+)
+WOOCOMMERCE_DISTRISEX_CONSUMER_KEY = config(
+    "WOOCOMMERCE_DISTRISEX_CONSUMER_KEY",
+    default=config("WC_CLIENT_KEY", default=""),
+)
+WOOCOMMERCE_DISTRISEX_CONSUMER_SECRET = config(
+    "WOOCOMMERCE_DISTRISEX_CONSUMER_SECRET",
+    default=config("WC_SECRET_KEY", default=""),
+)
+
 META_ACCESS_TOKEN = config("META_ACCESS_TOKEN", default="")
 META_API_VERSION = config("META_API_VERSION", default="v20.0")
 META_CO_ACCOUNT_ID = config("META_CO_ACCOUNT_ID", default="")
