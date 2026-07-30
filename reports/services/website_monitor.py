@@ -70,11 +70,18 @@ WEBSITE_SEED_ROWS = [
 
 
 def seed_websites():
+    """Crea las webs que falten, sin tocar las que ya existen.
+
+    Antes usaba `update_or_create`, asi que cada corrida reescribia url,
+    plataforma, etapa, monitoreo y notas con los valores de este archivo: lo que
+    el equipo editaba en el admin se perdia en la siguiente ejecucion. La semilla
+    solo debe cubrir el arranque en frio; despues la fuente de verdad es la base.
+    """
     _normalize_legacy_websites()
     websites = []
     for row in WEBSITE_SEED_ROWS:
         slug = _website_slug(row["name"], row.get("country_label", ""))
-        website, _ = Website.objects.update_or_create(
+        website, _ = Website.objects.get_or_create(
             slug=slug,
             defaults={
                 "name": row["name"],
@@ -148,9 +155,19 @@ def scan_website(website):
         data["platform_detected"] = _detect_platform(response, website.platform)
         data.update(_security_headers(response.headers))
         pagespeed_payload = _pagespeed_metrics(response.url)
+        # Lighthouse tarda y a veces se pasa del timeout. Cada corrida crea un
+        # chequeo nuevo, asi que escribir nulos ahi borraba del tablero los
+        # puntajes que ya se habian medido bien. Un fallo conserva el ultimo dato.
+        if pagespeed_payload.get("pagespeed_status") != "ok":
+            pagespeed_payload = _carry_over_pagespeed(website, pagespeed_payload)
         data.update(pagespeed_payload)
+        # Sin esta llamada los contadores de producto quedaban siempre en
+        # "unknown": la funcion existia pero nadie la invocaba.
+        product_payload = _product_visibility(website, response.url)
+        data.update(product_payload)
         payload["response_headers"] = dict(response.headers)
         payload["pagespeed_probe"] = pagespeed_payload.get("raw_pagespeed_probe", {})
+        payload["product_probe"] = product_payload.get("raw_product_probe", {})
     except Exception as exc:
         data["overall_status"] = WebsiteHealthCheck.OverallStatus.CRITICAL
         data["availability_status"] = WebsiteHealthCheck.AvailabilityStatus.ERROR
@@ -159,6 +176,7 @@ def scan_website(website):
 
     data["overall_status"] = _overall_status(data)
     data.pop("raw_pagespeed_probe", None)
+    data.pop("raw_product_probe", None)
     return WebsiteHealthCheck.objects.create(**data)
 
 
@@ -293,6 +311,38 @@ def _pagespeed_metrics(url):
         }
 
 
+PAGESPEED_FIELDS = (
+    "performance_score",
+    "accessibility_score",
+    "best_practices_score",
+    "seo_score",
+    "first_contentful_paint_ms",
+    "largest_contentful_paint_ms",
+    "speed_index_ms",
+    "total_blocking_time_ms",
+    "cumulative_layout_shift",
+)
+
+
+def _carry_over_pagespeed(website, failed_payload):
+    """Reutiliza los ultimos puntajes buenos cuando Lighthouse falla."""
+    previo = (
+        WebsiteHealthCheck.objects.filter(website=website, pagespeed_status__in=("ok", "stale"))
+        .exclude(performance_score=None)
+        .order_by("-checked_at")
+        .first()
+    )
+    if previo is None:
+        return failed_payload
+
+    heredado = {campo: getattr(previo, campo) for campo in PAGESPEED_FIELDS}
+    heredado["pagespeed_status"] = "stale"
+    probe = dict(failed_payload.get("raw_pagespeed_probe") or {})
+    probe["carried_over_from"] = previo.checked_at.isoformat()
+    heredado["raw_pagespeed_probe"] = probe
+    return heredado
+
+
 def _category_score(categories, key):
     score = (categories.get(key) or {}).get("score")
     if score is None:
@@ -317,10 +367,13 @@ def _audit_numeric(audits, key):
 def _product_visibility(website, final_url):
     platform = website.platform
     if platform == Website.Platform.SHOPIFY:
-        return _shopify_products(final_url or website.url)
+        return _shopify_products(website, final_url or website.url)
     if platform == Website.Platform.WORDPRESS:
         return _wordpress_products(website.url, final_url)
     return {"products_visible_status": "not_configured", "raw_product_probe": {}}
+
+
+STORE_API_PATH = "wp-json/wc/store/v1/products?per_page=20"
 
 
 def _wordpress_products(original_url, final_url):
@@ -328,17 +381,70 @@ def _wordpress_products(original_url, final_url):
     for base in [original_url, final_url]:
         if not base:
             continue
-        probe_urls.append(urljoin(base.rstrip("/") + "/", "wp-json/wc/store/v1/products?per_page=20"))
+        probe_urls.append(urljoin(base.rstrip("/") + "/", STORE_API_PATH))
         parsed = urlparse(base)
-        origin = f"{parsed.scheme}://{parsed.netloc}/"
-        probe_urls.append(urljoin(origin, "wp-json/wc/store/v1/products?per_page=20"))
+        # El origen solo sirve de respaldo cuando la web vive en la raiz. Para una
+        # web en subcarpeta (copauva.com/ec/) el origen es otra tienda: Ecuador
+        # terminaba reportando el catalogo de Colombia como si fuera propio.
+        if parsed.path.strip("/"):
+            continue
+        probe_urls.append(urljoin(f"{parsed.scheme}://{parsed.netloc}/", STORE_API_PATH))
 
     return _probe_product_urls(dict.fromkeys(probe_urls), source="wordpress-store-api")
 
 
-def _shopify_products(base_url):
+# Webs cuya tienda Shopify se puede leer con la Admin API. El escaparate publico
+# de balisexstore.com responde 429 a /products.json de forma sostenida, asi que
+# sin esto el contador de productos de Bali queda siempre vacio.
+SHOPIFY_ADMIN_SITES = {
+    "bali-sex-store-colombia": ("SHOPIFY_BALI_SHOP_DOMAIN", "SHOPIFY_BALI_ACCESS_TOKEN", "SHOPIFY_BALI_API_VERSION"),
+}
+
+
+def _shopify_products(website, base_url):
+    admin_result = _shopify_admin_products(website)
+    if admin_result is not None:
+        return admin_result
     probe_url = urljoin(base_url.rstrip("/") + "/", "products.json?limit=20")
     return _probe_product_urls([probe_url], source="shopify-products-json")
+
+
+def _shopify_admin_products(website):
+    """Cuenta productos con la Admin API. Devuelve None si no aplica o falla."""
+    config = SHOPIFY_ADMIN_SITES.get(website.slug)
+    if not config:
+        return None
+    domain_setting, token_setting, version_setting = config
+    domain = str(getattr(settings, domain_setting, "") or "").replace("https://", "").replace("http://", "").strip("/")
+    token = getattr(settings, token_setting, "")
+    if not domain or not token:
+        return None
+
+    version = getattr(settings, version_setting, "") or "2025-10"
+    url = f"https://{domain}/admin/api/{version}/products.json"
+    try:
+        response = requests.get(
+            url,
+            # Solo lo que un visitante ve: la Admin API tambien devuelve
+            # archivados y borradores, y contarlos infla el numero.
+            params={"limit": 20, "status": "active", "published_status": "published", "fields": "id,title,variants"},
+            headers={"X-Shopify-Access-Token": token, "User-Agent": "AxisWebsiteMonitor/1.0"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        if not response.ok:
+            return None
+        products = response.json().get("products") or []
+    except Exception:
+        return None
+
+    in_stock, out_of_stock = _stock_counts(products)
+    return {
+        "products_visible_status": "ok" if products else "empty",
+        "products_visible_count": len(products),
+        "products_in_stock_count": in_stock,
+        "products_out_of_stock_count": out_of_stock,
+        "raw_product_probe": {"source": "shopify-admin-api", "url": url},
+    }
 
 
 def _probe_product_urls(urls, source):

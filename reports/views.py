@@ -43,7 +43,7 @@ from .services.analytics import attachments, build_dashboard_summary, build_filt
 from .services.excel_master import build_master_workbook, commit_master_import, create_export_job, preview_master_import
 from .services.marketplace_inventory import marketplace_inventory_snapshot
 from .services.sales_dashboard import build_ad_platform_performance, build_awn_international_snapshot, build_bali_product_detail, build_bali_snapshot, build_comfama_snapshot, build_copa_uva_country_comparison, build_ecuador_snapshot, build_marketplace_product_detail, build_sales_snapshot, build_uva_category_country_comparison, build_uva_category_snapshot, build_uva_geo_map_data, build_uva_meta_ads_preview, build_uva_product_detail, ensure_ad_platform_catalogs, ensure_bali_catalogs, ensure_marketplace_catalogs, ensure_uva_catalogs, remove_colombia_vat
-from .services.website_monitor import latest_checks_by_website, seed_websites
+from .services.website_monitor import latest_checks_by_website
 
 MASTER_IMPORT_SESSION_KEY = "master_import_preview"
 MARKETPLACE_GROUP = "Marketplace"
@@ -1324,6 +1324,28 @@ def _website_headers_class(check):
     return "yellow"
 
 
+def _website_products_summary(check):
+    """Etiqueta y color del catalogo visible.
+
+    Distingue "no se pudo leer" de "leimos y hay cero", que antes se veian igual.
+    """
+    if not check:
+        return "Sin dato", "muted"
+    estado = check.products_visible_status
+    if estado == "ok":
+        agotados = check.products_out_of_stock_count or 0
+        if agotados:
+            return f"{check.products_in_stock_count or 0} en stock, {agotados} agotados", "yellow"
+        return f"{check.products_in_stock_count or 0} en stock", "green"
+    if estado == "empty":
+        return "La tienda no devolvio productos", "red"
+    if estado == "blocked":
+        return "La tienda no permitio leer el catalogo", "yellow"
+    if estado == "not_configured":
+        return "Sin lectura de catalogo para esta plataforma", "muted"
+    return "Sin dato", "muted"
+
+
 def _website_score(check):
     if not check:
         return 0
@@ -1409,16 +1431,21 @@ def _website_cards(websites, latest_checks, history_by_website=None):
         pagespeed_label = "No medido"
         if check and check.pagespeed_status == "ok":
             pagespeed_label = "Medido"
+        elif check and check.pagespeed_status == "stale":
+            pagespeed_label = "Ultima medicion disponible"
         elif check and check.pagespeed_status == "quota_exceeded":
             pagespeed_label = "Sin cuota"
         performance_score = check.performance_score if check and check.performance_score is not None else _website_score(check)
         accessibility_score = check.accessibility_score if check else None
         best_practices_score = check.best_practices_score if check else None
         seo_score = check.seo_score if check else None
+        products_label, products_status_class = _website_products_summary(check)
         cards.append(
             {
                 "website": website,
                 "check": check,
+                "products_label": products_label,
+                "products_status_class": products_status_class,
                 "score": _website_score(check),
                 "performance_circle_score": performance_score,
                 "performance_status_class": _website_score_class(performance_score),
@@ -1448,7 +1475,8 @@ def websites_module(request):
     if limited_redirect:
         return limited_redirect
 
-    seed_websites()
+    # La siembra vive en la migracion 0055 y en sync_websites_health. Hacerla
+    # aqui escribia 4 filas en cada carga de la pagina.
 
     today = timezone.localdate()
     default_start = today - timedelta(days=30)

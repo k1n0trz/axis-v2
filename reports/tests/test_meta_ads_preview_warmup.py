@@ -114,10 +114,18 @@ class WarmMetaAdsPreviewCommandTests(TestCase):
         self.assertIn("EC/exclude: sin cuenta Meta configurada", texto)
 
     def test_deja_el_panel_listo_en_cache(self):
+        # El rango se pasa explicito: sin esto el comando lo derivaba de la
+        # fecha de hoy y la prueba solo pasaba el dia que coincidia con FILTERS.
         with patch("reports.services.sales_dashboard.MetaAdsClient") as client_cls:
             client_cls.return_value.get_active_ads.return_value = [FAKE_AD]
             client_cls.return_value.get_ad_images_by_hashes.return_value = {}
-            call_command("warm_meta_ads_preview", "--timeout=30", stdout=StringIO())
+            call_command(
+                "warm_meta_ads_preview",
+                "--timeout=30",
+                f"--date-start={FILTERS['date_start']}",
+                f"--date-end={FILTERS['date_end']}",
+                stdout=StringIO(),
+            )
 
         # Tras precalentar, la vista no debe volver a llamar a Meta.
         with patch("reports.services.sales_dashboard.MetaAdsClient") as unused_cls:

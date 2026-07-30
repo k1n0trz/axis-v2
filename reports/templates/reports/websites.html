@@ -132,6 +132,11 @@
         <strong>{% if check.total_blocking_time_ms != None %}{{ check.total_blocking_time_ms }} ms{% else %}--{% endif %}</strong>
         <span class="text-muted small">CLS {% if check.cumulative_layout_shift != None %}{{ check.cumulative_layout_shift }}{% else %}--{% endif %}</span>
       </div>
+      <div class="web-metric metric-{{ card.products_status_class }}">
+        <small>Catalogo visible</small>
+        <strong>{% if check.products_visible_count != None %}{{ check.products_visible_count }} productos{% else %}--{% endif %}</strong>
+        <span class="text-muted small">{{ card.products_label }}</span>
+      </div>
     </div>
 
     <div class="web-history-panel">
@@ -160,6 +165,8 @@
           {% endfor %}
         </ul>
       </div>
+    {% elif check and check.pagespeed_status == "stale" %}
+      <div class="web-alert">PageSpeed no respondio en este escaneo. Se muestran los puntajes de la ultima medicion buena.</div>
     {% elif check and check.pagespeed_status == "quota_exceeded" %}
       <div class="web-alert">PageSpeed no pudo medirse porque la cuota publica esta agotada. Se muestra el score tecnico calculado por Axis.</div>
     {% elif check and check.pagespeed_status != "ok" %}
