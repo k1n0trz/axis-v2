@@ -182,3 +182,79 @@ class CuentaDeGoogleAdsPorMarcaTests(TestCase):
         # algun dia entra, no debe heredar la cuenta de Uva Colombia en silencio.
         with self.settings(GOOGLE_ADS_CO_CUSTOMER_ID=""):
             self.assertEqual(self.resolver("laboratorio-helti", "CO"), "")
+
+
+@override_settings(
+    GOOGLE_ADS_DEVELOPER_TOKEN="token",
+    GOOGLE_ADS_CLIENT_ID="id",
+    GOOGLE_ADS_CLIENT_SECRET="secreto",
+    GOOGLE_ADS_REFRESH_TOKEN="refresh",
+    GOOGLE_ADS_LOGIN_CUSTOMER_ID="1541318288",
+    GOOGLE_ADS_DISTRISEX_CUSTOMER_ID="9891336542",
+    GOOGLE_ADS_CO_CUSTOMER_ID="7015245415",
+)
+class PautaDistrisexTests(TestCase):
+    """La pauta de una marca no debe caer en Uva.
+
+    `_build_uva_payload` escribia `business_unit_slug="uva"` a mano, asi que el
+    gasto de DistriSex se habria guardado como gasto de Uva. Y el total de la
+    cuenta solo sumaba campanas con categoria asignada: DistriSex no tiene mapa de
+    categorias, asi que habria reportado cero.
+    """
+
+    CAMPANAS = [
+        {
+            "results": [
+                {
+                    "campaign": {"id": "1", "name": "26/01/26 | Formularios | Mayoristas | Co"},
+                    "customer": {"currencyCode": "COP"},
+                    "metrics": {"costMicros": "30000000000", "conversions": "12"},
+                },
+                {
+                    "campaign": {"id": "2", "name": "26/05/26 | Ventas | Search | Antioquia"},
+                    "customer": {"currencyCode": "COP"},
+                    "metrics": {"costMicros": "19806000000", "conversions": "8"},
+                },
+            ]
+        }
+    ]
+
+    def _correr(self, *extra):
+        salida = StringIO()
+        with patch("reports.management.commands.fetch_google_ads.GoogleAdsClient") as cliente:
+            cliente.return_value.search.return_value = self.CAMPANAS
+            call_command(
+                "fetch_google_ads",
+                "--date=2026-07-29",
+                "--country=CO",
+                "--business-unit=distrisex",
+                "--skip-geo",
+                *extra,
+                stdout=salida,
+            )
+        return json.loads(salida.getvalue()), cliente
+
+    def test_el_gasto_queda_en_distrisex_no_en_uva(self):
+        salida, _ = self._correr("--count-unmapped-spend")
+
+        self.assertEqual(salida["daily_spend"]["business_unit_slug"], "distrisex")
+
+    def test_usa_la_cuenta_de_distrisex_via_el_mcc(self):
+        _, cliente = self._correr("--count-unmapped-spend")
+
+        self.assertEqual(cliente.call_args.kwargs["login_customer_id"], "1541318288")
+        self.assertEqual(cliente.return_value.search.call_args.args[0], "9891336542")
+
+    def test_sin_mapa_de_categorias_el_total_igual_cuenta(self):
+        salida, _ = self._correr("--count-unmapped-spend")
+
+        self.assertEqual(salida["daily_spend"]["spend_amount"], "49806")
+        self.assertEqual(salida["category_metrics"], [])
+        self.assertIn("Campanas sin categoria incluidas", salida["daily_spend"]["notes"])
+
+    def test_sin_la_bandera_el_total_sale_en_cero(self):
+        # Comportamiento historico de Uva, conservado a proposito: cambiarlo por
+        # defecto moveria cifras ya reportadas.
+        salida, _ = self._correr()
+
+        self.assertEqual(salida["daily_spend"]["spend_amount"], "0")
