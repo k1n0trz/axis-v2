@@ -133,10 +133,12 @@ class Command(BaseCommand):
             return por_marca
         return getattr(settings, f"GOOGLE_ADS_{country_code}_CUSTOMER_ID", "")
 
-    def _spend_note(self, customer_id, unmapped_campaigns):
+    def _spend_note(self, customer_id, unmapped_campaigns, fallback_campaigns=()):
         nota = f"Cuenta Google Ads {customer_id}."
         if unmapped_campaigns:
             nota += f" Campanas sin categoria incluidas en el total: {', '.join(sorted(unmapped_campaigns))}."
+        if fallback_campaigns:
+            nota += f" Campanas asignadas por defecto, sin regla propia: {', '.join(sorted(fallback_campaigns))}."
         return nota
 
     def _convert_spend(self, amount, currency_code, country_code, target_currency, target_date):
@@ -272,6 +274,7 @@ class Command(BaseCommand):
         spend_total = ZERO
         spend_by_category = defaultdict(lambda: {"google": ZERO, "results": ZERO, "names": set()})
         unmapped_campaigns = set()
+        fallback_campaigns = set()
 
         for batch in rows:
             for row in batch.get("results", []):
@@ -283,6 +286,14 @@ class Command(BaseCommand):
                 category_slug = match_rule(campaign_name, rules)
                 if not category_slug:
                     category_slug = fallback_uva_category(country_code)
+                    # Solo se anota si gasto algo: una campana apagada que cae al
+                    # fallback no le importa a nadie y ensuciaria la nota de cada dia.
+                    if category_slug and spend_cop > 0:
+                        # EC y MX caen a copa-menstrual por defecto. Era correcto
+                        # cuando esas cuentas solo tenian campanas de copa; para una
+                        # campana nueva es un supuesto, no un dato. Queda en las
+                        # notas para que se vea que nadie lo verifico.
+                        fallback_campaigns.add(campaign_name)
                 if not category_slug:
                     # Sin categoria la campana no entra al desglose. Al total de la
                     # cuenta si deberia entrar: es plata que se gasto. Queda detras
@@ -290,7 +301,8 @@ class Command(BaseCommand):
                     # cifras historicas de Uva.
                     if options["count_unmapped_spend"]:
                         spend_total += spend_cop
-                        unmapped_campaigns.add(campaign_name)
+                        if spend_cop > 0:
+                            unmapped_campaigns.add(campaign_name)
                     continue
                 spend_total += spend_cop
                 spend_by_category[category_slug]["google"] += spend_cop
@@ -304,7 +316,7 @@ class Command(BaseCommand):
             spend_date=target_date,
             spend_amount=spend_total,
             source_file="google-ads-api",
-            notes=self._spend_note(customer_id, unmapped_campaigns),
+            notes=self._spend_note(customer_id, unmapped_campaigns, fallback_campaigns),
         )
         category_metrics = []
         for slug, values in sorted(spend_by_category.items()):

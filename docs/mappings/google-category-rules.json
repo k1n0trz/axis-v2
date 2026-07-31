@@ -1,0 +1,79 @@
+{
+  "_notas": [
+    "Reglas reales de campana -> categoria de Axis para Google Ads. Hasta ahora la",
+    "sincronizacion diaria corria con google-category-rules.example.json, el archivo",
+    "de muestra.",
+    "",
+    "El orden importa: match_rule devuelve la PRIMERA regla cuyo texto aparezca en el",
+    "nombre de la campana. Por eso van primero las reglas de producto y de ultimo los",
+    "nombres completos de las campanas genericas.",
+    "",
+    "Las campanas genericas de Ecuador y Mexico se listan por nombre completo, no con",
+    "un comodin de pais. En su momento esas cuentas solo tenian campanas de copa, asi",
+    "que asignarlas a copa-menstrual es correcto para lo que ya paso. Pero una campana",
+    "NUEVA en esas cuentas no debe heredar ese supuesto: si no coincide con nada, debe",
+    "aparecer sin clasificar para que alguien la mapee, no colarse como copa.",
+    "",
+    "Pendiente de decision del negocio: 02/10/25 | Ventas | PMax | Despigmentante y",
+    "02/10/25 | Ventas | Despigmentante no tienen categoria equivalente en Axis. Su",
+    "gasto entra al total de la cuenta (--count-unmapped-spend) pero no al desglose por",
+    "categoria. Si el despigmentante se vuelve una linea propia, crear la categoria y",
+    "agregar la regla aqui."
+  ],
+  "rules": [
+    { "match": "cubrepezones sin adhesivo", "category": "cubrepezones-sin-adhesivo" },
+    { "match": "cubrepezones sin adhesivos", "category": "cubrepezones-sin-adhesivo" },
+    { "match": "sin adhesivo", "category": "cubrepezones-sin-adhesivo" },
+    { "match": "sin adhesivos", "category": "cubrepezones-sin-adhesivo" },
+    { "match": "cubrepezones", "category": "cubrepezones" },
+    { "match": "covers", "category": "cubrepezones" },
+
+    { "match": "disco menstrual", "category": "disco-menstrual" },
+    { "match": "disco", "category": "disco-menstrual" },
+
+    { "match": "panties menstruales", "category": "panties-menstruales" },
+    { "match": "panty menstrual", "category": "panties-menstruales" },
+    { "match": "panties", "category": "panties-menstruales" },
+
+    { "match": "bolas kegel", "category": "bolas-kegel-uva" },
+    { "match": "kegel", "category": "bolas-kegel-uva" },
+
+    { "match": "hidratante intimo", "category": "hidratante-intimo-uva" },
+    { "match": "hidratante", "category": "hidratante-intimo-uva" },
+
+    { "match": "dilatadores vaginales", "category": "dilatadores-vaginales" },
+    { "match": "dilatadores", "category": "dilatadores-vaginales" },
+
+    { "match": "toallitas", "category": "toallitas-compactas-uva" },
+    { "match": "almohadilla", "category": "almohadilla-colico-menstrual" },
+    { "match": "esterilizador", "category": "esterilizador-electrico-para-copas-menstruales" },
+    { "match": "lubricante", "category": "lubricantes" },
+    { "match": "higiene intima", "category": "higiene-intima" },
+
+    { "match": "copa menstrual", "category": "copa-menstrual" },
+    { "match": "copa menstrusl", "category": "copa-menstrual" },
+    { "match": "copa", "category": "copa-menstrual" },
+
+    { "match": "21/06/2024 | ventas | search | co", "category": "copa-menstrual" },
+    { "match": "21/06/2024 | ventas | pmax | co", "category": "copa-menstrual" },
+    { "match": "13/03/2025 | ventas | pmax | ciudades | co", "category": "copa-menstrual" },
+    { "match": "pmax | ciudades | co", "category": "copa-menstrual" },
+    { "match": "ventas col 13/03/2025", "category": "copa-menstrual" },
+    { "match": "uvacup general", "category": "copa-menstrual" },
+
+    { "match": "16/09/2025 | ventas | search | ec", "category": "copa-menstrual" },
+    { "match": "17/09/2025 | ventas | pmax | ec", "category": "copa-menstrual" },
+    { "match": "28/02/2025 | ventas | search | ec", "category": "copa-menstrual" },
+    { "match": "03/03/2025 | ventas | pmax | ec", "category": "copa-menstrual" },
+    { "match": "max rendimiento ecuador", "category": "copa-menstrual" },
+    { "match": "max ecuador", "category": "copa-menstrual" },
+    { "match": "detal uva ec", "category": "copa-menstrual" },
+
+    { "match": "30/01/26 | ventas | search | mx", "category": "copa-menstrual" },
+    { "match": "16/04/26 | ventas | pmax | mx", "category": "copa-menstrual" },
+    { "match": "04/02/26 | ventas | pmax | mx", "category": "copa-menstrual" },
+    { "match": "11/12/25 | ventas | uvawomen | mx", "category": "copa-menstrual" },
+    { "match": "12/02/2025 | ventas | pmax | mx", "category": "copa-menstrual" },
+    { "match": "06/03/2025 | ventas | search | mx", "category": "copa-menstrual" }
+  ]
+}
