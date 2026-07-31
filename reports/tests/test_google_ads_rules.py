@@ -45,7 +45,6 @@ class ArchivoDeReglasTests(TestCase):
             "bolas-kegel-uva",
             "copa-menstrual",
             "cubrepezones",
-            "cubrepezones-sin-adhesivo",
             "dilatadores-vaginales",
             "disco-menstrual",
             "esterilizador-electrico-para-copas-menstruales",
@@ -57,10 +56,16 @@ class ArchivoDeReglasTests(TestCase):
         }
         self.assertEqual({r["category"] for r in self.reglas}, esperadas)
 
-    def test_las_categorias_que_garantiza_la_migracion_estan_referenciadas(self):
-        slugs = set(ProductCategory.objects.values_list("slug", flat=True))
-        referenciadas = {r["category"] for r in self.reglas}
-        self.assertTrue(slugs.issubset(referenciadas), f"sin regla: {slugs - referenciadas}")
+    def test_ninguna_regla_apunta_a_la_categoria_fusionada(self):
+        """`cubrepezones-sin-adhesivo` quedo vacia e inactiva en la migracion 0052.
+
+        Sigue existiendo como residuo, pero ninguna regla debe volver a mandarle
+        gasto: eso reabriria una separacion que el negocio no quiere.
+        """
+        self.assertNotIn("cubrepezones-sin-adhesivo", {r["category"] for r in self.reglas})
+        residuo = ProductCategory.objects.filter(slug="cubrepezones-sin-adhesivo").first()
+        if residuo:
+            self.assertFalse(residuo.is_active)
 
     def test_clasifica_las_campanas_reales_con_gasto(self):
         casos = [
@@ -82,8 +87,18 @@ class ArchivoDeReglasTests(TestCase):
 
     def test_lo_especifico_gana_a_lo_generico(self):
         # El orden del archivo importa: match_rule devuelve la primera coincidencia.
-        self.assertEqual(match_rule("Cubrepezones sin adhesivo CO", self.reglas), "cubrepezones-sin-adhesivo")
         self.assertEqual(match_rule("Ventas | Disco menstrual | CO", self.reglas), "disco-menstrual")
+
+    def test_todo_cubrepezones_cae_en_una_sola_categoria(self):
+        """Decision del negocio del 31-jul-2026: no se separa por adhesivo."""
+        for nombre in ("18/12/25 | Ventas | Pmax | Covers", "Cubrepezones sin adhesivo CO",
+                       "Ventas | Cubrepezones | CO", "Ventas | Sin adhesivos | CO"):
+            with self.subTest(campana=nombre):
+                self.assertEqual(match_rule(nombre, self.reglas), "cubrepezones")
+
+    def test_el_despigmentante_no_se_mapea_a_proposito(self):
+        """Producto descontinuado. Su gasto entra al total, no al desglose."""
+        self.assertIsNone(match_rule("02/10/25 | Ventas | PMax | Despigmentante", self.reglas))
 
     def test_una_campana_nueva_de_ecuador_no_hereda_el_supuesto_de_copa(self):
         # Las genericas de EC/MX estan por nombre completo, no con comodin de pais.
