@@ -15,7 +15,7 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from reports.services.sales_dashboard import build_uva_meta_ads_preview
+from reports.services.meta_ads_panel import build_uva_meta_ads_preview
 
 FILTROS = {"country": "CO", "date_start": "2026-07-01", "date_end": "2026-07-29"}
 
@@ -40,7 +40,7 @@ class PanelDiferidoTests(TestCase):
         cache.clear()
 
     def test_sin_cache_no_llama_a_meta_y_marca_pendiente(self):
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as cliente:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as cliente:
             preview = build_uva_meta_ads_preview(dict(FILTROS), allow_live_fetch=False)
             cliente.assert_not_called()
 
@@ -49,12 +49,12 @@ class PanelDiferidoTests(TestCase):
         self.assertIn("Preparando", preview["message"])
 
     def test_con_cache_caliente_devuelve_el_panel_sin_llamar_a_meta(self):
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as cliente:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as cliente:
             cliente.return_value.get_active_ads.return_value = [ANUNCIO]
             cliente.return_value.get_ad_images_by_hashes.return_value = {}
             build_uva_meta_ads_preview(dict(FILTROS))
 
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as sin_usar:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as sin_usar:
             preview = build_uva_meta_ads_preview(dict(FILTROS), allow_live_fetch=False)
             sin_usar.assert_not_called()
 
@@ -64,7 +64,7 @@ class PanelDiferidoTests(TestCase):
     def test_un_fallo_cacheado_no_vuelve_a_quedar_pendiente(self):
         # Importa para no recargar en bucle: tras el fallo la pagina ya no pide
         # el panel otra vez.
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as cliente:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as cliente:
             cliente.return_value.get_active_ads.side_effect = RuntimeError("Meta cayo")
             build_uva_meta_ads_preview(dict(FILTROS))
 
@@ -91,7 +91,7 @@ class EndpointDelPanelTests(TestCase):
         return self.client.post(self.url, datos)
 
     def test_trae_el_panel_y_lo_deja_en_cache(self):
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as cliente:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as cliente:
             cliente.return_value.get_active_ads.return_value = [ANUNCIO]
             cliente.return_value.get_ad_images_by_hashes.return_value = {}
             respuesta = self._pedir()
@@ -103,7 +103,7 @@ class EndpointDelPanelTests(TestCase):
         self.assertEqual(len(preview["ads"]), 1)
 
     def test_usa_un_timeout_holgado_porque_nadie_espera_la_pagina(self):
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as cliente:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as cliente:
             cliente.return_value.get_active_ads.return_value = []
             cliente.return_value.get_ad_images_by_hashes.return_value = {}
             with self.settings(META_ADS_PREVIEW_PANEL_TIMEOUT=60):
@@ -115,7 +115,7 @@ class EndpointDelPanelTests(TestCase):
         # El alcance "only" deja pasar solo campanas Comfama, asi que el anuncio
         # de prueba tiene que serlo.
         anuncio_comfama = {**ANUNCIO, "campaign": {"name": "Comfama WhatsApp CO"}}
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as cliente:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as cliente:
             cliente.return_value.get_active_ads.return_value = [anuncio_comfama]
             cliente.return_value.get_ad_images_by_hashes.return_value = {}
             self._pedir(comfama_scope="only")

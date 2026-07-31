@@ -5,7 +5,7 @@ from django.core.cache import cache
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 
-from reports.services.sales_dashboard import build_uva_meta_ads_preview
+from reports.services.meta_ads_panel import build_uva_meta_ads_preview
 
 FILTERS = {"country": "CO", "date_start": "2026-07-01", "date_end": "2026-07-29"}
 
@@ -33,7 +33,7 @@ class MetaAdsPreviewCacheTests(TestCase):
 
     def _client(self, ads=None, fail=False):
         """Devuelve un patch de MetaAdsClient con el comportamiento pedido."""
-        patcher = patch("reports.services.sales_dashboard.MetaAdsClient")
+        patcher = patch("reports.services.meta_ads_panel.MetaAdsClient")
         client_cls = patcher.start()
         self.addCleanup(patcher.stop)
         client = client_cls.return_value
@@ -57,7 +57,7 @@ class MetaAdsPreviewCacheTests(TestCase):
         self.assertEqual(client.get_active_ads.call_count, 2)
 
     def test_force_refresh_usa_el_timeout_indicado(self):
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as client_cls:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as client_cls:
             client_cls.return_value.get_active_ads.return_value = [FAKE_AD]
             client_cls.return_value.get_ad_images_by_hashes.return_value = {}
             build_uva_meta_ads_preview(dict(FILTERS), force_refresh=True, timeout=90)
@@ -73,17 +73,17 @@ class MetaAdsPreviewCacheTests(TestCase):
 
     def test_un_precalentamiento_fallido_no_borra_el_panel_bueno(self):
         # Primero se cachea un panel valido.
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as ok_cls:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as ok_cls:
             ok_cls.return_value.get_active_ads.return_value = [FAKE_AD]
             ok_cls.return_value.get_ad_images_by_hashes.return_value = {}
             build_uva_meta_ads_preview(dict(FILTERS))
 
         # Luego un precalentamiento falla: el panel bueno debe sobrevivir.
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as bad_cls:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as bad_cls:
             bad_cls.return_value.get_active_ads.side_effect = RuntimeError("Meta cayo")
             build_uva_meta_ads_preview(dict(FILTERS), force_refresh=True, timeout=90)
 
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as unused_cls:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as unused_cls:
             despues = build_uva_meta_ads_preview(dict(FILTERS))
             unused_cls.assert_not_called()
         self.assertEqual(len(despues["ads"]), 1)
@@ -102,7 +102,7 @@ class WarmMetaAdsPreviewCommandTests(TestCase):
 
     def test_precalienta_solo_los_paises_configurados(self):
         salida = StringIO()
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as client_cls:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as client_cls:
             client_cls.return_value.get_active_ads.return_value = [FAKE_AD]
             client_cls.return_value.get_ad_images_by_hashes.return_value = {}
             call_command("warm_meta_ads_preview", "--timeout=30", stdout=salida)
@@ -116,7 +116,7 @@ class WarmMetaAdsPreviewCommandTests(TestCase):
     def test_deja_el_panel_listo_en_cache(self):
         # El rango se pasa explicito: sin esto el comando lo derivaba de la
         # fecha de hoy y la prueba solo pasaba el dia que coincidia con FILTERS.
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as client_cls:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as client_cls:
             client_cls.return_value.get_active_ads.return_value = [FAKE_AD]
             client_cls.return_value.get_ad_images_by_hashes.return_value = {}
             call_command(
@@ -128,14 +128,14 @@ class WarmMetaAdsPreviewCommandTests(TestCase):
             )
 
         # Tras precalentar, la vista no debe volver a llamar a Meta.
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as unused_cls:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as unused_cls:
             preview = build_uva_meta_ads_preview(dict(FILTERS))
             unused_cls.assert_not_called()
         self.assertEqual(len(preview["ads"]), 1)
 
     def test_acepta_rango_de_fechas_explicito(self):
         salida = StringIO()
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as client_cls:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as client_cls:
             client_cls.return_value.get_active_ads.return_value = []
             client_cls.return_value.get_ad_images_by_hashes.return_value = {}
             call_command(

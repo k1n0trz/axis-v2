@@ -12,7 +12,24 @@ from openpyxl import Workbook
 from reports.integrations.clients import MetaAdsClient
 from reports.management.commands.import_daily_web_sales import allocate_amount_by_quantity, split_products
 from reports.models import AdPlatform, BusinessUnit, Channel, Country, DailyAdSpend, DailyChannelSale, DailyProductCategoryMetric, DailyProductCategorySale, ProductCategory, SalesTransaction
-from reports.services.sales_dashboard import _creative_image_url, _creative_text, _creative_video_id, _meta_ad_display_name, _meta_ad_metrics, _meta_row_is_comfama, build_copa_uva_country_comparison, build_sales_snapshot, build_uva_category_snapshot, build_uva_meta_ads_preview, build_uva_product_detail, category_slug_from_product_name, subtract_one_month, uva_category_slug_from_product_name
+from reports.services.meta_ads_panel import (
+    _creative_image_url,
+    _creative_text,
+    _creative_video_id,
+    _meta_ad_display_name,
+    _meta_ad_metrics,
+    _meta_row_is_comfama,
+    build_uva_meta_ads_preview,
+)
+from reports.services.sales_dashboard import (
+    build_copa_uva_country_comparison,
+    build_sales_snapshot,
+    build_uva_category_snapshot,
+    build_uva_product_detail,
+    category_slug_from_product_name,
+    subtract_one_month,
+    uva_category_slug_from_product_name,
+)
 
 
 class SalesDashboardTests(TestCase):

@@ -20,7 +20,7 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 
 from reports.integrations.clients import MetaAdsClient
-from reports.services.sales_dashboard import build_uva_meta_ads_preview
+from reports.services.meta_ads_panel import build_uva_meta_ads_preview
 
 ANUNCIO_BASE = {
     "id": "1",
@@ -109,7 +109,7 @@ class AvisoDeMetricasFaltantesTests(TestCase):
         anuncio = dict(ANUNCIO_BASE)
         if con_insights:
             anuncio["insights"] = INSIGHTS
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as cliente:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as cliente:
             cliente.return_value.get_active_ads.return_value = [anuncio]
             cliente.return_value.get_ad_images_by_hashes.return_value = {}
             return build_uva_meta_ads_preview(dict(self.FILTROS))
@@ -132,7 +132,7 @@ class AvisoDeMetricasFaltantesTests(TestCase):
         self.assertEqual(preview["ads"][0]["metrics"]["purchases"], 0)
 
     def test_un_panel_vacio_no_se_marca_como_metricas_faltantes(self):
-        with patch("reports.services.sales_dashboard.MetaAdsClient") as cliente:
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as cliente:
             cliente.return_value.get_active_ads.return_value = []
             cliente.return_value.get_ad_images_by_hashes.return_value = {}
             preview = build_uva_meta_ads_preview(dict(self.FILTROS))
