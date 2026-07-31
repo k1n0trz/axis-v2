@@ -28,5 +28,5 @@ class Command(BaseCommand):
         ensure_uva_catalogs()
         ensure_bali_catalogs()
         ensure_marketplace_catalogs()
-        plataformas = ensure_ad_platform_catalogs()
-        self.stdout.write(self.style.SUCCESS(f"Catalogos listos. Plataformas de pauta: {', '.join(sorted(plataformas))}."))
+        platforms = ensure_ad_platform_catalogs()
+        self.stdout.write(self.style.SUCCESS(f"Catalogos listos. Plataformas de pauta: {', '.join(sorted(platforms))}."))

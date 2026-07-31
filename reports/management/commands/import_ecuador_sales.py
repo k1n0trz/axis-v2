@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 from reports.models import Channel, Country, DailyAdSpend, DailyProductCategoryMetric, DailyProductCategorySale, ProductCategory
 from reports.services.sales_dashboard import ECUADOR_USD_TO_COP_RATE, ensure_ad_platform_catalogs, ensure_uva_catalogs, parse_excel_date, uva_category_slug_from_product_name
 from reports.utils.numbers import normalize_header, parse_decimal, parse_quantity
-from reports.utils.unit_price_audit import AuditorDePrecioUnitario
+from reports.utils.unit_price_audit import UnitPriceAuditor
 
 
 CHANNEL_BY_LABEL = {
@@ -60,7 +60,7 @@ class Command(BaseCommand):
 
         workbook = load_workbook(file_path, data_only=True, read_only=True)
         aggregated_sales = defaultdict(lambda: {"sales_cop": parse_decimal(0), "amount_usd": parse_decimal(0), "quantity": 0, "products": set()})
-        auditor = AuditorDePrecioUnitario()
+        auditor = UnitPriceAuditor()
         sales_skipped = 0
 
         try:
@@ -110,7 +110,7 @@ class Command(BaseCommand):
                     # el total y multiplicarlas las duplica. El auditor las señala
                     # al final; no se corrigen aqui porque la correccion valida es
                     # editar el archivo fuente.
-                    auditor.registrar(product_name, row_quantity, unit_value, referencia=sale_date.isoformat())
+                    auditor.record(product_name, row_quantity, unit_value, reference=sale_date.isoformat())
                     amount_usd = unit_value * (row_quantity if row_quantity > 0 else 1) + parse_decimal(row[column_map["envio"]])
                     sales_cop = amount_usd * ECUADOR_USD_TO_COP_RATE if amount_usd else parse_decimal(row[column_map["total cop"]])
                 else:
@@ -165,14 +165,14 @@ class Command(BaseCommand):
             if options["ads_sheet"] not in workbook.sheetnames:
                 self.stdout.write(f"No existe la hoja '{options['ads_sheet']}'. Se omite pauta/metrica y solo se importan ventas por categoria.")
                 workbook.close()
-                sospechosas = self._avisar_valores_sospechosos(auditor)
+                suspicious = self._report_suspicious_unit_prices(auditor)
                 self.stdout.write(
                     self.style.SUCCESS(
                         "Importacion Ecuador completada. "
                         f"Ventas creadas: {sales_created}. Ventas actualizadas: {sales_updated}. "
                         "Pauta creada: 0. Pauta actualizada: 0. Metricas creadas: 0. Metricas actualizadas: 0. "
                         f"Omitidos ventas: {sales_skipped}. Omitidos pauta: 0. "
-                        f"Filas con VALOR sospechoso: {len(sospechosas)}."
+                        f"Filas con VALOR sospechoso: {len(suspicious)}."
                     )
                 )
                 return
@@ -263,7 +263,7 @@ class Command(BaseCommand):
         finally:
             workbook.close()
 
-        sospechosas = self._avisar_valores_sospechosos(auditor)
+        suspicious = self._report_suspicious_unit_prices(auditor)
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -272,25 +272,25 @@ class Command(BaseCommand):
                 f"Pauta creada: {ads_created}. Pauta actualizada: {ads_updated}. "
                 f"Metricas creadas: {metric_created}. Metricas actualizadas: {metric_updated}. "
                 f"Omitidos ventas: {sales_skipped}. Omitidos pauta: {metric_skipped}. "
-                f"Filas con VALOR sospechoso: {len(sospechosas)}."
+                f"Filas con VALOR sospechoso: {len(suspicious)}."
             )
         )
 
-    def _avisar_valores_sospechosos(self, auditor):
+    def _report_suspicious_unit_prices(self, auditor):
         """Imprime las filas donde VALOR parece ser el total de la linea.
 
         Solo avisa. Corregir aqui seria peor: el archivo fuente y Axis dirian
         cosas distintas y nadie sabria cual creer.
         """
-        sospechosas = auditor.sospechosas()
-        if sospechosas:
+        suspicious = auditor.suspicious()
+        if suspicious:
             self.stdout.write(
                 self.style.WARNING(
-                    f"\n{len(sospechosas)} filas parecen traer el TOTAL de la linea en VALOR, no el precio unitario. "
+                    f"\n{len(suspicious)} filas parecen traer el TOTAL de la linea en VALOR, no el precio unitario. "
                     "Si es asi, se estan contando de mas. Hay que corregirlas en el archivo fuente, "
                     "dejando el precio por unidad:"
                 )
             )
-            for aviso in sospechosas:
-                self.stdout.write(self.style.WARNING(f"  {aviso['mensaje']}"))
-        return sospechosas
+            for warning in suspicious:
+                self.stdout.write(self.style.WARNING(f"  {warning['message']}"))
+        return suspicious

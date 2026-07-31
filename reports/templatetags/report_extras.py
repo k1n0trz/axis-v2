@@ -104,11 +104,11 @@ def percent_value(value):
 # mueve la pauta: 292.552 COP de inversion contra 439 M COP de venta en 6 dias dan
 # un ROAS de ~1.500x. Pintarlo verde no informa nada y, peor, sugiere que la pauta
 # esta funcionando cuando no es lo que sostiene el negocio.
-UNIDADES_SIN_SEMAFORO_ROAS = {"distrisex"}
+ROAS_LIGHT_EXCLUDED_UNITS = {"distrisex"}
 
 
 def _roas_color(value, business_unit=""):
-    if str(business_unit or "").strip().lower() in UNIDADES_SIN_SEMAFORO_ROAS:
+    if str(business_unit or "").strip().lower() in ROAS_LIGHT_EXCLUDED_UNITS:
         return "neutral"
     try:
         return _roas_setting().color_for(value)

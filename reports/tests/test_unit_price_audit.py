@@ -20,74 +20,74 @@ from openpyxl import Workbook
 
 from reports.models import BusinessUnit, Channel, Country
 from reports.services.sales_dashboard import ensure_uva_catalogs
-from reports.utils.unit_price_audit import AuditorDePrecioUnitario
+from reports.utils.unit_price_audit import UnitPriceAuditor
 
 
 class AuditorTests(SimpleTestCase):
     def test_señala_la_fila_que_trae_el_total(self):
-        auditor = AuditorDePrecioUnitario()
+        auditor = UnitPriceAuditor()
         # Las filas de una unidad fijan el precio real del producto.
-        auditor.registrar("Calzones M Moderado", 1, "16.72", referencia="2026-07-01")
-        auditor.registrar("Calzones M Moderado", 1, "16.72", referencia="2026-07-02")
+        auditor.record("Calzones M Moderado", 1, "16.72", reference="2026-07-01")
+        auditor.record("Calzones M Moderado", 1, "16.72", reference="2026-07-02")
         # Esta trae 3 x 16.72 = 50.16 en VALOR, que es el caso real de julio.
-        auditor.registrar("Calzones M Moderado", 3, "50.16", referencia="2026-07-03")
+        auditor.record("Calzones M Moderado", 3, "50.16", reference="2026-07-03")
 
-        avisos = auditor.sospechosas()
+        avisos = auditor.suspicious()
 
         self.assertEqual(len(avisos), 1)
-        self.assertEqual(avisos[0]["cantidad"], 3)
-        self.assertEqual(avisos[0]["valor_en_la_hoja"], Decimal("50.16"))
-        self.assertEqual(avisos[0]["unitario_de_referencia"], Decimal("16.72"))
-        self.assertIn("2026-07-03", avisos[0]["mensaje"])
+        self.assertEqual(avisos[0]["quantity"], 3)
+        self.assertEqual(avisos[0]["sheet_value"], Decimal("50.16"))
+        self.assertEqual(avisos[0]["reference_unit_price"], Decimal("16.72"))
+        self.assertIn("2026-07-03", avisos[0]["message"])
 
     def test_una_fila_correcta_no_se_señala(self):
-        auditor = AuditorDePrecioUnitario()
-        auditor.registrar("Copa Uva talla A", 1, "21.57")
-        auditor.registrar("Copa Uva talla A", 2, "21.57")  # precio unitario, bien
+        auditor = UnitPriceAuditor()
+        auditor.record("Copa Uva talla A", 1, "21.57")
+        auditor.record("Copa Uva talla A", 2, "21.57")  # precio unitario, bien
 
-        self.assertEqual(auditor.sospechosas(), [])
+        self.assertEqual(auditor.suspicious(), [])
 
     def test_los_cuatro_casos_reales_de_julio(self):
-        auditor = AuditorDePrecioUnitario()
+        auditor = UnitPriceAuditor()
         for producto, unitario in (("Calzones M Moderado", "16.72"), ("Calzones M Leve", "17.01"), ("Copa Uva talla A", "21.57")):
-            auditor.registrar(producto, 1, unitario)
-        auditor.registrar("Calzones M Moderado", 3, "50.16", referencia="07-03")
-        auditor.registrar("Calzones M Moderado", 2, "34.02", referencia="07-04")
-        auditor.registrar("Copa Uva talla A", 2, "43.15", referencia="07-07")
-        auditor.registrar("Calzones M Leve", 3, "51.03", referencia="07-04")
+            auditor.record(producto, 1, unitario)
+        auditor.record("Calzones M Moderado", 3, "50.16", reference="07-03")
+        auditor.record("Calzones M Moderado", 2, "34.02", reference="07-04")
+        auditor.record("Copa Uva talla A", 2, "43.15", reference="07-07")
+        auditor.record("Calzones M Leve", 3, "51.03", reference="07-04")
 
-        referencias = sorted(a["referencia"] for a in auditor.sospechosas())
+        referencias = sorted(w["reference"] for w in auditor.suspicious())
 
         self.assertEqual(referencias, ["07-03", "07-04", "07-04", "07-07"])
 
     def test_sin_una_fila_de_una_unidad_no_hay_con_que_comparar(self):
         # Prudente a proposito: mejor no avisar que inventar un precio de referencia.
-        auditor = AuditorDePrecioUnitario()
-        auditor.registrar("Producto nuevo", 3, "50.16")
+        auditor = UnitPriceAuditor()
+        auditor.record("Producto nuevo", 3, "50.16")
 
-        self.assertEqual(auditor.sospechosas(), [])
+        self.assertEqual(auditor.suspicious(), [])
 
     def test_tolera_centavos_de_redondeo(self):
-        auditor = AuditorDePrecioUnitario()
-        auditor.registrar("Calzones M Leve", 1, "17.01")
-        auditor.registrar("Calzones M Leve", 3, "51.02")  # 3 x 17.01 = 51.03
+        auditor = UnitPriceAuditor()
+        auditor.record("Calzones M Leve", 1, "17.01")
+        auditor.record("Calzones M Leve", 3, "51.02")  # 3 x 17.01 = 51.03
 
-        self.assertEqual(len(auditor.sospechosas()), 1)
+        self.assertEqual(len(auditor.suspicious()), 1)
 
     def test_no_confunde_un_producto_mas_caro_con_un_total(self):
-        auditor = AuditorDePrecioUnitario()
-        auditor.registrar("Kit completo", 1, "60.00")
-        auditor.registrar("Kit completo", 2, "60.00")  # correcto
-        auditor.registrar("Kit completo", 5, "63.00")  # ni 5x ni parecido
+        auditor = UnitPriceAuditor()
+        auditor.record("Kit completo", 1, "60.00")
+        auditor.record("Kit completo", 2, "60.00")  # correcto
+        auditor.record("Kit completo", 5, "63.00")  # ni 5x ni parecido
 
-        self.assertEqual(auditor.sospechosas(), [])
+        self.assertEqual(auditor.suspicious(), [])
 
     def test_ignora_basura_sin_reventar(self):
-        auditor = AuditorDePrecioUnitario()
+        auditor = UnitPriceAuditor()
         for producto, cantidad, valor in (("", 1, "10"), ("X", 1, "B"), ("Y", 1, "0"), (None, 2, "5")):
-            auditor.registrar(producto, cantidad, valor)
+            auditor.record(producto, cantidad, valor)
 
-        self.assertEqual(auditor.sospechosas(), [])
+        self.assertEqual(auditor.suspicious(), [])
 
 
 CABECERA = ["PRODUCTO", "FECHA", "Canal", "CANTIDAD", "VALOR", "ENVÍO", "Total COP"]
@@ -208,10 +208,10 @@ class AvisoEnElSyncDiarioTests(TestCase):
 
         payload = self._correr(filas)
 
-        self.assertEqual(len(payload["valores_sospechosos"]), 1)
-        aviso = payload["valores_sospechosos"][0]
-        self.assertEqual(aviso["cantidad"], "2")
-        self.assertIn("43.15", aviso["valor_en_la_hoja"])
+        self.assertEqual(len(payload["suspicious_unit_prices"]), 1)
+        aviso = payload["suspicious_unit_prices"][0]
+        self.assertEqual(aviso["quantity"], "2")
+        self.assertIn("43.15", aviso["sheet_value"])
 
     def test_sin_filas_raras_la_lista_va_vacia(self):
         filas = [
@@ -219,4 +219,4 @@ class AvisoEnElSyncDiarioTests(TestCase):
             ["Copa Menstrual Uva talla A", "2026-07-15", "Whatsapp", 2, 21.57, 0],
         ]
 
-        self.assertEqual(self._correr(filas)["valores_sospechosos"], [])
+        self.assertEqual(self._correr(filas)["suspicious_unit_prices"], [])

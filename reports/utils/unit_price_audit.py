@@ -22,89 +22,89 @@ from decimal import Decimal
 
 # Cuanto puede alejarse el valor observado del esperado para seguir contando como
 # la misma cifra. 2% cubre redondeos de centavos sin tragarse diferencias reales.
-TOLERANCIA = Decimal("0.02")
+TOLERANCE = Decimal("0.02")
 
 
-def _mediana(valores):
-    ordenados = sorted(valores)
-    medio = len(ordenados) // 2
-    if len(ordenados) % 2:
-        return ordenados[medio]
-    return (ordenados[medio - 1] + ordenados[medio]) / 2
+def _median(values):
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return (ordered[middle - 1] + ordered[middle]) / 2
 
 
-class AuditorDePrecioUnitario:
+class UnitPriceAuditor:
     """Acumula filas y despues señala las que parecen traer el total de la linea.
 
     Uso:
 
-        auditor = AuditorDePrecioUnitario()
-        for fila in filas:
-            auditor.registrar(producto, cantidad, valor, referencia=fecha)
-        for aviso in auditor.sospechosas():
+        auditor = UnitPriceAuditor()
+        for row in rows:
+            auditor.record(product_name, quantity, unit_value, reference=sale_date)
+        for warning in auditor.suspicious():
             ...
     """
 
-    def __init__(self, tolerancia=TOLERANCIA):
-        self.tolerancia = Decimal(str(tolerancia))
-        self._filas = []
-        self._por_producto = defaultdict(list)
+    def __init__(self, tolerance=TOLERANCE):
+        self.tolerance = Decimal(str(tolerance))
+        self._rows = []
+        self._by_product = defaultdict(list)
 
-    def registrar(self, producto, cantidad, valor, referencia="", en_rango=True):
+    def record(self, product_name, quantity, unit_value, reference="", in_range=True):
         """Registra una fila.
 
-        `en_rango=False` la usa solo para calibrar el precio del producto, sin
+        `in_range=False` la usa solo para calibrar el precio del producto, sin
         reportarla. Sirve para alimentar el auditor con toda la hoja aunque la
         importacion cubra un solo dia: si el precio de referencia tuviera que
         estar en el mismo dia, casi nunca habria con que comparar.
         """
-        nombre = " ".join(str(producto or "").split()).lower()
+        name = " ".join(str(product_name or "").split()).lower()
         try:
-            valor = Decimal(str(valor))
+            value = Decimal(str(unit_value))
         except Exception:
             return
-        cantidad = int(cantidad or 0)
-        if not nombre or valor <= 0:
+        quantity = int(quantity or 0)
+        if not name or value <= 0:
             return
-        if en_rango:
-            self._filas.append((nombre, cantidad, valor, referencia))
+        if in_range:
+            self._rows.append((name, quantity, value, reference))
         # Solo las lineas de una unidad sirven de referencia: ahi VALOR es el
         # precio unitario sin ambiguedad posible.
-        if cantidad == 1:
-            self._por_producto[nombre].append(valor)
+        if quantity == 1:
+            self._by_product[name].append(value)
 
-    def _unitario_de_referencia(self, nombre):
-        valores = self._por_producto.get(nombre)
-        return _mediana(valores) if valores else None
+    def _reference_unit_price(self, name):
+        values = self._by_product.get(name)
+        return _median(values) if values else None
 
-    def sospechosas(self):
+    def suspicious(self):
         """Devuelve un aviso por fila que parece traer el total de la linea."""
-        avisos = []
-        for nombre, cantidad, valor, referencia in self._filas:
-            if cantidad < 2:
+        warnings = []
+        for name, quantity, value, reference in self._rows:
+            if quantity < 2:
                 continue
-            referencia_unitaria = self._unitario_de_referencia(nombre)
-            if not referencia_unitaria:
+            unit_price = self._reference_unit_price(name)
+            if not unit_price:
                 continue
-            esperado_como_total = referencia_unitaria * cantidad
-            if esperado_como_total <= 0:
+            expected_as_total = unit_price * quantity
+            if expected_as_total <= 0:
                 continue
-            desvio = abs(valor - esperado_como_total) / esperado_como_total
-            if desvio > self.tolerancia:
+            deviation = abs(value - expected_as_total) / expected_as_total
+            if deviation > self.tolerance:
                 continue
-            avisos.append(
+            warnings.append(
                 {
-                    "producto": nombre,
-                    "cantidad": cantidad,
-                    "valor_en_la_hoja": valor,
-                    "unitario_de_referencia": referencia_unitaria,
-                    "referencia": referencia,
-                    "sobrecosto": valor * cantidad - valor,
-                    "mensaje": (
-                        f"{referencia} {nombre}: VALOR {valor} con CANTIDAD {cantidad} parece ser el total "
-                        f"de la linea, no el precio unitario ({referencia_unitaria} en otras filas del mismo "
-                        f"producto). Multiplicarlo la contaria {cantidad} veces."
+                    "product_name": name,
+                    "quantity": quantity,
+                    "sheet_value": value,
+                    "reference_unit_price": unit_price,
+                    "reference": reference,
+                    "overcount": value * quantity - value,
+                    "message": (
+                        f"{reference} {name}: VALOR {value} con CANTIDAD {quantity} parece ser el total "
+                        f"de la linea, no el precio unitario ({unit_price} en otras filas del mismo "
+                        f"producto). Multiplicarlo la contaria {quantity} veces."
                     ),
                 }
             )
-        return avisos
+        return warnings

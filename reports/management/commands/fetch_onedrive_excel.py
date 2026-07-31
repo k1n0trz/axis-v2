@@ -13,7 +13,7 @@ from reports.integrations.schema import CategorySaleRecord, ChannelSaleRecord
 from reports.services.sales_dashboard import category_slug_from_product_name, parse_excel_date, uva_category_slug_from_product_name, uva_exchange_rate_for_country
 from reports.utils import onedrive
 from reports.utils.numbers import normalize_header, parse_decimal
-from reports.utils.unit_price_audit import AuditorDePrecioUnitario
+from reports.utils.unit_price_audit import UnitPriceAuditor
 
 
 
@@ -121,7 +121,7 @@ class Command(BaseCommand):
         rate = Decimal(str(options["exchange_rate"]))
         aggregated = defaultdict(lambda: {"sales": Decimal("0"), "original": Decimal("0"), "qty": 0, "products": set()})
         channel_totals = defaultdict(lambda: {"sales": Decimal("0"), "original": Decimal("0"), "qty": 0, "rows": 0})
-        auditor = AuditorDePrecioUnitario()
+        auditor = UnitPriceAuditor()
 
         def fallback_amount(normalized_row):
             keys = list(normalized_row.keys())
@@ -177,7 +177,7 @@ class Command(BaseCommand):
                 # necesita ver toda la hoja para saber cuanto vale cada producto.
                 # Si el precio de referencia tuviera que estar en el mismo dia que
                 # se importa, casi nunca habria con que comparar.
-                en_rango = row_date in target_date_set
+                in_range = row_date in target_date_set
                 product_name = str(pick(mapping["product"]) or "").strip()
                 if not product_name:
                     continue
@@ -199,10 +199,10 @@ class Command(BaseCommand):
                     # La hoja tiene la convencion mezclada: algunas filas traen el
                     # total de la linea en la columna de precio unitario, y
                     # multiplicarlas las duplica. El auditor las señala al final.
-                    auditor.registrar(product_name, qty, unit_amount, referencia=row_date.isoformat(), en_rango=en_rango)
+                    auditor.record(product_name, qty, unit_amount, reference=row_date.isoformat(), in_range=in_range)
                     line_amount = unit_amount * qty_factor
 
-                if not en_rango:
+                if not in_range:
                     continue
 
                 shipping_amount = parse_decimal(pick(mapping.get("shipping", [])))
@@ -295,18 +295,18 @@ class Command(BaseCommand):
             sync.sync_channel_sales(channel_records)
             sync.sync_category_sales(records)
 
-        # Las filas sospechosas van en el payload, no en un warning aparte: este
+        # Las filas suspicious van en el payload, no en un warning aparte: este
         # comando lo corre el sync diario y su salida es JSON.
-        sospechosas = [
-            {clave: str(valor) for clave, valor in aviso.items()}
-            for aviso in auditor.sospechosas()
+        suspicious = [
+            {key: str(value) for key, value in warning.items()}
+            for warning in auditor.suspicious()
         ]
         self.stdout.write(
             json.dumps(
                 {
                     "channel_sales": [item.to_dict() for item in channel_records],
                     "category_sales": [item.to_dict() for item in records],
-                    "valores_sospechosos": sospechosas,
+                    "suspicious_unit_prices": suspicious,
                 },
                 indent=2,
                 default=str,

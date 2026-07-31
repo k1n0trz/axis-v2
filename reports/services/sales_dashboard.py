@@ -34,7 +34,7 @@ WEB_CHANNEL_SLUGS = {"ecommerce-uva", "ecommerce-distrisex"}
 WHATSAPP_CHANNEL_PREFIXES = ("whatsapp-uva-", "whatsapp-distrisex")
 
 
-def _es_canal_whatsapp(slug):
+def _is_whatsapp_channel(slug):
     return bool(slug) and slug.startswith(WHATSAPP_CHANNEL_PREFIXES)
 MEXICO_MXN_TO_COP_RATE = Decimal("200")
 
@@ -3348,9 +3348,9 @@ def _build_snapshot_response(daily_rows, spend_rows, filters, limit, row_mode):
     if row_mode == "daily":
         sales_total_with_vat = sum((row.sales_amount for row in daily_rows), ZERO)
         sales_total = sum((sales_value(row.sales_amount) for row in daily_rows), ZERO)
-        sales_whatsapp_with_vat = sum((row.sales_amount for row in daily_rows if row.channel and _es_canal_whatsapp(row.channel.slug)), ZERO)
+        sales_whatsapp_with_vat = sum((row.sales_amount for row in daily_rows if row.channel and _is_whatsapp_channel(row.channel.slug)), ZERO)
         sales_web_with_vat = sum((row.sales_amount for row in daily_rows if row.channel and row.channel.slug in WEB_CHANNEL_SLUGS), ZERO)
-        sales_whatsapp = sum((sales_value(row.sales_amount) for row in daily_rows if row.channel and _es_canal_whatsapp(row.channel.slug)), ZERO)
+        sales_whatsapp = sum((sales_value(row.sales_amount) for row in daily_rows if row.channel and _is_whatsapp_channel(row.channel.slug)), ZERO)
         sales_web = sum((sales_value(row.sales_amount) for row in daily_rows if row.channel and row.channel.slug in WEB_CHANNEL_SLUGS), ZERO)
         order_count = sum((getattr(row, "order_count", 0) or getattr(row, "quantity", 0) or 0) for row in daily_rows)
         direct_units = sum((getattr(row, "units", 0) or getattr(row, "quantity", 0) or 0) for row in daily_rows)
@@ -3358,9 +3358,9 @@ def _build_snapshot_response(daily_rows, spend_rows, filters, limit, row_mode):
     else:
         sales_total_with_vat = sum((row.sale_value for row in daily_rows), ZERO)
         sales_total = sum((sales_value(row.sale_value) for row in daily_rows), ZERO)
-        sales_whatsapp_with_vat = sum((row.sale_value for row in daily_rows if row.channel and _es_canal_whatsapp(row.channel.slug)), ZERO)
+        sales_whatsapp_with_vat = sum((row.sale_value for row in daily_rows if row.channel and _is_whatsapp_channel(row.channel.slug)), ZERO)
         sales_web_with_vat = sum((row.sale_value for row in daily_rows if row.channel and row.channel.slug in WEB_CHANNEL_SLUGS), ZERO)
-        sales_whatsapp = sum((sales_value(row.sale_value) for row in daily_rows if row.channel and _es_canal_whatsapp(row.channel.slug)), ZERO)
+        sales_whatsapp = sum((sales_value(row.sale_value) for row in daily_rows if row.channel and _is_whatsapp_channel(row.channel.slug)), ZERO)
         sales_web = sum((sales_value(row.sale_value) for row in daily_rows if row.channel and row.channel.slug in WEB_CHANNEL_SLUGS), ZERO)
         order_count = len(daily_rows)
         direct_units = 0
@@ -3371,11 +3371,11 @@ def _build_snapshot_response(daily_rows, spend_rows, filters, limit, row_mode):
     category_sales_rows = product_category_channel_sales(filters) if row_mode == "daily" else []
     product_quantity = sum((row.quantity or 0 for row in category_sales_rows), 0) or direct_units
     product_quantity_web = sum((row.quantity or 0 for row in category_sales_rows if row.channel and row.channel.slug in WEB_CHANNEL_SLUGS), 0)
-    product_quantity_whatsapp = sum((row.quantity or 0 for row in category_sales_rows if row.channel and _es_canal_whatsapp(row.channel.slug)), 0)
+    product_quantity_whatsapp = sum((row.quantity or 0 for row in category_sales_rows if row.channel and _is_whatsapp_channel(row.channel.slug)), 0)
     daily_order_counts = _daily_order_counts_by_channel(filters) if row_mode == "daily" else defaultdict(int)
     order_count_web = daily_order_counts.get("Web", 0)
     order_count_whatsapp = daily_order_counts.get("WhatsApp", 0)
-    category_order_count_whatsapp = len([row for row in category_sales_rows if row.channel and _es_canal_whatsapp(row.channel.slug)])
+    category_order_count_whatsapp = len([row for row in category_sales_rows if row.channel and _is_whatsapp_channel(row.channel.slug)])
     order_count_web = order_count_web or sum((getattr(row, "order_count", 0) or 0) for row in daily_rows if row_mode == "daily" and row.channel and row.channel.slug in WEB_CHANNEL_SLUGS)
     order_count_whatsapp = order_count_whatsapp or category_order_count_whatsapp
     ticket_order_count = (order_count_web + order_count_whatsapp) or order_count
