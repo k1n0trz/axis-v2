@@ -258,6 +258,10 @@ META_ADS_PREVIEW_CACHE_SECONDS = config("META_ADS_PREVIEW_CACHE_SECONDS", defaul
 # Los resultados vacios o con error tambien se cachean, con un TTL corto, para
 # que un fallo de Meta no obligue a repetir el camino lento en cada request.
 META_ADS_PREVIEW_FALLBACK_CACHE_SECONDS = config("META_ADS_PREVIEW_FALLBACK_CACHE_SECONDS", default=120, cast=int)
+# Timeout del endpoint que completa el panel (api/uva/meta-ads-panel/). Es
+# holgado porque esa llamada ya no esta en el camino de la pagina: el usuario ve
+# el tablero completo mientras el panel se resuelve aparte. Medido: ~15 s reales.
+META_ADS_PREVIEW_PANEL_TIMEOUT = config("META_ADS_PREVIEW_PANEL_TIMEOUT", default=60, cast=int)
 
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],

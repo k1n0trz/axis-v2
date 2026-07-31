@@ -31,6 +31,7 @@ urlpatterns = [
     path("integrations/sync-now/", views.sync_external_data_now, name="sync_external_data_now"),
     path("integrations/sync-status/", views.sync_external_data_status, name="sync_external_data_status"),
     path("api/product-detail/", views.product_detail_api, name="product_detail_api"),
+    path("api/uva/meta-ads-panel/", views.uva_meta_ads_panel_api, name="uva_meta_ads_panel_api"),
     path("operational-tasks/<int:pk>/update/", views.update_operational_task, name="operational_task_update"),
     path("api/dashboard/summary/", api_views.DashboardSummaryAPIView.as_view(), name="api_dashboard_summary"),
     path("api/metrics/", api_views.MetricRecordListAPIView.as_view(), name="api_metrics"),

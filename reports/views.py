@@ -1221,7 +1221,7 @@ def _executive_dashboard_context(request, active_key, title, subtitle, filter_ov
     }
     if active_key == "uva":
         context["product_category_snapshot"] = build_uva_category_snapshot(filters)
-        context["uva_meta_ads_preview"] = build_uva_meta_ads_preview(filters)
+        context["uva_meta_ads_preview"] = build_uva_meta_ads_preview(filters, allow_live_fetch=False)
         context["category_profitability_json"] = json.dumps(context["product_category_snapshot"].get("profitability_json", []))
         if not filters.get("country"):
             context["uva_category_country_snapshot"] = build_uva_category_country_comparison(filters)
@@ -1715,7 +1715,7 @@ def uva_comfama_module(request):
         return limited_redirect
     filter_form, filters = _global_filter_context(request, defaults=_dashboard_default_filters(), overrides={"business_unit": "uva", "country": "CO"})
     comfama_snapshot = build_comfama_snapshot(filters)
-    comfama_meta_ads_preview = build_uva_meta_ads_preview(filters, comfama_scope="only")
+    comfama_meta_ads_preview = build_uva_meta_ads_preview(filters, comfama_scope="only", allow_live_fetch=False)
     context = {
         **_sidebar_context("uva_comfama", request),
         "page_title": "Uva Comfama",
@@ -1851,6 +1851,32 @@ def bali_module(request):
         "bali_community_daily_json": json.dumps(snapshot.get("community", {}).get("daily_series", [])),
     }
     return render(request, "reports/unit_bali.html", context)
+
+
+@require_POST
+def uva_meta_ads_panel_api(request):
+    """Trae de Meta el panel de anuncios y lo deja en cache.
+
+    La pagina ya no espera esta llamada: /uva/ tardaba 16 s con la cache fria
+    porque el render se quedaba bloqueado en varias peticiones HTTP a Meta. Ahora
+    la pagina sale de inmediato con el panel en `pending` y el navegador pide este
+    endpoint aparte, con un timeout holgado.
+    """
+    filters = {
+        "country": request.POST.get("country") or "",
+        "date_start": request.POST.get("date_start") or "",
+        "date_end": request.POST.get("date_end") or "",
+    }
+    scope = "only" if request.POST.get("comfama_scope") == "only" else "exclude"
+    timeout = getattr(settings, "META_ADS_PREVIEW_PANEL_TIMEOUT", 60)
+    preview = build_uva_meta_ads_preview(filters, comfama_scope=scope, timeout=timeout)
+    return JsonResponse(
+        {
+            "ok": not preview.get("pending"),
+            "ad_count": len(preview.get("ads") or []),
+            "message": preview.get("message") or "",
+        }
+    )
 
 
 @require_http_methods(["GET"])

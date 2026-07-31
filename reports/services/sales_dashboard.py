@@ -2444,12 +2444,18 @@ def _build_meta_ads_pacing_insights(ads):
     return {"positive": positive[:3], "negative": negative[:3]}
 
 
-def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude", force_refresh=False, timeout=None):
+def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude", force_refresh=False, timeout=None, allow_live_fetch=True):
     """Construye el panel de anuncios activos de Meta.
 
     `force_refresh` y `timeout` existen para el precalentamiento en segundo
     plano (ver el comando warm_meta_ads_preview): alli conviene ignorar la
     cache y esperar a Meta lo que haga falta, porque nadie esta mirando.
+
+    `allow_live_fetch=False` es lo que usan las vistas. La llamada a Meta son
+    varias peticiones HTTP encadenadas y medi 16 s en /uva/ con la cache fria,
+    con el usuario esperando la pagina completa. Sin permiso para ir a Meta, la
+    funcion devuelve lo que haya en cache o un estado `pending`, y el panel se
+    completa despues con una peticion aparte.
     """
     requested_country = (filters.get("country") or "").upper()
     country_code = requested_country or "CO"
@@ -2481,6 +2487,17 @@ def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude", for
         cached_preview = cache.get(cache_key)
         if cached_preview is not None:
             return cached_preview
+
+    if not allow_live_fetch:
+        return {
+            "ads": [],
+            "pacing_insights": {"positive": [], "negative": []},
+            "country_code": country_code,
+            "country_label": country_label,
+            "requires_country": False,
+            "pending": True,
+            "message": f"Preparando los anuncios activos de {country_label}. El panel se completa en unos segundos.",
+        }
 
     fallback_ttl = _setting_int("META_ADS_PREVIEW_FALLBACK_CACHE_SECONDS", 120)
 
