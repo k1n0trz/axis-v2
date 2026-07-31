@@ -1333,3 +1333,48 @@ class ExportJob(TimestampedModel):
         return f"Export {self.file_name}"
 
 
+
+
+class IntegrationRun(TimestampedModel):
+    """Bitacora de ejecuciones de integraciones.
+
+    Estaba en el roadmap de automatizacion desde mayo y nunca se construyo. Sin
+    ella, cuando un dato no aparece en el tablero no hay forma de saber si el job
+    no corrio, corrio y fallo, o corrio bien y la fuente venia vacia. Las tres
+    cosas se ven igual: una celda sin numero.
+    """
+
+    class Status(models.TextChoices):
+        RUNNING = "running", "En curso"
+        SUCCESS = "success", "Exito"
+        FAILED = "failed", "Fallo"
+        SKIPPED = "skipped", "Omitida"
+
+    source = models.CharField(max_length=80, help_text="Fuente o job: woocommerce_co, google_ads_distrisex, websites_health...")
+    command = models.CharField(max_length=120, blank=True, help_text="Comando de management que la ejecuto.")
+    target_date = models.DateField(null=True, blank=True, help_text="Fecha de negocio procesada, no la de ejecucion.")
+    started_at = models.DateTimeField()
+    finished_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.RUNNING)
+    summary = models.TextField(blank=True)
+    error_message = models.TextField(blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+        verbose_name = "Ejecucion de integracion"
+        verbose_name_plural = "Ejecuciones de integraciones"
+        indexes = [
+            models.Index(fields=["source", "-started_at"], name="reports_integrationrun_src_idx"),
+            models.Index(fields=["status", "-started_at"], name="reports_integrationrun_st_idx"),
+        ]
+
+    def __str__(self):
+        fecha = self.target_date.isoformat() if self.target_date else "sin fecha"
+        return f"{self.source} {fecha} ({self.get_status_display()})"
+
+    @property
+    def duration_seconds(self):
+        if not self.finished_at:
+            return None
+        return (self.finished_at - self.started_at).total_seconds()

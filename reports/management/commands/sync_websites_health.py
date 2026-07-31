@@ -2,6 +2,7 @@ import json
 
 from django.core.management.base import BaseCommand
 
+from reports.integrations.run_log import track_run
 from reports.models import Website
 from reports.services.website_monitor import scan_active_websites, scan_website, seed_websites
 
@@ -15,10 +16,15 @@ class Command(BaseCommand):
         parser.add_argument("--include-pending", action="store_true", help="Incluye webs pendientes con URL configurada.")
 
     def handle(self, *args, **options):
+        with track_run("websites_health", command="sync_websites_health") as run:
+            payload = self._scan(options, run)
+        self.stdout.write(json.dumps(payload, indent=2, default=str))
+
+    def _scan(self, options, run):
         websites = seed_websites()
         if options["seed_only"]:
-            self.stdout.write(json.dumps({"seeded": len(websites)}, indent=2))
-            return
+            run.summary = f"Solo inventario: {len(websites)} webs."
+            return {"seeded": len(websites)}
 
         if options["slug"]:
             website = Website.objects.get(slug=options["slug"])
@@ -54,4 +60,14 @@ class Command(BaseCommand):
                 for check in checks
             ],
         }
-        self.stdout.write(json.dumps(payload, indent=2, default=str))
+        con_problema = [c for c in checks if c.overall_status != "healthy"]
+        run.summary = f"{len(checks)} webs revisadas, {len(con_problema)} fuera de estado saludable."
+        run.payload = {
+            "checked": len(checks),
+            "by_status": {
+                estado: sum(1 for c in checks if c.overall_status == estado)
+                for estado in sorted({c.overall_status for c in checks})
+            },
+            "pagespeed_ok": sum(1 for c in checks if c.pagespeed_status == "ok"),
+        }
+        return payload

@@ -14,6 +14,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from reports.integrations.run_log import track_run
 from reports.services.sales_dashboard import build_uva_meta_ads_preview
 
 # (codigo de pais, alcance) -> lo que piden /uva/ y /uva/comfama/
@@ -51,6 +52,10 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        with track_run("meta_ads_preview_warmup", command="warm_meta_ads_preview") as run:
+            self._warm(options, run)
+
+    def _warm(self, options, run):
         today = timezone.localdate()
         date_start = self._parse_date(options.get("date_start")) or today.replace(day=1)
         date_end = self._parse_date(options.get("date_end")) or today
@@ -95,6 +100,17 @@ class Command(BaseCommand):
 
         resumen = f"Precalentamiento Meta del {date_start} al {date_end}. Listos: {warmed}. Omitidos: {skipped}. Con problema: {failed}."
         self.stdout.write(self.style.SUCCESS(resumen) if not failed else self.style.WARNING(resumen))
+        run.summary = resumen
+        run.target_date = date_end
+        run.payload = {"warmed": warmed, "skipped": skipped, "failed": failed,
+                       "date_start": date_start.isoformat(), "date_end": date_end.isoformat()}
+        # Un precalentamiento que no dejo nada listo no es un exito silencioso: la
+        # pagina va a mostrar el panel vacio y alguien tiene que enterarse.
+        if failed and not warmed:
+            run.status = run.Status.FAILED
+            run.error_message = resumen
+        elif not warmed:
+            run.status = run.Status.SKIPPED
 
     def _parse_date(self, raw):
         if not raw:
