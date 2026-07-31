@@ -7,6 +7,7 @@ from io import StringIO
 
 from django.contrib import messages
 from django.contrib.auth.models import User
+from decouple import config
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.core.management import call_command
@@ -51,7 +52,13 @@ MARKETPLACE_GROUP = "Marketplace"
 BALI_WHATSAPP_GROUP = "Bali WhatsApp"
 KATERINE_USERNAME = "katerine"
 EDITRAFFICKER_USERNAME = "editrafficker"
-FEATURE_TASKS_GOALS_ENABLED = False
+# Tareas y Metas estan apagadas desde antes de este trabajo. Estaba escrito a mano
+# aqui, asi que encenderlo exigia editar el codigo y desplegar. Ahora es una
+# variable de entorno con el mismo valor por defecto: apagado.
+#
+# No se borra el modulo: son 8 modelos, 8 migraciones y ~1.100 lineas de plantillas
+# que el equipo construyo. Borrarlo es una decision de producto, no de limpieza.
+FEATURE_TASKS_GOALS_ENABLED = config("FEATURE_TASKS_GOALS_ENABLED", default=False, cast=bool)
 
 
 def _bonus_tier(fulfillment):
