@@ -112,8 +112,16 @@ class Command(BaseCommand):
         self.stdout.write(json.dumps(payload["output"], indent=2, default=str))
 
     def _default_customer_id(self, business_unit, country_code):
-        if business_unit == "bali":
-            return getattr(settings, "GOOGLE_ADS_BALI_CUSTOMER_ID", "")
+        """Resuelve la cuenta: primero por marca, si no por pais.
+
+        Uva tiene una cuenta por pais, pero Bali y DistriSex tienen una sola cuenta
+        cada una, asi que la marca manda cuando existe. Antes Bali estaba escrito
+        como un caso especial y cualquier marca nueva caia en la cuenta del pais,
+        que es de Uva.
+        """
+        por_marca = getattr(settings, f"GOOGLE_ADS_{business_unit.upper()}_CUSTOMER_ID", "")
+        if por_marca:
+            return por_marca
         return getattr(settings, f"GOOGLE_ADS_{country_code}_CUSTOMER_ID", "")
 
     def _convert_spend(self, amount, currency_code, country_code, target_currency, target_date):

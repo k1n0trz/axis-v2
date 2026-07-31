@@ -195,6 +195,11 @@ GOOGLE_ADS_CO_CUSTOMER_ID = config("GOOGLE_ADS_CO_CUSTOMER_ID", default="")
 GOOGLE_ADS_MX_CUSTOMER_ID = config("GOOGLE_ADS_MX_CUSTOMER_ID", default="")
 GOOGLE_ADS_EC_CUSTOMER_ID = config("GOOGLE_ADS_EC_CUSTOMER_ID", default="")
 GOOGLE_ADS_BALI_CUSTOMER_ID = config("GOOGLE_ADS_BALI_CUSTOMER_ID", default="")
+# DistriSex y Laboratorio Helti cuelgan del MCC 1541318288, pero el usuario OAuth
+# de Axis (comunicaciones@distrisex.com) no es usuario del MCC y Google devuelve
+# 403 en ambas. Los IDs quedan aqui para que la fuente entre sola en cuanto ese
+# permiso exista. Ver la nota de GOOGLE_ADS_LOGIN_CUSTOMER_ID en .env.example.
+GOOGLE_ADS_DISTRISEX_CUSTOMER_ID = config("GOOGLE_ADS_DISTRISEX_CUSTOMER_ID", default="")
 GOOGLE_ADS_BALI_WHATSAPP_CONVERSION_NAME = config("GOOGLE_ADS_BALI_WHATSAPP_CONVERSION_NAME", default="Balisexstore - GA4 (web) boton_de_whatsapp")
 
 SHOPIFY_BALI_SHOP_DOMAIN = config("SHOPIFY_BALI_SHOP_DOMAIN", default="")
