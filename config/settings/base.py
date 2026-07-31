@@ -265,6 +265,12 @@ META_ADS_PREVIEW_PANEL_TIMEOUT = config("META_ADS_PREVIEW_PANEL_TIMEOUT", defaul
 
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    # Sin paginacion, /api/metrics/ y /api/attachments/ devolvian la tabla
+    # completa: un ListAPIView sobre MetricRecord crece sin techo. Ningun
+    # consumidor del front usa estos endpoints, asi que el cambio de forma de la
+    # respuesta (lista -> {count, next, previous, results}) no rompe nada hoy.
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": config("API_PAGE_SIZE", default=200, cast=int),
 }
 
 LOGGING = {

@@ -1049,6 +1049,24 @@ def bali_physical_store_sales(filters):
     return list(queryset.filter(business_unit__slug="bali", channel__slug="bali-tienda-fisica").order_by("sale_date"))
 
 
+@memoize_per_request
+def _latest_bali_community_story():
+    """Ultima historia con captura. No depende del rango de fechas.
+
+    `build_bali_snapshot` corre dos veces por peticion, una para el periodo y otra
+    para la comparacion, y esta lectura estaba escrita dentro, asi que se repetia
+    identica.
+    """
+    return (
+        BaliCommunityWebcamMetric.objects.select_related("business_unit", "country")
+        .filter(business_unit__slug="bali", country__code="CO")
+        .exclude(story_screenshot="")
+        .order_by("-updated_at", "-metric_date")
+        .first()
+    )
+
+
+@memoize_per_request
 def bali_community_webcam_metrics(filters):
     queryset = BaliCommunityWebcamMetric.objects.select_related("business_unit", "country")
     if filters.get("date_start"):
@@ -1598,13 +1616,7 @@ def build_bali_snapshot(filters, include_comparison=True):
     community_days = len(community_rows)
     community_average_new = _safe_ratio(Decimal(community_total_new), Decimal(community_days))
     community_story_url = ""
-    latest_story_metric = (
-        BaliCommunityWebcamMetric.objects.select_related("business_unit", "country")
-        .filter(business_unit__slug="bali", country__code="CO")
-        .exclude(story_screenshot="")
-        .order_by("-updated_at", "-metric_date")
-        .first()
-    )
+    latest_story_metric = _latest_bali_community_story()
     if latest_story_metric and latest_story_metric.story_screenshot:
         try:
             storage = latest_story_metric.story_screenshot.storage
@@ -3605,6 +3617,7 @@ def apply_sales_filters(queryset, filters):
     return queryset
 
 
+@memoize_per_request
 def sales_transactions(filters, limit=None):
     queryset = SalesTransaction.objects.select_related("business_unit", "country", "channel", "product")
     queryset = apply_sales_filters(queryset, filters)

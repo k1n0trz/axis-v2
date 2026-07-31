@@ -43,6 +43,7 @@ from .services.analytics import attachments, build_dashboard_summary, build_filt
 from .services.excel_master import build_master_workbook, commit_master_import, create_export_job, preview_master_import
 from .services.marketplace_inventory import marketplace_inventory_snapshot
 from .services.sales_dashboard import build_ad_platform_performance, build_awn_international_snapshot, build_bali_product_detail, build_bali_snapshot, build_comfama_snapshot, build_copa_uva_country_comparison, build_ecuador_snapshot, build_marketplace_product_detail, build_sales_snapshot, build_uva_category_country_comparison, build_uva_category_snapshot, build_uva_geo_map_data, build_uva_meta_ads_preview, build_uva_product_detail, remove_colombia_vat
+from .query_cache import memoize_per_request
 from .services.website_monitor import latest_checks_by_website
 
 MASTER_IMPORT_SESSION_KEY = "master_import_preview"
@@ -108,6 +109,7 @@ def _safe_user_profile(user):
         return None
 
 
+@memoize_per_request
 def _managed_user_ids(user):
     if not user.is_authenticated:
         return []
