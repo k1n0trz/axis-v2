@@ -1,10 +1,10 @@
-"""Lectura de numbers que vienen de hojas de calculo.
+"""Lectura de numeros que vienen de hojas de calculo.
 
 Existia una copia de `parse_decimal` en cinco archivos, todas con el mismo
 cuerpo: `str(value).replace(",", "")` y luego `Decimal(...)`. Eso convertia
 silenciosamente "16,72" en 1672 (cien veces mas), "1.234,56" en 1,23456 y
 "$ 16,72" en 0, perdiendo la linea completa. Nadie lo notaba porque el resultado
-es un number perfectamente valido, solo equivocado.
+es un numero perfectamente valido, solo equivocado.
 
 Las hojas de despachos las llenan personas con Excel en es-CO, asi que la coma
 como separador decimal aparece en cuanto una celda queda como texto, y que haya
@@ -14,7 +14,7 @@ con CANTIDAD="B".
 ## Reglas
 
 Si el valor ya es numerico (int, float, Decimal) se usa tal cual: openpyxl
-devuelve numbers para las celdas numericas y ahi no hay nada que interpretar.
+devuelve numeros para las celdas numericas y ahi no hay nada que interpretar.
 
 Sobre texto, primero se descartan los caracteres que no son digito, separador ni
 signo, para que "$ 16,72" o "USD 16.72" no se pierdan. Despues:
@@ -29,8 +29,8 @@ signo, para que "$ 16,72" o "USD 16.72" no se pierdan. Despues:
 
 El caso de tres digitos es genuinamente ambiguo: "1,234" puede ser mil doscientos
 treinta y cuatro o uno con 234 milesimas. Se resuelve como miles porque en estas
-hojas los importes en COP son wholes grandes y los precios en USD no llevan tres
-decimals. `google_ads_import.parse_decimal` ya habia llegado a la misma
+hojas los importes en COP son enteros grandes y los precios en USD no llevan tres
+decimales. `google_ads_import.parse_decimal` ya habia llegado a la misma
 conclusion sobre su workbook, con una heuristica propia que se conserva alli.
 
 Lo ilegible devuelve el valor por defecto, no una excepcion: una fila rara no
@@ -97,7 +97,7 @@ def _normalize_separators(cleaned):
 
 
 def parse_quantity(value):
-    """Cantidad de unidades. Lo ilegible o negative cuenta como cero."""
+    """Cantidad de unidades. Lo ilegible o negativo cuenta como cero."""
     number = parse_decimal(value)
     return int(number) if number > 0 else 0
 

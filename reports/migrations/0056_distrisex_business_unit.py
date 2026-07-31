@@ -2,7 +2,7 @@
 
 DistriSex es la operacion mayorista: vende el catalogo de Bali y de Uva juntos, a
 mayoristas, con su propia tienda WooCommerce (distrisexcolombia.com) y su propia
-facturacion en COP. La migracion 0023 habia borrado la unit porque entonces no
+facturacion en COP. La migracion 0023 habia borrado la unidad porque entonces no
 tenia datos; ahora si los tiene.
 """
 from django.db import migrations

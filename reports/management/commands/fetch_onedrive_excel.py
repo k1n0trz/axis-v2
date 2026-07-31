@@ -295,7 +295,7 @@ class Command(BaseCommand):
             sync.sync_channel_sales(channel_records)
             sync.sync_category_sales(records)
 
-        # Las filas suspicious van en el payload, no en un warning aparte: este
+        # Las filas sospechosas van en el payload, no en un warning aparte: este
         # comando lo corre el sync diario y su salida es JSON.
         suspicious = [
             {key: str(value) for key, value in warning.items()}
