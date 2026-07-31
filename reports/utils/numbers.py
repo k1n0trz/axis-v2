@@ -16,8 +16,11 @@ con CANTIDAD="B".
 Si el valor ya es numerico (int, float, Decimal) se usa tal cual: openpyxl
 devuelve numeros para las celdas numericas y ahi no hay nada que interpretar.
 
-Sobre texto, primero se descartan los caracteres que no son digito, separador ni
-signo, para que "$ 16,72" o "USD 16.72" no se pierdan. Despues:
+Sobre texto se quitan primero los simbolos de moneda y los espacios, para que
+"$ 16,72" o "USD 16.72" no se pierdan. **Si lo que queda tiene una letra, no es un
+importe**: la hoja de despachos tiene una columna SKU con codigos como
+"UV-BCO-7009-A", y sin esa regla entraba como -7009, que en COP son 26 millones
+negativos. Un guion interno tambien descalifica: "002-B" no es 2. Despues:
 
 - Con coma y punto, el separador decimal es **el ultimo de los dos**:
   "1.234,56" -> 1234.56 y "1,234.56" -> 1234.56.
@@ -42,6 +45,11 @@ from decimal import Decimal, InvalidOperation
 
 ZERO = Decimal("0")
 
+# Simbolos de moneda y codigos que pueden acompañar a un importe. Se quitan antes
+# de decidir si lo que queda es un numero.
+_CURRENCY = re.compile(r"(?i)\b(usd|cop|mxn|eur|ars|clp|pen)\b|[$€£¥]")
+# Cualquier letra. Si sobrevive a la limpieza de moneda, el valor no es un importe.
+_LETTER = re.compile(r"[^\W\d_]", re.UNICODE)
 # Todo lo que no sea digito, coma, punto o signo menos.
 _NOISE = re.compile(r"[^\d,.\-]")
 
@@ -60,9 +68,18 @@ def parse_decimal(value, default=ZERO):
     if not raw:
         return default
 
-    cleaned = _NOISE.sub("", raw.replace(" ", " "))
+    # Moneda y espacios fuera; si lo que queda trae una letra, no es un importe.
+    without_currency = _CURRENCY.sub("", raw)
+    without_currency = "".join(without_currency.split())
+    if _LETTER.search(without_currency):
+        return default
+
+    cleaned = _NOISE.sub("", without_currency)
     negative = cleaned.startswith("-")
-    cleaned = cleaned.replace("-", "")
+    cleaned = cleaned.lstrip("-")
+    # Un guion interno pertenece a un codigo, no a un importe: "002-B" no es 2.
+    if "-" in cleaned:
+        return default
     if not cleaned or not any(char.isdigit() for char in cleaned):
         return default
 

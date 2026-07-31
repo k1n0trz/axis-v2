@@ -87,3 +87,41 @@ class NormalizeHeaderTests(SimpleTestCase):
         self.assertEqual(normalize_header("  Fecha  "), "fecha")
         self.assertEqual(normalize_header("CANTIDAD"), "cantidad")
         self.assertEqual(normalize_header(None), "")
+
+
+class UnSkuNoEsUnImporteTests(SimpleTestCase):
+    """Regresion que yo introduje al unificar `parse_decimal`.
+
+    La version nueva extraia digitos de cualquier texto, asi que la columna **SKU** de
+    la hoja de despachos entraba como numero: "UV-BCO-7009-A" daba -7009, que al pasar
+    a COP son 26 millones negativos en una sola fila. La version anterior lanzaba
+    InvalidOperation y devolvia 0, que era el comportamiento correcto por accidente.
+
+    Lo detecte al ver importes negativos en el payload de Ecuador del 15-ene-2026.
+    """
+
+    def test_los_sku_reales_de_la_hoja_dan_cero(self):
+        for sku in ("UV-BCO-002-B", "UV-BCO-7009-A", "UV-BPM-7006-C", "UV-BCO-003-D", "UV-BCO-204-X"):
+            with self.subTest(sku=sku):
+                self.assertEqual(parse_decimal(sku), Decimal("0"))
+
+    def test_un_codigo_con_guion_interno_no_es_un_numero(self):
+        # "002-B" tampoco: el guion interno pertenece a un codigo.
+        self.assertEqual(parse_decimal("002-B"), Decimal("0"))
+        self.assertEqual(parse_decimal("2026-07-30"), Decimal("0"))
+
+    def test_cualquier_letra_descalifica(self):
+        for valor in ("12A", "A12", "12 unidades", "talla B morado", "1e5"):
+            with self.subTest(valor=valor):
+                self.assertEqual(parse_decimal(valor), Decimal("0"))
+
+    def test_los_importes_con_moneda_siguen_funcionando(self):
+        # La regla no puede romper lo que ya andaba: la moneda se quita antes.
+        self.assertEqual(parse_decimal("$ 16,72"), Decimal("16.72"))
+        self.assertEqual(parse_decimal("USD 16.72"), Decimal("16.72"))
+        self.assertEqual(parse_decimal("16,72 USD"), Decimal("16.72"))
+        self.assertEqual(parse_decimal("COP 1.234.567"), Decimal("1234567"))
+        self.assertEqual(parse_decimal("-16,72"), Decimal("-16.72"))
+
+    def test_una_cantidad_con_sku_cuenta_como_cero(self):
+        self.assertEqual(parse_quantity("UV-BCO-002-B"), 0)
