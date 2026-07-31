@@ -401,7 +401,10 @@ class MetaAdsClient(BaseAPIClient):
         # el panel se quedaba con todas las metricas en cero, en silencio.
         attempts = []
         rich_fields = [*base_fields, creative_field_sets[0]]
-        lean_fields = [*base_fields, creative_field_sets[-1]]
+        # Para el reintento no se usa el creativo mas pobre: `creative{id,name}` deja
+        # sin imagen las tarjetas del panel. El penultimo conserva thumbnail e imagen,
+        # que es lo que se muestra, y pesa mucho menos que el que trae asset_feed_spec.
+        lean_fields = [*base_fields, creative_field_sets[-2]]
         if include_insights and date_start and date_end:
             for fields, size in ((rich_fields, page_size), (lean_fields, 25), (lean_fields, 10)):
                 if (fields, True, size) not in attempts:

@@ -278,7 +278,7 @@ class SalesDashboardTests(TestCase):
         calls = []
 
         def fake_get(url, params=None, timeout=None):
-            calls.append(params["fields"])
+            calls.append(params)
             if len(calls) == 1:
                 return Response(False, {"error": {"message": "Internal Server Error"}}, status_code=500)
             return Response(True, {"data": [{"id": "ad-1", "name": "Activo"}]})
@@ -288,8 +288,11 @@ class SalesDashboardTests(TestCase):
             rows = client.get_active_ads("123", date_start=date(2026, 6, 1), date_end=date(2026, 6, 10))
 
         self.assertEqual(rows, [{"id": "ad-1", "name": "Activo"}])
-        self.assertIn("insights.time_range", calls[0])
-        self.assertNotIn("insights.time_range", calls[1])
+        self.assertIn("insights.time_range", calls[0]["fields"])
+        # El reintento insiste con insights y una pagina mas pequena. Antes venia sin
+        # insights y con el mismo limit, y el panel quedaba con todo en cero.
+        self.assertIn("insights.time_range", calls[1]["fields"])
+        self.assertLess(calls[1]["limit"], calls[0]["limit"])
 
     def test_meta_ads_client_retries_active_ads_with_reduced_creative_fields(self):
         class Response:
@@ -315,7 +318,8 @@ class SalesDashboardTests(TestCase):
             rows = client.get_active_ads("123", date_start=date(2026, 6, 1), date_end=date(2026, 6, 10))
 
         self.assertEqual(rows[0]["id"], "ad-1")
-        self.assertGreaterEqual(len(calls), 3)
+        self.assertGreaterEqual(len(calls), 2)
+        # Termina en el creativo que conserva las imagenes, no en el minimo.
         self.assertIn("creative{id,name,thumbnail_url,image_url}", calls[-1])
 
     def test_meta_ads_client_fetches_all_active_ad_pages_without_limit(self):
