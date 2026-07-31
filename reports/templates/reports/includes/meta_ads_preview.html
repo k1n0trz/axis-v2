@@ -7,6 +7,9 @@
     </div>
     <span class="badge bg-white bg-opacity-10 text-white-50 border-0"><span data-meta-visible-count>{{ meta_ads_preview.ads|length }}</span>/<span data-meta-total-count>{{ meta_ads_preview.ads|length }}</span> activos</span>
   </div>
+  {% if meta_ads_preview.metrics_unavailable %}
+  <div class="web-alert alert-yellow">Meta no entrego las metricas de estos anuncios en este intento, asi que inversion, ROAS y compras salen en cero. Los creativos si son reales. Vuelve a intentar en unos minutos.</div>
+  {% endif %}
   {% if meta_ads_preview.ads %}
   <div class="meta-ads-toolbar" data-meta-ads-toolbar>
     <label>

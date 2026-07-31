@@ -2627,6 +2627,12 @@ def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude", for
 
     ads.sort(key=lambda item: item.get("created_time") or "", reverse=True)
 
+    # Meta devuelve HTTP 500 "Please reduce the amount of data" de forma
+    # intermitente sobre la peticion que trae los insights. Cuando pasa, el cliente
+    # termina resolviendo sin ellos y todos los anuncios quedan con inversion, ROAS
+    # y compras en cero: el panel se ve normal pero no dice nada, y ordenar por
+    # "mas compras" no cambia nada porque todo vale cero. Hay que decirlo.
+    metrics_unavailable = bool(rows) and not any(_meta_insight_payload(row) for row in rows)
     preview = {
         "ads": ads,
         "pacing_insights": _build_meta_ads_pacing_insights(ads),
@@ -2635,6 +2641,7 @@ def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude", for
         "date_start": date_start.isoformat(),
         "date_end": date_end.isoformat(),
         "requires_country": False,
+        "metrics_unavailable": metrics_unavailable,
         "message": "" if ads else f"No se encontraron anuncios activos en la cuenta Meta de {country_label}.",
     }
     # Un resultado vacio tambien se cachea (con TTL corto): antes cada request

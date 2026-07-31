@@ -366,7 +366,7 @@ class MetaAdsClient(BaseAPIClient):
             "creative{id,name}",
         ]
 
-        def collect(field_list, with_insights):
+        def collect(field_list, with_insights, size):
             payload = []
             url = f"/act_{account_id}/ads"
             fields = list(field_list)
@@ -381,7 +381,7 @@ class MetaAdsClient(BaseAPIClient):
                 "access_token": self.access_token,
                 "effective_status": json.dumps(["ACTIVE"]),
                 "fields": ",".join(fields),
-                "limit": page_size,
+                "limit": size,
             }
             while True:
                 response = self._get_meta_json(url, params=params, action="consultar anuncios activos")
@@ -395,17 +395,25 @@ class MetaAdsClient(BaseAPIClient):
                 params = None
             return payload
 
+        # Cuando Meta responde "Please reduce the amount of data you're asking for",
+        # lo que hay que reducir es el tamano de pagina, no los insights. La version
+        # anterior reintentaba sin insights con el MISMO limit: la peticion pasaba y
+        # el panel se quedaba con todas las metricas en cero, en silencio.
         attempts = []
+        rich_fields = [*base_fields, creative_field_sets[0]]
+        lean_fields = [*base_fields, creative_field_sets[-1]]
+        if include_insights and date_start and date_end:
+            for fields, size in ((rich_fields, page_size), (lean_fields, 25), (lean_fields, 10)):
+                if (fields, True, size) not in attempts:
+                    attempts.append((fields, True, size))
+        # Sin insights se degrada el detalle del creativo, como antes.
         for creative_fields in creative_field_sets:
-            fields = [*base_fields, creative_fields]
-            if include_insights and date_start and date_end:
-                attempts.append((fields, True))
-            attempts.append((fields, False))
+            attempts.append(([*base_fields, creative_fields], False, page_size))
 
         last_error = None
-        for fields, with_insights in attempts:
+        for fields, with_insights, size in attempts:
             try:
-                return collect(fields, with_insights)
+                return collect(fields, with_insights, size)
             except RuntimeError as exc:
                 last_error = exc
                 continue
