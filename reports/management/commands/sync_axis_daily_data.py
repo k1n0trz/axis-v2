@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import date, timedelta
 from io import StringIO
 
@@ -6,6 +7,9 @@ from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.utils import timezone
+from django.utils.text import slugify
+
+from reports.integrations.run_log import track_run
 
 
 
@@ -70,9 +74,17 @@ class Command(BaseCommand):
 
         for index, task in enumerate(tasks, start=1):
             capture = StringIO()
+            source, task_date = self._source_and_date(task)
+            self.stdout.write(f"[{index}/{total_tasks}] {task['name']}")
             try:
-                self.stdout.write(f"[{index}/{total_tasks}] {task['name']}")
-                call_command(*task["command"], stdout=capture)
+                # Cada fuente deja su propia fila en la bitacora. Sin esto, cuando
+                # un dato no aparecia en el tablero no habia forma de saber si el
+                # job no corrio, corrio y fallo, o la fuente venia vacia.
+                with track_run(source, command=task["command"][0], target_date=task_date) as run:
+                    call_command(*task["command"], stdout=capture)
+                    texto = capture.getvalue()
+                    run.payload = self._run_payload(texto)
+                    run.summary = self._run_summary(task["name"], run.payload)
                 results.append({"name": task["name"], "status": "ok"})
             except Exception as exc:
                 errors.append({"name": task["name"], "status": "error", "error": str(exc)})
@@ -93,6 +105,91 @@ class Command(BaseCommand):
                 indent=2,
             )
         )
+
+
+    # La fecha al final del nombre es del dia procesado, no de la fuente: se saca
+    # del slug para que las corridas de distintos dias se agrupen bajo la misma
+    # fuente. Las tareas de OneDrive traen un rango ("... 2026-07-28..2026-07-30"),
+    # asi que hay que quitar las dos fechas y quedarse con la ultima.
+    DATE_IN_NAME = re.compile(r"\s+(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?$")
+
+    def _source_and_date(self, task):
+        name = task["name"]
+        match = self.DATE_IN_NAME.search(name)
+        task_date = None
+        if match:
+            # Con rango, la fecha que interesa es la ultima del rango.
+            task_date = date.fromisoformat(match.group(2) or match.group(1))
+            name = name[: match.start()]
+        if task_date is None:
+            task_date = self._date_from_command(task["command"])
+        return slugify(name).replace("-", "_"), task_date
+
+    def _date_from_command(self, command):
+        candidates = []
+        for index, argument in enumerate(command):
+            texto = str(argument)
+            if texto.startswith(("--date=", "--date-to=", "--date-from=")):
+                candidates.append(texto.split("=", 1)[1])
+            elif texto in ("--date", "--date-to", "--date-from") and index + 1 < len(command):
+                candidates.append(str(command[index + 1]))
+        for candidate in reversed(candidates):
+            try:
+                return date.fromisoformat(candidate)
+            except ValueError:
+                continue
+        return None
+
+    def _run_payload(self, output):
+        """Resumen del payload del comando, no el payload completo.
+
+        La salida de estos comandos puede traer cientos de filas; la bitacora es
+        para diagnosticar, no un respaldo. Antes esta salida se descartaba entera
+        cuando el comando terminaba bien.
+        """
+        try:
+            data = json.loads(output)
+        except ValueError:
+            return {"output": output[-1200:]}
+        if isinstance(data, list):
+            return {"items": len(data)}
+        if not isinstance(data, dict):
+            return {"output": str(data)[:200]}
+
+        payload = {}
+        for key, value in data.items():
+            if isinstance(value, (int, float, bool)) or value is None:
+                payload[key] = value
+            elif isinstance(value, str):
+                payload[key] = value[:200]
+            elif isinstance(value, list):
+                payload[f"{key}_count"] = len(value)
+        # Lo que el auditor de precios haya encontrado tiene que verse aqui.
+        sospechosas = data.get("suspicious_unit_prices") or []
+        if sospechosas:
+            payload["suspicious_unit_prices"] = [str(item.get("message", ""))[:200] for item in sospechosas[:5]]
+        canal = data.get("channel_sale") or {}
+        if isinstance(canal, dict) and canal:
+            payload["channel_sale_amount"] = str(canal.get("sales_amount", ""))
+            payload["channel_sale_orders"] = canal.get("order_count")
+        gasto = data.get("daily_spend") or {}
+        if isinstance(gasto, dict) and gasto:
+            payload["spend_amount"] = str(gasto.get("spend_amount", ""))
+        return payload
+
+    def _run_summary(self, task_name, payload):
+        partes = []
+        for clave in ("channel_sale_amount", "channel_sale_orders", "spend_amount", "checked", "created", "updated", "items"):
+            if payload.get(clave) not in (None, "", 0):
+                partes.append(f"{clave}={payload[clave]}")
+        for clave, valor in payload.items():
+            if clave.endswith("_count") and valor:
+                partes.append(f"{clave}={valor}")
+        if payload.get("suspicious_unit_prices"):
+            partes.append(f"VALOR sospechoso en {len(payload['suspicious_unit_prices'])} filas")
+        if not partes:
+            partes.append("sin novedades")
+        return f"{task_name}: " + ", ".join(partes[:8])
 
     def _build_tasks_for_dates(self, dates, options):
         tasks = []
@@ -177,6 +274,21 @@ class Command(BaseCommand):
                     "command": ["fetch_woocommerce_sales", "--date", day, "--country", "MX", "--currency", "MXN", "--sync-axis"],
                 }
             )
+        if getattr(settings, "WOOCOMMERCE_DISTRISEX_BASE_URL", ""):
+            # DistriSex vende en Colombia pero con su propia tienda, asi que se
+            # elige por --store y no por pais. Sin mapa de categorias su catalogo
+            # mayorista generaria cientos de categorias basura por dia, de ahi
+            # --skip-category-sales.
+            tasks.append(
+                {
+                    "name": "WooCommerce DistriSex",
+                    "command": [
+                        "fetch_woocommerce_sales", "--date", day, "--country", "CO",
+                        "--store", "DISTRISEX", "--business-unit", "distrisex",
+                        "--channel-slug", "ecommerce-distrisex", "--skip-category-sales", "--sync-axis",
+                    ],
+                }
+            )
         if include_onedrive_sales:
             tasks.extend(self._build_onedrive_sales_tasks(target_date))
         if getattr(settings, "ONEDRIVE_SHARED_COMFAMA_FILE_PATH", ""):
@@ -240,6 +352,22 @@ class Command(BaseCommand):
                 {
                     "name": "Google Ads Bali",
                     "command": ["fetch_google_ads", "--date", day, "--country", "CO", "--business-unit", "bali", "--sync-axis"],
+                }
+            )
+        if getattr(settings, "GOOGLE_ADS_DISTRISEX_CUSTOMER_ID", ""):
+            # A diferencia de Uva y Bali, DistriSex NO se condiciona al workbook de
+            # OneDrive: ese archivo lo llena una persona y no incluye esta cuenta,
+            # que era invisible para Axis hasta que se dio el permiso en el MCC. Sin
+            # esto su inversion no llegaria nunca. No hay riesgo de duplicar: la
+            # restriccion unica de DailyAdSpend es (marca, pais, plataforma, fecha),
+            # asi que si el workbook algun dia la trajera, se sobreescribe.
+            tasks.append(
+                {
+                    "name": "Google Ads DistriSex",
+                    "command": [
+                        "fetch_google_ads", "--date", day, "--country", "CO",
+                        "--business-unit", "distrisex", "--count-unmapped-spend", "--sync-axis",
+                    ],
                 }
             )
         if getattr(settings, "ONEDRIVE_GOOGLE_ADS_FILE_PATH", ""):

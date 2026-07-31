@@ -134,8 +134,12 @@ class SyncDiarioTests(SimpleTestCase):
 
         self.assertIn('default="docs/mappings/google-category-rules.json"', codigo)
         self.assertNotIn("google-category-rules.example.json", codigo)
-        # Las tres cuentas de Uva suman al total lo que ninguna regla clasifique.
-        self.assertEqual(codigo.count('"--count-unmapped-spend"'), 3)
+        # Las tres cuentas de Uva mas DistriSex suman al total lo que ninguna regla
+        # clasifique. Se cuenta por nombre de tarea y no por total de ocurrencias,
+        # para que agregar una marca no rompa la prueba por un numero magico.
+        for tarea in ("Google Ads Colombia", "Google Ads Mexico", "Google Ads Ecuador", "Google Ads DistriSex"):
+            bloque = codigo.split(f'"name": "{tarea}"', 1)[1][:400]
+            self.assertIn("--count-unmapped-spend", bloque, f"{tarea} sin la bandera")
 
 
 class SoloSeAnotaLoQueGastoTests(SimpleTestCase):
