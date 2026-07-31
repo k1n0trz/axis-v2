@@ -8,16 +8,9 @@ from openpyxl import load_workbook
 
 from reports.models import DailyAdSpend
 from reports.services.sales_dashboard import ensure_ad_platform_catalogs, ensure_uva_catalogs
+from reports.utils.numbers import parse_decimal
 
 
-def parse_decimal(value):
-    raw = str(value or "").strip().replace(",", "")
-    if not raw:
-        return Decimal("0")
-    try:
-        return Decimal(raw)
-    except (InvalidOperation, TypeError, ValueError):
-        return Decimal("0")
 
 
 class Command(BaseCommand):

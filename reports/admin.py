@@ -51,6 +51,7 @@ from .models import (
     OperationalGoalTaskAttachment,
     Product,
     ProductCategory,
+    IntegrationRun,
     RoasTrafficLightSetting,
     SalesTarget,
     SalesTransaction,
@@ -199,6 +200,7 @@ ADMIN_MODEL_LABELS = {
     UserTask: ("Tarea", "Tareas"),
     UserTaskAttachment: ("Adjunto de tarea", "Adjuntos de tareas"),
     UserTaskLink: ("Enlace de tarea", "Enlaces de tareas"),
+    IntegrationRun: ("Ejecucion de integracion", "Ejecuciones de integraciones"),
     RoasTrafficLightSetting: ("Semaforo ROAS", "Semaforo ROAS"),
     SalesTarget: ("Meta de venta", "Metas de venta"),
     Website: ("Web", "Webs"),
@@ -2269,3 +2271,38 @@ def grouped_reports_admin_app_list(request, app_label=None):
 
 
 admin.site.get_app_list = grouped_reports_admin_app_list
+
+
+@admin.register(IntegrationRun)
+class IntegrationRunAdmin(AxisModelAdmin):
+    """Bitacora de ejecuciones. Es de lectura: la escribe el codigo, no una persona."""
+
+    list_display = ("source", "status", "target_date", "started_at", "duration_display", "summary_short")
+    list_filter = ("status", "source")
+    search_fields = ("source", "command", "summary", "error_message")
+    date_hierarchy = "started_at"
+    ordering = ("-started_at",)
+    readonly_fields = (
+        "source", "command", "target_date", "started_at", "finished_at",
+        "status", "summary", "error_message", "payload", "created_at", "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description="Duracion")
+    def duration_display(self, obj):
+        segundos = obj.duration_seconds
+        if segundos is None:
+            return "en curso"
+        if segundos < 60:
+            return f"{segundos:.0f} s"
+        return f"{segundos / 60:.1f} min"
+
+    @admin.display(description="Resumen")
+    def summary_short(self, obj):
+        texto = obj.error_message or obj.summary
+        return texto[:110] + ("..." if len(texto) > 110 else "")

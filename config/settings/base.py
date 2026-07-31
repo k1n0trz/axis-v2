@@ -43,6 +43,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "reports.security.AdminSessionRequiredMiddleware",
+    "reports.query_cache.QueryMemoMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -160,6 +161,23 @@ WOOCOMMERCE_MX_BASE_URL = config("WOOCOMMERCE_MX_BASE_URL", default="")
 WOOCOMMERCE_MX_CONSUMER_KEY = config("WOOCOMMERCE_MX_CONSUMER_KEY", default="")
 WOOCOMMERCE_MX_CONSUMER_SECRET = config("WOOCOMMERCE_MX_CONSUMER_SECRET", default="")
 
+# DistriSex es la tienda mayorista (catalogo Bali + Uva). Vende en Colombia, pero
+# con tienda y credenciales propias, asi que se identifica por tienda y no por
+# pais: fetch_woocommerce_sales --store DISTRISEX --country CO. Los legacy WC_*
+# apuntan a esta misma tienda y se aceptan como respaldo.
+WOOCOMMERCE_DISTRISEX_BASE_URL = config(
+    "WOOCOMMERCE_DISTRISEX_BASE_URL",
+    default=config("WC_STORE_URL", default=""),
+)
+WOOCOMMERCE_DISTRISEX_CONSUMER_KEY = config(
+    "WOOCOMMERCE_DISTRISEX_CONSUMER_KEY",
+    default=config("WC_CLIENT_KEY", default=""),
+)
+WOOCOMMERCE_DISTRISEX_CONSUMER_SECRET = config(
+    "WOOCOMMERCE_DISTRISEX_CONSUMER_SECRET",
+    default=config("WC_SECRET_KEY", default=""),
+)
+
 META_ACCESS_TOKEN = config("META_ACCESS_TOKEN", default="")
 META_API_VERSION = config("META_API_VERSION", default="v20.0")
 META_CO_ACCOUNT_ID = config("META_CO_ACCOUNT_ID", default="")
@@ -177,6 +195,11 @@ GOOGLE_ADS_CO_CUSTOMER_ID = config("GOOGLE_ADS_CO_CUSTOMER_ID", default="")
 GOOGLE_ADS_MX_CUSTOMER_ID = config("GOOGLE_ADS_MX_CUSTOMER_ID", default="")
 GOOGLE_ADS_EC_CUSTOMER_ID = config("GOOGLE_ADS_EC_CUSTOMER_ID", default="")
 GOOGLE_ADS_BALI_CUSTOMER_ID = config("GOOGLE_ADS_BALI_CUSTOMER_ID", default="")
+# DistriSex y Laboratorio Helti cuelgan del MCC 1541318288, pero el usuario OAuth
+# de Axis (comunicaciones@distrisex.com) no es usuario del MCC y Google devuelve
+# 403 en ambas. Los IDs quedan aqui para que la fuente entre sola en cuanto ese
+# permiso exista. Ver la nota de GOOGLE_ADS_LOGIN_CUSTOMER_ID en .env.example.
+GOOGLE_ADS_DISTRISEX_CUSTOMER_ID = config("GOOGLE_ADS_DISTRISEX_CUSTOMER_ID", default="")
 GOOGLE_ADS_BALI_WHATSAPP_CONVERSION_NAME = config("GOOGLE_ADS_BALI_WHATSAPP_CONVERSION_NAME", default="Balisexstore - GA4 (web) boton_de_whatsapp")
 
 SHOPIFY_BALI_SHOP_DOMAIN = config("SHOPIFY_BALI_SHOP_DOMAIN", default="")
@@ -240,9 +263,19 @@ META_ADS_PREVIEW_CACHE_SECONDS = config("META_ADS_PREVIEW_CACHE_SECONDS", defaul
 # Los resultados vacios o con error tambien se cachean, con un TTL corto, para
 # que un fallo de Meta no obligue a repetir el camino lento en cada request.
 META_ADS_PREVIEW_FALLBACK_CACHE_SECONDS = config("META_ADS_PREVIEW_FALLBACK_CACHE_SECONDS", default=120, cast=int)
+# Timeout del endpoint que completa el panel (api/uva/meta-ads-panel/). Es
+# holgado porque esa llamada ya no esta en el camino de la pagina: el usuario ve
+# el tablero completo mientras el panel se resuelve aparte. Medido: ~15 s reales.
+META_ADS_PREVIEW_PANEL_TIMEOUT = config("META_ADS_PREVIEW_PANEL_TIMEOUT", default=60, cast=int)
 
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    # Sin paginacion, /api/metrics/ y /api/attachments/ devolvian la tabla
+    # completa: un ListAPIView sobre MetricRecord crece sin techo. Ningun
+    # consumidor del front usa estos endpoints, asi que el cambio de forma de la
+    # respuesta (lista -> {count, next, previous, results}) no rompe nada hoy.
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": config("API_PAGE_SIZE", default=200, cast=int),
 }
 
 LOGGING = {

@@ -4,7 +4,8 @@ from django.core.management.base import BaseCommand, CommandError
 from openpyxl import load_workbook
 
 from reports.models import BusinessUnit, Country, DailyProductCategoryMetric, ProductCategory
-from reports.services.sales_dashboard import category_slug_from_product_name, parse_decimal, parse_excel_date, uva_category_slug_from_product_name
+from reports.services.sales_dashboard import category_slug_from_product_name, parse_excel_date, uva_category_slug_from_product_name
+from reports.utils.numbers import parse_decimal
 
 
 class Command(BaseCommand):

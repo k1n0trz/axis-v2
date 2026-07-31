@@ -59,6 +59,15 @@ class Command(BaseCommand):
         parser.add_argument("--currency", default="COP")
         parser.add_argument("--target-currency", default="COP")
         parser.add_argument("--bali-whatsapp-conversion-name", default="")
+        parser.add_argument(
+            "--count-unmapped-spend",
+            action="store_true",
+            help=(
+                "Suma al total de la cuenta las campanas que ninguna regla clasifica. "
+                "Necesario para marcas sin mapa de categorias, como DistriSex: sin esto "
+                "el total sale en cero."
+            ),
+        )
         parser.add_argument("--skip-geo", action="store_true")
         parser.add_argument("--sync-axis", action="store_true")
 
@@ -112,9 +121,25 @@ class Command(BaseCommand):
         self.stdout.write(json.dumps(payload["output"], indent=2, default=str))
 
     def _default_customer_id(self, business_unit, country_code):
-        if business_unit == "bali":
-            return getattr(settings, "GOOGLE_ADS_BALI_CUSTOMER_ID", "")
+        """Resuelve la cuenta: primero por marca, si no por pais.
+
+        Uva tiene una cuenta por pais, pero Bali y DistriSex tienen una sola cuenta
+        cada una, asi que la marca manda cuando existe. Antes Bali estaba escrito
+        como un caso especial y cualquier marca nueva caia en la cuenta del pais,
+        que es de Uva.
+        """
+        por_marca = getattr(settings, f"GOOGLE_ADS_{business_unit.upper()}_CUSTOMER_ID", "")
+        if por_marca:
+            return por_marca
         return getattr(settings, f"GOOGLE_ADS_{country_code}_CUSTOMER_ID", "")
+
+    def _spend_note(self, customer_id, unmapped_campaigns, fallback_campaigns=()):
+        nota = f"Cuenta Google Ads {customer_id}."
+        if unmapped_campaigns:
+            nota += f" Campanas sin categoria incluidas en el total: {', '.join(sorted(unmapped_campaigns))}."
+        if fallback_campaigns:
+            nota += f" Campanas asignadas por defecto, sin regla propia: {', '.join(sorted(fallback_campaigns))}."
+        return nota
 
     def _convert_spend(self, amount, currency_code, country_code, target_currency, target_date):
         if currency_code == target_currency:
@@ -248,39 +273,57 @@ class Command(BaseCommand):
         rows = client.search(customer_id, self._campaign_query(target_date))
         spend_total = ZERO
         spend_by_category = defaultdict(lambda: {"google": ZERO, "results": ZERO, "names": set()})
+        unmapped_campaigns = set()
+        fallback_campaigns = set()
 
         for batch in rows:
             for row in batch.get("results", []):
                 campaign_name = row["campaign"]["name"]
-                category_slug = match_rule(campaign_name, rules)
-                if not category_slug:
-                    category_slug = fallback_uva_category(country_code)
-                if not category_slug:
-                    continue
                 currency_code = row["customer"]["currencyCode"]
                 spend = decimal_from_micros(row["metrics"].get("costMicros"))
                 spend_cop = self._convert_spend(spend, currency_code, country_code, options["target_currency"], target_date)
                 conversions = Decimal(str(row["metrics"].get("conversions") or "0"))
+                category_slug = match_rule(campaign_name, rules)
+                if not category_slug:
+                    category_slug = fallback_uva_category(country_code)
+                    # Solo se anota si gasto algo: una campana apagada que cae al
+                    # fallback no le importa a nadie y ensuciaria la nota de cada dia.
+                    if category_slug and spend_cop > 0:
+                        # EC y MX caen a copa-menstrual por defecto. Era correcto
+                        # cuando esas cuentas solo tenian campanas de copa; para una
+                        # campana nueva es un supuesto, no un dato. Queda en las
+                        # notas para que se vea que nadie lo verifico.
+                        fallback_campaigns.add(campaign_name)
+                if not category_slug:
+                    # Sin categoria la campana no entra al desglose. Al total de la
+                    # cuenta si deberia entrar: es plata que se gasto. Queda detras
+                    # de una bandera porque cambiarlo por defecto moveria las
+                    # cifras historicas de Uva.
+                    if options["count_unmapped_spend"]:
+                        spend_total += spend_cop
+                        if spend_cop > 0:
+                            unmapped_campaigns.add(campaign_name)
+                    continue
                 spend_total += spend_cop
                 spend_by_category[category_slug]["google"] += spend_cop
                 spend_by_category[category_slug]["results"] += conversions
                 spend_by_category[category_slug]["names"].add(campaign_name)
 
         ad_spend = AdSpendRecord(
-            business_unit_slug="uva",
+            business_unit_slug=options["business_unit"],
             country_code=country_code,
             ad_platform_slug="google-ads",
             spend_date=target_date,
             spend_amount=spend_total,
             source_file="google-ads-api",
-            notes=f"Cuenta Google Ads {customer_id}.",
+            notes=self._spend_note(customer_id, unmapped_campaigns, fallback_campaigns),
         )
         category_metrics = []
         for slug, values in sorted(spend_by_category.items()):
             cpa = (values["google"] / values["results"]) if values["results"] else None
             category_metrics.append(
                 CategoryMetricRecord(
-                    business_unit_slug="uva",
+                    business_unit_slug=options["business_unit"],
                     country_code=country_code,
                     category_slug=slug,
                     category_name=slug.replace("-", " ").title(),

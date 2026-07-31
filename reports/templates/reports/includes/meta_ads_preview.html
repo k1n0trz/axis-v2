@@ -157,7 +157,7 @@
     <button type="button" data-meta-next aria-label="Pagina siguiente">Siguiente</button>
   </div>
   {% else %}
-  <div class="empty-state p-4">{{ meta_ads_preview.message }}</div>
+  {% include "reports/includes/meta_ads_pending.html" with preview=meta_ads_preview comfama_scope=meta_ads_scope|default:"exclude" %}
   {% endif %}
 </div>
 <div class="modal fade meta-ad-modal" id="metaAdModal" tabindex="-1" aria-labelledby="metaAdModalTitle" aria-hidden="true">

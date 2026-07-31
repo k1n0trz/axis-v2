@@ -19,7 +19,7 @@ class Command(BaseCommand):
         parser.add_argument("--dry-run", action="store_true")
         parser.add_argument("--continue-on-error", action="store_true")
         parser.add_argument("--meta-rules", default="docs/mappings/meta-category-rules.example.json")
-        parser.add_argument("--google-rules", default="docs/mappings/google-category-rules.example.json")
+        parser.add_argument("--google-rules", default="docs/mappings/google-category-rules.json")
         parser.add_argument(
             "--onedrive-sales-lookback-days",
             type=int,
@@ -211,21 +211,21 @@ class Command(BaseCommand):
             tasks.append(
                 {
                     "name": "Google Ads Colombia",
-                    "command": ["fetch_google_ads", "--date", day, "--country", "CO", "--rules", options["google_rules"], "--sync-axis"],
+                    "command": ["fetch_google_ads", "--date", day, "--country", "CO", "--rules", options["google_rules"], "--count-unmapped-spend", "--sync-axis"],
                 }
             )
         if getattr(settings, "GOOGLE_ADS_MX_CUSTOMER_ID", "") and not getattr(settings, "ONEDRIVE_GOOGLE_ADS_FILE_PATH", ""):
             tasks.append(
                 {
                     "name": "Google Ads Mexico",
-                    "command": ["fetch_google_ads", "--date", day, "--country", "MX", "--currency", "MXN", "--rules", options["google_rules"], "--sync-axis"],
+                    "command": ["fetch_google_ads", "--date", day, "--country", "MX", "--currency", "MXN", "--rules", options["google_rules"], "--count-unmapped-spend", "--sync-axis"],
                 }
             )
         if getattr(settings, "GOOGLE_ADS_EC_CUSTOMER_ID", "") and not getattr(settings, "ONEDRIVE_GOOGLE_ADS_FILE_PATH", ""):
             tasks.append(
                 {
                     "name": "Google Ads Ecuador",
-                    "command": ["fetch_google_ads", "--date", day, "--country", "EC", "--currency", "COP", "--rules", options["google_rules"], "--sync-axis"],
+                    "command": ["fetch_google_ads", "--date", day, "--country", "EC", "--currency", "COP", "--rules", options["google_rules"], "--count-unmapped-spend", "--sync-axis"],
                 }
             )
         if getattr(settings, "SHOPIFY_BALI_SHOP_DOMAIN", ""):

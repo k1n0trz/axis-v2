@@ -89,6 +89,14 @@ def _merge_source_files(existing_source, new_source, max_length=255):
 
 
 def parse_decimal(value):
+    """Version propia del workbook de Google Ads.
+
+    No usa `reports.utils.numbers.parse_decimal` porque aqui openpyxl ya entrega
+    Decimal y hay que deshacer un formato del archivo: un valor menor que 1000
+    con exactamente tres decimales viene de un separador de miles mal leido
+    ("1.234" es 1234, no 1,234). El modulo compartido aplica esa misma regla,
+    pero sobre texto; sobre un Decimal ya construido no puede verla.
+    """
     if value in (None, ""):
         return Decimal("0")
     if isinstance(value, Decimal):

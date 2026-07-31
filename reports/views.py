@@ -42,8 +42,9 @@ from .models import AdPlatform, Attachment, BusinessUnit, Channel, Country, Dail
 from .services.analytics import attachments, build_dashboard_summary, build_filter_dict, build_unit_summary, weekly_tasks
 from .services.excel_master import build_master_workbook, commit_master_import, create_export_job, preview_master_import
 from .services.marketplace_inventory import marketplace_inventory_snapshot
-from .services.sales_dashboard import build_ad_platform_performance, build_awn_international_snapshot, build_bali_product_detail, build_bali_snapshot, build_comfama_snapshot, build_copa_uva_country_comparison, build_ecuador_snapshot, build_marketplace_product_detail, build_sales_snapshot, build_uva_category_country_comparison, build_uva_category_snapshot, build_uva_geo_map_data, build_uva_meta_ads_preview, build_uva_product_detail, ensure_ad_platform_catalogs, ensure_bali_catalogs, ensure_marketplace_catalogs, ensure_uva_catalogs, remove_colombia_vat
-from .services.website_monitor import latest_checks_by_website, seed_websites
+from .services.sales_dashboard import build_ad_platform_performance, build_awn_international_snapshot, build_bali_product_detail, build_bali_snapshot, build_comfama_snapshot, build_copa_uva_country_comparison, build_ecuador_snapshot, build_marketplace_product_detail, build_sales_snapshot, build_uva_category_country_comparison, build_uva_category_snapshot, build_uva_geo_map_data, build_uva_meta_ads_preview, build_uva_product_detail, remove_colombia_vat
+from .query_cache import memoize_per_request
+from .services.website_monitor import latest_checks_by_website
 
 MASTER_IMPORT_SESSION_KEY = "master_import_preview"
 MARKETPLACE_GROUP = "Marketplace"
@@ -108,6 +109,7 @@ def _safe_user_profile(user):
         return None
 
 
+@memoize_per_request
 def _managed_user_ids(user):
     if not user.is_authenticated:
         return []
@@ -1214,14 +1216,14 @@ def _executive_dashboard_context(request, active_key, title, subtitle, filter_ov
         "sales_by_unit_json": json.dumps(summary["sales_by_unit"]),
         "sales_by_channel_json": json.dumps(summary["sales_by_channel"]),
         "combined_series_json": json.dumps(sales_snapshot.get("combined_series", [])),
-        "ad_platform_performance_json": json.dumps(build_ad_platform_performance(filters)),
+        "ad_platform_performance_json": json.dumps(build_ad_platform_performance(filters, sales_snapshot)),
         "is_uva_all_countries": active_key == "uva" and not filters.get("country"),
         "show_non_dashboard_kpis": active_key != "dashboard" and not (active_key == "uva" and not filters.get("country")),
         "show_comfama_panel": active_key == "dashboard" or (active_key == "uva" and filters.get("country") == "CO"),
     }
     if active_key == "uva":
         context["product_category_snapshot"] = build_uva_category_snapshot(filters)
-        context["uva_meta_ads_preview"] = build_uva_meta_ads_preview(filters)
+        context["uva_meta_ads_preview"] = build_uva_meta_ads_preview(filters, allow_live_fetch=False)
         context["category_profitability_json"] = json.dumps(context["product_category_snapshot"].get("profitability_json", []))
         if not filters.get("country"):
             context["uva_category_country_snapshot"] = build_uva_category_country_comparison(filters)
@@ -1324,6 +1326,28 @@ def _website_headers_class(check):
     return "yellow"
 
 
+def _website_products_summary(check):
+    """Etiqueta y color del catalogo visible.
+
+    Distingue "no se pudo leer" de "leimos y hay cero", que antes se veian igual.
+    """
+    if not check:
+        return "Sin dato", "muted"
+    estado = check.products_visible_status
+    if estado == "ok":
+        agotados = check.products_out_of_stock_count or 0
+        if agotados:
+            return f"{check.products_in_stock_count or 0} en stock, {agotados} agotados", "yellow"
+        return f"{check.products_in_stock_count or 0} en stock", "green"
+    if estado == "empty":
+        return "La tienda no devolvio productos", "red"
+    if estado == "blocked":
+        return "La tienda no permitio leer el catalogo", "yellow"
+    if estado == "not_configured":
+        return "Sin lectura de catalogo para esta plataforma", "muted"
+    return "Sin dato", "muted"
+
+
 def _website_score(check):
     if not check:
         return 0
@@ -1409,16 +1433,21 @@ def _website_cards(websites, latest_checks, history_by_website=None):
         pagespeed_label = "No medido"
         if check and check.pagespeed_status == "ok":
             pagespeed_label = "Medido"
+        elif check and check.pagespeed_status == "stale":
+            pagespeed_label = "Ultima medicion disponible"
         elif check and check.pagespeed_status == "quota_exceeded":
             pagespeed_label = "Sin cuota"
         performance_score = check.performance_score if check and check.performance_score is not None else _website_score(check)
         accessibility_score = check.accessibility_score if check else None
         best_practices_score = check.best_practices_score if check else None
         seo_score = check.seo_score if check else None
+        products_label, products_status_class = _website_products_summary(check)
         cards.append(
             {
                 "website": website,
                 "check": check,
+                "products_label": products_label,
+                "products_status_class": products_status_class,
                 "score": _website_score(check),
                 "performance_circle_score": performance_score,
                 "performance_status_class": _website_score_class(performance_score),
@@ -1448,7 +1477,8 @@ def websites_module(request):
     if limited_redirect:
         return limited_redirect
 
-    seed_websites()
+    # La siembra vive en la migracion 0055 y en sync_websites_health. Hacerla
+    # aqui escribia 4 filas en cada carga de la pagina.
 
     today = timezone.localdate()
     default_start = today - timedelta(days=30)
@@ -1495,7 +1525,8 @@ def web_sales_report(request):
     limited_redirect = _redirect_bali_whatsapp_user(request)
     if limited_redirect:
         return limited_redirect
-    ensure_uva_catalogs()
+    # Los catalogos se siembran con `manage.py ensure_axis_catalogs` y en los
+    # comandos de importacion. Hacerlo aqui escribia en la base en cada carga.
     filter_form, filters = _global_filter_context(request, defaults=_web_sales_default_filters())
 
     initial_business_unit = BusinessUnit.objects.filter(slug=filters.get("business_unit") or "uva").first()
@@ -1546,7 +1577,7 @@ def web_sales_report(request):
         "sales_row_count": sales_snapshot["row_count"],
         "sales_by_day_json": json.dumps(sales_snapshot.get("sales_by_day", [])),
         "sales_by_channel_json": json.dumps(sales_snapshot.get("sales_by_channel", [])),
-        "ad_platform_performance_json": json.dumps(build_ad_platform_performance(filters)),
+        "ad_platform_performance_json": json.dumps(build_ad_platform_performance(filters, sales_snapshot)),
         "snapshot": sales_snapshot,
     }
     return render(request, "reports/web_sales.html", context)
@@ -1560,8 +1591,9 @@ def ad_spend_report(request):
     limited_redirect = _redirect_bali_whatsapp_user(request)
     if limited_redirect:
         return limited_redirect
-    ensure_uva_catalogs()
-    platforms = ensure_ad_platform_catalogs()
+    # Los catalogos se siembran con `manage.py ensure_axis_catalogs` y en los
+    # comandos de importacion. Hacerlo aqui escribia en la base en cada carga.
+    platforms = {platform.slug: platform for platform in AdPlatform.objects.filter(is_active=True)}
     filter_form, filters = _global_filter_context(request, defaults=_ad_spend_default_filters())
 
     initial_business_unit = BusinessUnit.objects.filter(slug=filters.get("business_unit") or "uva").first()
@@ -1620,7 +1652,7 @@ def ad_spend_report(request):
         "sales_by_day_json": json.dumps(snapshot.get("sales_by_day", [])),
         "spend_by_day_json": json.dumps(snapshot.get("spend_by_day", [])),
         "roas_by_day_json": json.dumps(snapshot.get("roas_by_day", [])),
-        "ad_platform_performance_json": json.dumps(build_ad_platform_performance(filters)),
+        "ad_platform_performance_json": json.dumps(build_ad_platform_performance(filters, snapshot)),
     }
     return render(request, "reports/ad_spend.html", context)
 
@@ -1685,7 +1717,7 @@ def uva_comfama_module(request):
         return limited_redirect
     filter_form, filters = _global_filter_context(request, defaults=_dashboard_default_filters(), overrides={"business_unit": "uva", "country": "CO"})
     comfama_snapshot = build_comfama_snapshot(filters)
-    comfama_meta_ads_preview = build_uva_meta_ads_preview(filters, comfama_scope="only")
+    comfama_meta_ads_preview = build_uva_meta_ads_preview(filters, comfama_scope="only", allow_live_fetch=False)
     context = {
         **_sidebar_context("uva_comfama", request),
         "page_title": "Uva Comfama",
@@ -1797,7 +1829,8 @@ def distrisex_ecuador_module(request):
 
 @never_cache
 def bali_module(request):
-    ensure_bali_catalogs()
+    # Los catalogos se siembran con `manage.py ensure_axis_catalogs` y en los
+    # comandos de importacion. Hacerlo aqui escribia en la base en cada carga.
     tab = request.GET.get("tab", "resumen")
     filter_form, filters = _global_filter_context(request, defaults=_dashboard_default_filters(), overrides={"business_unit": "bali", "country": "CO"})
     snapshot = build_bali_snapshot(filters)
@@ -1820,6 +1853,32 @@ def bali_module(request):
         "bali_community_daily_json": json.dumps(snapshot.get("community", {}).get("daily_series", [])),
     }
     return render(request, "reports/unit_bali.html", context)
+
+
+@require_POST
+def uva_meta_ads_panel_api(request):
+    """Trae de Meta el panel de anuncios y lo deja en cache.
+
+    La pagina ya no espera esta llamada: /uva/ tardaba 16 s con la cache fria
+    porque el render se quedaba bloqueado en varias peticiones HTTP a Meta. Ahora
+    la pagina sale de inmediato con el panel en `pending` y el navegador pide este
+    endpoint aparte, con un timeout holgado.
+    """
+    filters = {
+        "country": request.POST.get("country") or "",
+        "date_start": request.POST.get("date_start") or "",
+        "date_end": request.POST.get("date_end") or "",
+    }
+    scope = "only" if request.POST.get("comfama_scope") == "only" else "exclude"
+    timeout = getattr(settings, "META_ADS_PREVIEW_PANEL_TIMEOUT", 60)
+    preview = build_uva_meta_ads_preview(filters, comfama_scope=scope, timeout=timeout)
+    return JsonResponse(
+        {
+            "ok": not preview.get("pending"),
+            "ad_count": len(preview.get("ads") or []),
+            "message": preview.get("message") or "",
+        }
+    )
 
 
 @require_http_methods(["GET"])
@@ -1850,7 +1909,8 @@ def marketplace_module(request):
     limited_redirect = _redirect_bali_whatsapp_user(request)
     if limited_redirect:
         return limited_redirect
-    ensure_marketplace_catalogs()
+    # Los catalogos se siembran con `manage.py ensure_axis_catalogs` y en los
+    # comandos de importacion. Hacerlo aqui escribia en la base en cada carga.
     filter_form, filters = _global_filter_context(request, defaults=_dashboard_default_filters(), overrides={"business_unit": "marketplace"})
     selected_channel = request.GET.get("channel", "")
     if selected_channel:

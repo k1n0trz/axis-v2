@@ -1,21 +1,18 @@
 import re
 from collections import defaultdict
 from pathlib import Path
-import unicodedata
 
 from django.core.management.base import BaseCommand, CommandError
 from openpyxl import load_workbook
 
 from reports.models import Channel, Country, DailyAdSpend, DailyChannelSale, DailyProductCategoryMetric, DailyProductCategorySale, ProductCategory
-from reports.services.sales_dashboard import ensure_ad_platform_catalogs, ensure_uva_catalogs, parse_decimal, parse_excel_date, uva_category_slug_from_product_name, uva_exchange_rate_for_country
+from reports.services.sales_dashboard import ensure_ad_platform_catalogs, ensure_uva_catalogs, parse_excel_date, uva_category_slug_from_product_name, uva_exchange_rate_for_country
+from reports.utils.numbers import normalize_header, parse_decimal
 
 
 PRODUCT_QTY_RE = re.compile(r"^\s*(\d+)\s*[xX×]\s*(.+?)\s*$")
 
 
-def normalize_header(value):
-    raw = unicodedata.normalize("NFKD", str(value or "").strip().lower())
-    return "".join(char for char in raw if not unicodedata.combining(char))
 
 
 def category_for_product(product_name, file_name):

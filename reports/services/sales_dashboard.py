@@ -14,7 +14,9 @@ from openpyxl.utils.datetime import from_excel
 from django.utils.text import slugify
 
 from reports.integrations.clients import MetaAdsClient
+from reports.query_cache import memoize_per_request
 from reports.models import AdPlatform, AwnInternationalFollowerMetric, BaliCommunityWebcamMetric, BaliDailyMetric, BaliWebProductDailyMetric, BusinessUnit, Channel, ComfamaAdMetric, ComfamaSale, Country, DailyAdSpend, DailyChannelSale, DailyGeoAdMetric, DailyProductCategoryMetric, DailyProductCategorySale, MarketplaceProductInventory, Product, ProductCategory, SalesTransaction
+from reports.utils.numbers import parse_decimal, parse_quantity
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,18 @@ ZERO = Decimal("0")
 COLOMBIA_VAT_DIVISOR = Decimal("1.19")
 MONEY_QUANT = Decimal("0.01")
 ECUADOR_USD_TO_COP_RATE = Decimal("3700")
+
+# Canales que cuentan como venta web y como venta por WhatsApp en el tablero
+# general. La lista es explicita a proposito: el clasificador generico de
+# `_channel_group` da falsos positivos ("bali-community-webcam" contiene "web"),
+# y antes esto estaba escrito como `slug == "ecommerce-uva"` repartido en seis
+# lugares, asi que cualquier marca nueva entraba al total pero no al desglose.
+WEB_CHANNEL_SLUGS = {"ecommerce-uva", "ecommerce-distrisex"}
+WHATSAPP_CHANNEL_PREFIXES = ("whatsapp-uva-", "whatsapp-distrisex")
+
+
+def _is_whatsapp_channel(slug):
+    return bool(slug) and slug.startswith(WHATSAPP_CHANNEL_PREFIXES)
 MEXICO_MXN_TO_COP_RATE = Decimal("200")
 
 
@@ -219,19 +233,6 @@ def parse_excel_date(value):
     return None
 
 
-def parse_decimal(value):
-    raw = str(value or "").strip().replace(",", "")
-    if not raw:
-        return ZERO
-    try:
-        return Decimal(raw)
-    except (InvalidOperation, TypeError, ValueError):
-        return ZERO
-
-
-def parse_quantity(value):
-    number = parse_decimal(value)
-    return int(number) if number > 0 else 0
 
 
 def ensure_uva_catalogs():
@@ -383,6 +384,7 @@ def _category_scope_slugs(filters):
     return None
 
 
+@memoize_per_request
 def product_category_metrics(filters, limit=None):
     queryset = DailyProductCategoryMetric.objects.select_related("business_unit", "country", "category")
     if filters.get("date_start"):
@@ -401,6 +403,7 @@ def product_category_metrics(filters, limit=None):
     return list(queryset)
 
 
+@memoize_per_request
 def product_category_channel_sales(filters, channel_slug=None, limit=None):
     queryset = DailyProductCategorySale.objects.select_related("business_unit", "country", "channel", "category")
     if filters.get("date_start"):
@@ -1046,6 +1049,24 @@ def bali_physical_store_sales(filters):
     return list(queryset.filter(business_unit__slug="bali", channel__slug="bali-tienda-fisica").order_by("sale_date"))
 
 
+@memoize_per_request
+def _latest_bali_community_story():
+    """Ultima historia con captura. No depende del rango de fechas.
+
+    `build_bali_snapshot` corre dos veces por peticion, una para el periodo y otra
+    para la comparacion, y esta lectura estaba escrita dentro, asi que se repetia
+    identica.
+    """
+    return (
+        BaliCommunityWebcamMetric.objects.select_related("business_unit", "country")
+        .filter(business_unit__slug="bali", country__code="CO")
+        .exclude(story_screenshot="")
+        .order_by("-updated_at", "-metric_date")
+        .first()
+    )
+
+
+@memoize_per_request
 def bali_community_webcam_metrics(filters):
     queryset = BaliCommunityWebcamMetric.objects.select_related("business_unit", "country")
     if filters.get("date_start"):
@@ -1595,13 +1616,7 @@ def build_bali_snapshot(filters, include_comparison=True):
     community_days = len(community_rows)
     community_average_new = _safe_ratio(Decimal(community_total_new), Decimal(community_days))
     community_story_url = ""
-    latest_story_metric = (
-        BaliCommunityWebcamMetric.objects.select_related("business_unit", "country")
-        .filter(business_unit__slug="bali", country__code="CO")
-        .exclude(story_screenshot="")
-        .order_by("-updated_at", "-metric_date")
-        .first()
-    )
+    latest_story_metric = _latest_bali_community_story()
     if latest_story_metric and latest_story_metric.story_screenshot:
         try:
             storage = latest_story_metric.story_screenshot.storage
@@ -2441,12 +2456,18 @@ def _build_meta_ads_pacing_insights(ads):
     return {"positive": positive[:3], "negative": negative[:3]}
 
 
-def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude", force_refresh=False, timeout=None):
+def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude", force_refresh=False, timeout=None, allow_live_fetch=True):
     """Construye el panel de anuncios activos de Meta.
 
     `force_refresh` y `timeout` existen para el precalentamiento en segundo
     plano (ver el comando warm_meta_ads_preview): alli conviene ignorar la
     cache y esperar a Meta lo que haga falta, porque nadie esta mirando.
+
+    `allow_live_fetch=False` es lo que usan las vistas. La llamada a Meta son
+    varias peticiones HTTP encadenadas y medi 16 s en /uva/ con la cache fria,
+    con el usuario esperando la pagina completa. Sin permiso para ir a Meta, la
+    funcion devuelve lo que haya en cache o un estado `pending`, y el panel se
+    completa despues con una peticion aparte.
     """
     requested_country = (filters.get("country") or "").upper()
     country_code = requested_country or "CO"
@@ -2478,6 +2499,17 @@ def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude", for
         cached_preview = cache.get(cache_key)
         if cached_preview is not None:
             return cached_preview
+
+    if not allow_live_fetch:
+        return {
+            "ads": [],
+            "pacing_insights": {"positive": [], "negative": []},
+            "country_code": country_code,
+            "country_label": country_label,
+            "requires_country": False,
+            "pending": True,
+            "message": f"Preparando los anuncios activos de {country_label}. El panel se completa en unos segundos.",
+        }
 
     fallback_ttl = _setting_int("META_ADS_PREVIEW_FALLBACK_CACHE_SECONDS", 120)
 
@@ -3316,20 +3348,20 @@ def _build_snapshot_response(daily_rows, spend_rows, filters, limit, row_mode):
     if row_mode == "daily":
         sales_total_with_vat = sum((row.sales_amount for row in daily_rows), ZERO)
         sales_total = sum((sales_value(row.sales_amount) for row in daily_rows), ZERO)
-        sales_whatsapp_with_vat = sum((row.sales_amount for row in daily_rows if row.channel and row.channel.slug.startswith("whatsapp-uva-")), ZERO)
-        sales_web_with_vat = sum((row.sales_amount for row in daily_rows if row.channel and row.channel.slug == "ecommerce-uva"), ZERO)
-        sales_whatsapp = sum((sales_value(row.sales_amount) for row in daily_rows if row.channel and row.channel.slug.startswith("whatsapp-uva-")), ZERO)
-        sales_web = sum((sales_value(row.sales_amount) for row in daily_rows if row.channel and row.channel.slug == "ecommerce-uva"), ZERO)
+        sales_whatsapp_with_vat = sum((row.sales_amount for row in daily_rows if row.channel and _is_whatsapp_channel(row.channel.slug)), ZERO)
+        sales_web_with_vat = sum((row.sales_amount for row in daily_rows if row.channel and row.channel.slug in WEB_CHANNEL_SLUGS), ZERO)
+        sales_whatsapp = sum((sales_value(row.sales_amount) for row in daily_rows if row.channel and _is_whatsapp_channel(row.channel.slug)), ZERO)
+        sales_web = sum((sales_value(row.sales_amount) for row in daily_rows if row.channel and row.channel.slug in WEB_CHANNEL_SLUGS), ZERO)
         order_count = sum((getattr(row, "order_count", 0) or getattr(row, "quantity", 0) or 0) for row in daily_rows)
         direct_units = sum((getattr(row, "units", 0) or getattr(row, "quantity", 0) or 0) for row in daily_rows)
         direct_spend_total = sum((getattr(row, "spend_amount", ZERO) or ZERO) for row in daily_rows)
     else:
         sales_total_with_vat = sum((row.sale_value for row in daily_rows), ZERO)
         sales_total = sum((sales_value(row.sale_value) for row in daily_rows), ZERO)
-        sales_whatsapp_with_vat = sum((row.sale_value for row in daily_rows if row.channel and row.channel.slug.startswith("whatsapp-uva-")), ZERO)
-        sales_web_with_vat = sum((row.sale_value for row in daily_rows if row.channel and row.channel.slug == "ecommerce-uva"), ZERO)
-        sales_whatsapp = sum((sales_value(row.sale_value) for row in daily_rows if row.channel and row.channel.slug.startswith("whatsapp-uva-")), ZERO)
-        sales_web = sum((sales_value(row.sale_value) for row in daily_rows if row.channel and row.channel.slug == "ecommerce-uva"), ZERO)
+        sales_whatsapp_with_vat = sum((row.sale_value for row in daily_rows if row.channel and _is_whatsapp_channel(row.channel.slug)), ZERO)
+        sales_web_with_vat = sum((row.sale_value for row in daily_rows if row.channel and row.channel.slug in WEB_CHANNEL_SLUGS), ZERO)
+        sales_whatsapp = sum((sales_value(row.sale_value) for row in daily_rows if row.channel and _is_whatsapp_channel(row.channel.slug)), ZERO)
+        sales_web = sum((sales_value(row.sale_value) for row in daily_rows if row.channel and row.channel.slug in WEB_CHANNEL_SLUGS), ZERO)
         order_count = len(daily_rows)
         direct_units = 0
         direct_spend_total = ZERO
@@ -3338,13 +3370,13 @@ def _build_snapshot_response(daily_rows, spend_rows, filters, limit, row_mode):
     spend_total = direct_spend_total or ad_spend_total
     category_sales_rows = product_category_channel_sales(filters) if row_mode == "daily" else []
     product_quantity = sum((row.quantity or 0 for row in category_sales_rows), 0) or direct_units
-    product_quantity_web = sum((row.quantity or 0 for row in category_sales_rows if row.channel and row.channel.slug == "ecommerce-uva"), 0)
-    product_quantity_whatsapp = sum((row.quantity or 0 for row in category_sales_rows if row.channel and row.channel.slug.startswith("whatsapp-uva-")), 0)
+    product_quantity_web = sum((row.quantity or 0 for row in category_sales_rows if row.channel and row.channel.slug in WEB_CHANNEL_SLUGS), 0)
+    product_quantity_whatsapp = sum((row.quantity or 0 for row in category_sales_rows if row.channel and _is_whatsapp_channel(row.channel.slug)), 0)
     daily_order_counts = _daily_order_counts_by_channel(filters) if row_mode == "daily" else defaultdict(int)
     order_count_web = daily_order_counts.get("Web", 0)
     order_count_whatsapp = daily_order_counts.get("WhatsApp", 0)
-    category_order_count_whatsapp = len([row for row in category_sales_rows if row.channel and row.channel.slug.startswith("whatsapp-uva-")])
-    order_count_web = order_count_web or sum((getattr(row, "order_count", 0) or 0) for row in daily_rows if row_mode == "daily" and row.channel and row.channel.slug == "ecommerce-uva")
+    category_order_count_whatsapp = len([row for row in category_sales_rows if row.channel and _is_whatsapp_channel(row.channel.slug)])
+    order_count_web = order_count_web or sum((getattr(row, "order_count", 0) or 0) for row in daily_rows if row_mode == "daily" and row.channel and row.channel.slug in WEB_CHANNEL_SLUGS)
     order_count_whatsapp = order_count_whatsapp or category_order_count_whatsapp
     ticket_order_count = (order_count_web + order_count_whatsapp) or order_count
     average_ticket_denominator = ticket_order_count
@@ -3585,6 +3617,7 @@ def apply_sales_filters(queryset, filters):
     return queryset
 
 
+@memoize_per_request
 def sales_transactions(filters, limit=None):
     queryset = SalesTransaction.objects.select_related("business_unit", "country", "channel", "product")
     queryset = apply_sales_filters(queryset, filters)
@@ -3593,6 +3626,7 @@ def sales_transactions(filters, limit=None):
     return list(queryset)
 
 
+@memoize_per_request
 def daily_channel_sales(filters, limit=None):
     queryset = DailyChannelSale.objects.select_related("business_unit", "country", "channel")
     if filters.get("date_start"):
@@ -3610,6 +3644,7 @@ def daily_channel_sales(filters, limit=None):
     return list(queryset)
 
 
+@memoize_per_request
 def daily_ad_spends(filters, limit=None):
     queryset = DailyAdSpend.objects.select_related("business_unit", "country", "ad_platform")
     if filters.get("date_start"):
@@ -3655,9 +3690,15 @@ def build_sales_snapshot(filters, limit=100, include_comparison=True):
     return snapshot
 
 
-def build_ad_platform_performance(filters):
+def build_ad_platform_performance(filters, sales_snapshot=None):
+    """Inversion por plataforma y ROAS de referencia.
+
+    `sales_snapshot` evita reconstruir un snapshot completo solo para leer
+    `sales_total`: las vistas que llaman aqui ya tienen uno calculado.
+    """
     spend_rows = daily_ad_spends(filters)
-    sales_snapshot = build_sales_snapshot(filters, include_comparison=False)
+    if sales_snapshot is None:
+        sales_snapshot = build_sales_snapshot(filters, include_comparison=False)
     sales_total = Decimal(str(sales_snapshot["kpis"]["sales_total"] or 0))
     grouped = defaultdict(lambda: ZERO)
     for row in spend_rows:

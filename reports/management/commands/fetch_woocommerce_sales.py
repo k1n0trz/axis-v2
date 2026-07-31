@@ -40,6 +40,15 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--date", required=True)
         parser.add_argument("--country", default="CO")
+        parser.add_argument(
+            "--store",
+            default="",
+            help=(
+                "Prefijo de settings de la tienda (WOOCOMMERCE_<STORE>_*). Por defecto el "
+                "del pais. Existe porque DistriSex vende en Colombia con su propia tienda: "
+                "el pais define moneda y tasa, la tienda define credenciales."
+            ),
+        )
         parser.add_argument("--business-unit", default="uva")
         parser.add_argument("--channel-slug", default="ecommerce-uva")
         parser.add_argument("--base-url", default="")
@@ -52,11 +61,20 @@ class Command(BaseCommand):
         parser.add_argument("--statuses", default="completed,on-hold,processing")
         parser.add_argument("--sales-mode", choices=("net", "gross"), default="net")
         parser.add_argument("--debug-orders", action="store_true")
+        parser.add_argument(
+            "--skip-category-sales",
+            action="store_true",
+            help=(
+                "Guarda solo el total del canal. Sin un mapa de categorias, cada producto "
+                "se convierte en su propia categoria: el catalogo mayorista de DistriSex "
+                "genera ~392 categorias basura por dia."
+            ),
+        )
         parser.add_argument("--sync-axis", action="store_true")
 
     def handle(self, *args, **options):
         target_date = options["date"]
-        prefix = env_prefix(options["country"])
+        prefix = env_prefix(options["store"] or options["country"])
         base_url = options["base_url"] or getattr(settings, f"{prefix}_BASE_URL", "")
         consumer_key = options["consumer_key"] or getattr(settings, f"{prefix}_CONSUMER_KEY", "")
         consumer_secret = options["consumer_secret"] or getattr(settings, f"{prefix}_CONSUMER_SECRET", "")
@@ -138,7 +156,9 @@ class Command(BaseCommand):
         official_sales_amount = self._official_report_amount(report_payload, daily["sales_amount"], rate)
         official_order_count = self._official_report_int(report_payload, "total_orders", daily["orders"])
         official_units = self._official_report_int(report_payload, "total_items", daily["units"])
-        residual_original = self._residual_original_amount(official_sales_amount, by_category, rate)
+        # El cajon de residuo es del catalogo de Uva: en otra marca crearia una
+        # categoria "otros-uva" que no significa nada.
+        residual_original = self._residual_original_amount(official_sales_amount, by_category, rate) if is_uva_import else Decimal("0")
         if residual_original:
             by_category["otros-uva"]["sales"] += residual_original * rate
             by_category["otros-uva"]["original"] += residual_original
@@ -172,13 +192,14 @@ class Command(BaseCommand):
                 notes="Productos fuente: " + ", ".join(sorted(values["products"])),
             )
             for slug, values in sorted(by_category.items())
-        ]
+        ] if not options["skip_category_sales"] else []
 
         if options["sync_axis"]:
             sync = AxisSyncService()
             sync.sync_channel_sales([channel_record])
-            self._delete_existing_api_category_sales(options, channel_record.sale_date)
-            sync.sync_category_sales(category_records)
+            if not options["skip_category_sales"]:
+                self._delete_existing_api_category_sales(options, channel_record.sale_date)
+                sync.sync_category_sales(category_records)
 
         self.stdout.write(
             json.dumps(

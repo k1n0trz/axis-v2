@@ -1,8 +1,7 @@
 import json
 from collections import defaultdict
 from datetime import date, timedelta
-from decimal import Decimal, InvalidOperation
-import unicodedata
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -13,11 +12,10 @@ from reports.integrations.clients import ExchangeRateClient, MicrosoftGraphClien
 from reports.integrations.schema import CategorySaleRecord, ChannelSaleRecord
 from reports.services.sales_dashboard import category_slug_from_product_name, parse_excel_date, uva_category_slug_from_product_name, uva_exchange_rate_for_country
 from reports.utils import onedrive
+from reports.utils.numbers import normalize_header, parse_decimal
+from reports.utils.unit_price_audit import UnitPriceAuditor
 
 
-def normalize_header(value):
-    raw = unicodedata.normalize("NFKD", str(value or "").strip().lower())
-    return "".join(char for char in raw if not unicodedata.combining(char))
 
 
 def display_name_for_category(slug):
@@ -103,7 +101,13 @@ class Command(BaseCommand):
         mapping = load_json_mapping(options["column_map"]) if options["column_map"] else {
             "date": ["fecha"],
             "product": ["producto"],
-            "amount": ["ventas", "valor", "total cop"],
+            # `amount` son columnas que ya traen el total de la linea.
+            # `unit_amount` son precios por unidad: hay que multiplicarlos por
+            # CANTIDAD. En las hojas de despachos, VALOR es precio unitario, y
+            # tratarlo como total hacia que toda linea de 2 o mas unidades se
+            # contara como una sola.
+            "amount": ["ventas", "total cop"],
+            "unit_amount": ["valor"],
             "shipping": ["envio"],
             "quantity": ["cantidad"],
             "currency": ["moneda"],
@@ -117,15 +121,7 @@ class Command(BaseCommand):
         rate = Decimal(str(options["exchange_rate"]))
         aggregated = defaultdict(lambda: {"sales": Decimal("0"), "original": Decimal("0"), "qty": 0, "products": set()})
         channel_totals = defaultdict(lambda: {"sales": Decimal("0"), "original": Decimal("0"), "qty": 0, "rows": 0})
-
-        def parse_decimal(value):
-            raw = str(value or "").strip().replace(",", "")
-            if not raw:
-                return Decimal("0")
-            try:
-                return Decimal(raw)
-            except (InvalidOperation, TypeError, ValueError):
-                return Decimal("0")
+        auditor = UnitPriceAuditor()
 
         def fallback_amount(normalized_row):
             keys = list(normalized_row.keys())
@@ -175,19 +171,44 @@ class Command(BaseCommand):
 
                 raw_date = pick(mapping["date"])
                 row_date = parse_excel_date(raw_date)
-                if row_date not in target_date_set:
+                if not row_date:
                     continue
+                # El filtro de fechas se aplica mas abajo, no aqui: el auditor
+                # necesita ver toda la hoja para saber cuanto vale cada producto.
+                # Si el precio de referencia tuviera que estar en el mismo dia que
+                # se importa, casi nunca habria con que comparar.
+                in_range = row_date in target_date_set
                 product_name = str(pick(mapping["product"]) or "").strip()
                 if not product_name:
                     continue
-                original_amount = parse_decimal(pick(mapping["amount"]))
-                if not original_amount:
-                    original_amount = fallback_amount(normalized_row)
+                qty = int(parse_decimal(pick(mapping["quantity"])) or 0)
+                # Una linea sin cantidad legible se cuenta como una unidad, que
+                # es el comportamiento anterior.
+                qty_factor = qty if qty > 0 else 1
+
+                line_amount = parse_decimal(pick(mapping.get("amount", [])))
+                if not line_amount:
+                    # VALOR (y el barrido de respaldo, que apunta a la misma
+                    # columna) es precio unitario: se multiplica por la cantidad.
+                    unit_amount = parse_decimal(pick(mapping.get("unit_amount", [])))
+                    if not unit_amount:
+                        # El archivo real no trae columna VALOR: el importe sale de
+                        # barrer las columnas entre CANTIDAD y ENVIO. El auditor debe
+                        # ver ese mismo valor, no la columna que no existe.
+                        unit_amount = fallback_amount(normalized_row)
+                    # La hoja tiene la convencion mezclada: algunas filas traen el
+                    # total de la linea en la columna de precio unitario, y
+                    # multiplicarlas las duplica. El auditor las señala al final.
+                    auditor.record(product_name, qty, unit_amount, reference=row_date.isoformat(), in_range=in_range)
+                    line_amount = unit_amount * qty_factor
+
+                if not in_range:
+                    continue
+
                 shipping_amount = parse_decimal(pick(mapping.get("shipping", [])))
-                original_amount += shipping_amount
+                original_amount = line_amount + shipping_amount
                 currency_value = pick(mapping.get("currency", []))
                 currency = str(currency_value or fallback_currency).upper()
-                qty = int(parse_decimal(pick(mapping["quantity"])) or 0)
                 row_channel_slug = channel_slug_for_row(options["country"], pick(mapping.get("channel", [])), options["channel_slug"])
                 effective_rate = uva_exchange_rate_for_country(options["country"].upper(), currency, rate)
                 if currency != "COP" and effective_rate == Decimal("1"):
@@ -274,11 +295,18 @@ class Command(BaseCommand):
             sync.sync_channel_sales(channel_records)
             sync.sync_category_sales(records)
 
+        # Las filas sospechosas van en el payload, no en un warning aparte: este
+        # comando lo corre el sync diario y su salida es JSON.
+        suspicious = [
+            {key: str(value) for key, value in warning.items()}
+            for warning in auditor.suspicious()
+        ]
         self.stdout.write(
             json.dumps(
                 {
                     "channel_sales": [item.to_dict() for item in channel_records],
                     "category_sales": [item.to_dict() for item in records],
+                    "suspicious_unit_prices": suspicious,
                 },
                 indent=2,
                 default=str,

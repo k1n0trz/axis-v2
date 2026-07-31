@@ -8,6 +8,7 @@ from openpyxl import load_workbook
 
 from reports.models import AdPlatform, BusinessUnit, ComfamaAdMetric, ComfamaProductReference, ComfamaSale, Country, DailyAdSpend, ProductCategory
 from reports.services.sales_dashboard import category_slug_from_product_name, normalize_text, parse_excel_date
+from reports.utils.numbers import parse_decimal
 
 
 REFERENCE_INFERENCE = (
@@ -31,14 +32,6 @@ CANONICAL_COMFAMA_REFERENCES = (
 )
 
 
-def parse_decimal(value):
-    raw = str(value or "").strip().replace(",", "")
-    if not raw:
-        return Decimal("0")
-    try:
-        return Decimal(raw)
-    except (InvalidOperation, TypeError, ValueError):
-        return Decimal("0")
 
 
 def clean_ref(value):

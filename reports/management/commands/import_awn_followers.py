@@ -1,16 +1,13 @@
 from pathlib import Path
-import unicodedata
 
 from django.core.management.base import BaseCommand, CommandError
 from openpyxl import load_workbook
 
 from reports.models import AwnInternationalFollowerMetric, Country
-from reports.services.sales_dashboard import ensure_uva_catalogs, parse_decimal, parse_excel_date
+from reports.services.sales_dashboard import ensure_uva_catalogs, parse_excel_date
+from reports.utils.numbers import normalize_header, parse_decimal
 
 
-def normalize_header(value):
-    raw = unicodedata.normalize("NFKD", str(value or "").strip().lower())
-    return "".join(char for char in raw if not unicodedata.combining(char))
 
 
 COUNTRY_ALIASES = {

@@ -1,0 +1,55 @@
+{% comment %}
+Estado del panel de Meta cuando no hay nada en cache.
+
+La pagina ya no espera a Meta: /uva/ tardaba 16 s con la cache fria porque el
+render se bloqueaba en varias peticiones HTTP encadenadas. Ahora sale de
+inmediato con este bloque, y el navegador pide el panel aparte.
+
+No hay riesgo de recargar en bucle: el endpoint deja en cache el resultado, sea
+exito o fallo, asi que la pagina recargada ya no vuelve a estar en `pending`.
+{% endcomment %}
+{% if preview.pending %}
+  <div class="empty-state p-4" data-meta-panel-pending
+       data-meta-panel-url="{% url 'reports:uva_meta_ads_panel_api' %}"
+       data-meta-panel-country="{{ preview.country_code|default:'' }}"
+       data-meta-panel-date-start="{{ filters.date_start|default:'' }}"
+       data-meta-panel-date-end="{{ filters.date_end|default:'' }}"
+       data-meta-panel-scope="{{ comfama_scope|default:'exclude' }}">
+    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+    {{ preview.message }}
+    {# El token se emite aqui: estas paginas filtran por GET y no siempre traen uno. #}
+    {% csrf_token %}
+  </div>
+  <script>
+    (function () {
+      var bloque = document.querySelector("[data-meta-panel-pending]");
+      if (!bloque) { return; }
+      var cuerpo = new URLSearchParams({
+        country: bloque.dataset.metaPanelCountry,
+        date_start: bloque.dataset.metaPanelDateStart,
+        date_end: bloque.dataset.metaPanelDateEnd,
+        comfama_scope: bloque.dataset.metaPanelScope,
+      });
+      var token = document.querySelector("[name=csrfmiddlewaretoken]");
+      fetch(bloque.dataset.metaPanelUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-CSRFToken": token ? token.value : "",
+        },
+        body: cuerpo.toString(),
+        credentials: "same-origin",
+      })
+        .then(function (respuesta) { return respuesta.ok ? respuesta.json() : null; })
+        .then(function (datos) {
+          if (datos && datos.ok) { window.location.reload(); return; }
+          bloque.textContent = (datos && datos.message) || "No fue posible cargar los anuncios de Meta.";
+        })
+        .catch(function () {
+          bloque.textContent = "No fue posible cargar los anuncios de Meta.";
+        });
+    })();
+  </script>
+{% else %}
+  <div class="empty-state p-4">{{ preview.message }}</div>
+{% endif %}
