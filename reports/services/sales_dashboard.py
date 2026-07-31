@@ -1,21 +1,16 @@
 from calendar import monthrange
 from collections import defaultdict
-from datetime import date, datetime, timedelta
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from datetime import date, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 import logging
-import unicodedata
 
-from django.conf import settings
-from django.core.cache import cache
-from django.utils import timezone
 from openpyxl import load_workbook
-from openpyxl.utils.datetime import from_excel
 from django.utils.text import slugify
 
 from reports.integrations.clients import MetaAdsClient
 from reports.query_cache import memoize_per_request
-from reports.models import AdPlatform, AwnInternationalFollowerMetric, BaliCommunityWebcamMetric, BaliDailyMetric, BaliWebProductDailyMetric, BusinessUnit, Channel, ComfamaAdMetric, ComfamaSale, Country, DailyAdSpend, DailyChannelSale, DailyGeoAdMetric, DailyProductCategoryMetric, DailyProductCategorySale, MarketplaceProductInventory, Product, ProductCategory, SalesTransaction
+from reports.models import AdPlatform, AwnInternationalFollowerMetric, BaliCommunityWebcamMetric, BaliDailyMetric, BaliWebProductDailyMetric, BusinessUnit, Channel, ComfamaAdMetric, ComfamaSale, Country, DailyAdSpend, DailyChannelSale, DailyProductCategoryMetric, DailyProductCategorySale, MarketplaceProductInventory, Product, ProductCategory, SalesTransaction
 from reports.utils.numbers import parse_decimal, parse_quantity
 from reports.services.common import (
     ZERO,
