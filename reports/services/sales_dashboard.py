@@ -17,10 +17,16 @@ from reports.integrations.clients import MetaAdsClient
 from reports.query_cache import memoize_per_request
 from reports.models import AdPlatform, AwnInternationalFollowerMetric, BaliCommunityWebcamMetric, BaliDailyMetric, BaliWebProductDailyMetric, BusinessUnit, Channel, ComfamaAdMetric, ComfamaSale, Country, DailyAdSpend, DailyChannelSale, DailyGeoAdMetric, DailyProductCategoryMetric, DailyProductCategorySale, MarketplaceProductInventory, Product, ProductCategory, SalesTransaction
 from reports.utils.numbers import parse_decimal, parse_quantity
+from reports.services.common import (
+    ZERO,
+    format_cop,
+    normalize_text,
+    safe_ratio as _safe_ratio,
+    setting_int as _setting_int,
+)
 
 logger = logging.getLogger(__name__)
 
-ZERO = Decimal("0")
 COLOMBIA_VAT_DIVISOR = Decimal("1.19")
 MONEY_QUANT = Decimal("0.01")
 ECUADOR_USD_TO_COP_RATE = Decimal("3700")
@@ -37,13 +43,6 @@ WHATSAPP_CHANNEL_PREFIXES = ("whatsapp-uva-", "whatsapp-distrisex")
 def _is_whatsapp_channel(slug):
     return bool(slug) and slug.startswith(WHATSAPP_CHANNEL_PREFIXES)
 MEXICO_MXN_TO_COP_RATE = Decimal("200")
-
-
-def _setting_int(name, default):
-    try:
-        return int(getattr(settings, name, default))
-    except (TypeError, ValueError):
-        return int(default)
 
 
 def uva_exchange_rate_for_country(country_code, currency, fallback_rate=None):
@@ -207,12 +206,6 @@ def subtract_one_month(today):
         month = today.month - 1
     day = min(today.day, monthrange(year, month)[1])
     return date(year, month, day)
-
-
-def normalize_text(value):
-    raw = str(value or "").strip()
-    normalized = unicodedata.normalize("NFKD", raw)
-    return "".join(char for char in normalized if not unicodedata.combining(char)).strip().lower()
 
 
 def parse_excel_date(value):
@@ -466,10 +459,6 @@ def _combined_direct_sales(filters, limit=None):
     rows = [*daily_rows, *category_rows]
     rows.sort(key=lambda item: item.sale_date, reverse=True)
     return rows[:limit] if limit else rows
-
-
-def _safe_ratio(numerator, denominator):
-    return (numerator / denominator) if denominator else ZERO
 
 
 def _daily_order_counts_by_channel(filters):
@@ -3053,11 +3042,6 @@ def build_uva_category_country_comparison(filters):
         "chart_rows": chart_rows,
         "category_count": len(cards),
     }
-
-
-def format_cop(value):
-    formatted = f"{float(value or 0):,.0f}".replace(",", ".")
-    return f"${formatted} COP"
 
 
 def category_image_url(category):
