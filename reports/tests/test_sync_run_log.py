@@ -189,3 +189,51 @@ class DistrisexEnElSyncDiarioTests(TestCase):
         )
         self.assertEqual(fuente, "onedrive_ecuador")
         self.assertEqual(fecha, date(2026, 7, 30))
+
+
+class GoogleAdsSiemprePorApiTests(TestCase):
+    """Google Ads entra por API, nunca por Excel.
+
+    Las cuatro tareas de Google Ads se apagaban si existia
+    ONEDRIVE_GOOGLE_ADS_FILE_PATH. En produccion esa variable apuntaba a
+    axis/google-ads.xlsx, un archivo que **no existe**: OneDrive responde 404. Con la
+    condicion puesta, la pauta de Google de Uva y Bali no entraba por ningun lado y la
+    tarea del workbook fallaba todos los dias.
+
+    En Excel solo hay ventas por WhatsApp (Uva Ecuador, Uva Colombia y Comfama).
+    """
+
+    def _nombres(self, **extra):
+        from django.test import override_settings
+
+        base = {
+            "GOOGLE_ADS_CO_CUSTOMER_ID": "7015245415",
+            "GOOGLE_ADS_MX_CUSTOMER_ID": "6143715017",
+            "GOOGLE_ADS_EC_CUSTOMER_ID": "6385600284",
+            "GOOGLE_ADS_BALI_CUSTOMER_ID": "4042093126",
+        }
+        base.update(extra)
+        with override_settings(**base):
+            tareas = Command()._build_tasks_for_dates(
+                [date(2026, 7, 30)],
+                {"meta_rules": "m.json", "google_rules": "g.json", "onedrive_sales_lookback_days": 1},
+            )
+        return [t["name"] for t in tareas]
+
+    def test_las_cuatro_cuentas_entran_por_api(self):
+        nombres = self._nombres()
+
+        for cuenta in ("Google Ads Colombia", "Google Ads Mexico", "Google Ads Ecuador", "Google Ads Bali"):
+            self.assertIn(cuenta, nombres)
+
+    def test_el_workbook_no_apaga_la_api(self):
+        # Esta era la regresion: con la variable puesta desaparecian las cuatro.
+        nombres = self._nombres(ONEDRIVE_GOOGLE_ADS_FILE_PATH="axis/google-ads.xlsx")
+
+        for cuenta in ("Google Ads Colombia", "Google Ads Mexico", "Google Ads Ecuador", "Google Ads Bali"):
+            self.assertIn(cuenta, nombres)
+
+    def test_no_queda_ninguna_tarea_que_lea_google_ads_de_excel(self):
+        nombres = self._nombres(ONEDRIVE_GOOGLE_ADS_FILE_PATH="axis/google-ads.xlsx")
+
+        self.assertNotIn("OneDrive Google Ads Workbook", nombres)

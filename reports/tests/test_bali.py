@@ -575,14 +575,20 @@ class BaliSyncCommandTests(TestCase):
         META_REPORTS_IMAP_USERNAME="",
         META_REPORTS_IMAP_PASSWORD="",
     )
-    def test_daily_sync_runs_google_ads_workbook_after_shopify_bali(self):
+    @override_settings(GOOGLE_ADS_BALI_CUSTOMER_ID="4042093126", SHOPIFY_BALI_SHOP_DOMAIN="bali.example")
+    def test_la_pauta_de_bali_se_importa_despues_de_sus_ventas(self):
+        """Primero Shopify, despues Google Ads: el ROAS necesita la venta cargada.
+
+        Antes la referencia era "OneDrive Google Ads Workbook", que ya no existe como
+        tarea: Google Ads entra por API.
+        """
         tasks = SyncAxisDailyDataCommand()._build_tasks(
             date(2026, 5, 13),
-            {"meta_rules": "docs/mappings/meta-category-rules.example.json", "google_rules": "docs/mappings/google-category-rules.example.json"},
+            {"meta_rules": "docs/mappings/meta-category-rules.example.json", "google_rules": "docs/mappings/google-category-rules.json"},
         )
         names = [task["name"] for task in tasks]
 
-        self.assertLess(names.index("Shopify Bali"), names.index("OneDrive Google Ads Workbook"))
+        self.assertLess(names.index("Shopify Bali"), names.index("Google Ads Bali"))
 
     @override_settings(
         WOOCOMMERCE_CO_BASE_URL="",
@@ -617,7 +623,11 @@ class BaliSyncCommandTests(TestCase):
         ]
 
         self.assertEqual(shopify_dates, ["2026-05-13", "2026-05-14"])
-        self.assertEqual(names.count("OneDrive Google Ads Workbook"), 1)
+        # La propiedad que importa: una tarea que no depende de la fecha no se repite
+        # por dia. Antes se fijaba usando "OneDrive Google Ads Workbook" como sujeto,
+        # y esa tarea ya no existe porque Google Ads entra por API.
+        sin_fecha = [task["name"] for task in tasks if "--date" not in task["command"]]
+        self.assertEqual(sorted(sin_fecha), sorted(set(sin_fecha)))
 
     @override_settings(
         WOOCOMMERCE_CO_BASE_URL="",

@@ -445,14 +445,20 @@ class GoogleAdsWorkbookImportTests(TestCase):
         ONEDRIVE_AWARENESS_FILE_PATH="",
         META_REPORTS_IMAP_HOST="",
     )
-    def test_daily_sync_prefers_onedrive_workbook_over_google_ads_api(self):
+    def test_el_workbook_ya_no_reemplaza_a_la_api_de_google_ads(self):
+        """Google Ads entra por API, aunque exista la ruta del workbook.
+
+        Esta prueba decia lo contrario y fijaba una decision que resulto costosa: con
+        ONEDRIVE_GOOGLE_ADS_FILE_PATH puesta se apagaban las cuatro cuentas. En
+        produccion apuntaba a axis/google-ads.xlsx, un archivo que no existe (OneDrive
+        responde 404), asi que la pauta de Google de Uva y Bali no entraba por ningun
+        lado. En Excel solo hay ventas por WhatsApp.
+        """
         command = SyncAxisDailyDataCommand()
         tasks = command._build_tasks(date(2026, 6, 24), {"meta_rules": "meta.json", "google_rules": "google.json"})
         names = [task["name"] for task in tasks]
 
-        self.assertIn("OneDrive Google Ads Workbook", names)
-        self.assertNotIn("Google Ads Colombia", names)
-        self.assertNotIn("Google Ads Mexico", names)
-        self.assertNotIn("Google Ads Ecuador", names)
-        self.assertNotIn("Google Ads Bali", names)
+        self.assertNotIn("OneDrive Google Ads Workbook", names)
+        for cuenta in ("Google Ads Colombia", "Google Ads Mexico", "Google Ads Ecuador", "Google Ads Bali"):
+            self.assertIn(cuenta, names)
 

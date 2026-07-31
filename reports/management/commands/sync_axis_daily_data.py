@@ -319,21 +319,27 @@ class Command(BaseCommand):
                     "command": ["fetch_meta_ads", "--date", day, "--country", "EC", "--currency", "COP", "--rules", options["meta_rules"], "--sync-axis"],
                 }
             )
-        if getattr(settings, "GOOGLE_ADS_CO_CUSTOMER_ID", "") and not getattr(settings, "ONEDRIVE_GOOGLE_ADS_FILE_PATH", ""):
+        # Google Ads entra SIEMPRE por API. Antes estas cuatro tareas se apagaban si
+        # existia ONEDRIVE_GOOGLE_ADS_FILE_PATH, y en produccion esa variable apuntaba
+        # a axis/google-ads.xlsx, un archivo que no existe: OneDrive responde 404. O
+        # sea que la pauta de Google de Uva y Bali no entraba por ningun lado, y la
+        # tarea del workbook fallaba todos los dias. En Excel solo hay ventas por
+        # WhatsApp (Uva Ecuador, Uva Colombia y Comfama), nunca Google Ads.
+        if getattr(settings, "GOOGLE_ADS_CO_CUSTOMER_ID", ""):
             tasks.append(
                 {
                     "name": "Google Ads Colombia",
                     "command": ["fetch_google_ads", "--date", day, "--country", "CO", "--rules", options["google_rules"], "--count-unmapped-spend", "--sync-axis"],
                 }
             )
-        if getattr(settings, "GOOGLE_ADS_MX_CUSTOMER_ID", "") and not getattr(settings, "ONEDRIVE_GOOGLE_ADS_FILE_PATH", ""):
+        if getattr(settings, "GOOGLE_ADS_MX_CUSTOMER_ID", ""):
             tasks.append(
                 {
                     "name": "Google Ads Mexico",
                     "command": ["fetch_google_ads", "--date", day, "--country", "MX", "--currency", "MXN", "--rules", options["google_rules"], "--count-unmapped-spend", "--sync-axis"],
                 }
             )
-        if getattr(settings, "GOOGLE_ADS_EC_CUSTOMER_ID", "") and not getattr(settings, "ONEDRIVE_GOOGLE_ADS_FILE_PATH", ""):
+        if getattr(settings, "GOOGLE_ADS_EC_CUSTOMER_ID", ""):
             tasks.append(
                 {
                     "name": "Google Ads Ecuador",
@@ -347,7 +353,7 @@ class Command(BaseCommand):
                     "command": ["fetch_shopify_bali", "--date", day, "--sync-axis"],
                 }
             )
-        if getattr(settings, "GOOGLE_ADS_BALI_CUSTOMER_ID", "") and not getattr(settings, "ONEDRIVE_GOOGLE_ADS_FILE_PATH", ""):
+        if getattr(settings, "GOOGLE_ADS_BALI_CUSTOMER_ID", ""):
             tasks.append(
                 {
                     "name": "Google Ads Bali",
@@ -368,13 +374,6 @@ class Command(BaseCommand):
                         "fetch_google_ads", "--date", day, "--country", "CO",
                         "--business-unit", "distrisex", "--count-unmapped-spend", "--sync-axis",
                     ],
-                }
-            )
-        if getattr(settings, "ONEDRIVE_GOOGLE_ADS_FILE_PATH", ""):
-            tasks.append(
-                {
-                    "name": "OneDrive Google Ads Workbook",
-                    "command": ["fetch_onedrive_google_ads", "--sync-axis"],
                 }
             )
         if (getattr(settings, "MERCADOLIBRE_CLIENT_ID", "") and getattr(settings, "MERCADOLIBRE_CLIENT_SECRET", "")) or getattr(settings, "MERCADOLIBRE_ACCESS_TOKEN", ""):
