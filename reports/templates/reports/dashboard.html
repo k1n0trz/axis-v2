@@ -105,7 +105,7 @@
       </div>
       <div class="mini-metric">
         <div class="mini-metric-label">ROAS filtrado</div>
-        <div class="mini-metric-value {{ summary.kpis.roas|roas_value_class }}">{{ summary.kpis.roas|floatformat:2 }} <span class="{{ summary.kpis.roas|roas_signal_class }}"></span></div>
+        <div class="mini-metric-value {{ summary.kpis.roas|roas_value_class:summary.filters.business_unit }}">{{ summary.kpis.roas|floatformat:2 }} <span class="{{ summary.kpis.roas|roas_signal_class:summary.filters.business_unit }}"></span></div>
       </div>
       <div class="mini-metric">
         <div class="mini-metric-label">Ordenes / unidades</div>
@@ -224,7 +224,7 @@
   </div>
   <div class="kpi-card compact">
     <small>ROAS</small>
-    <div class="kpi-value {{ summary.kpis.roas|roas_value_class }}">{{ summary.kpis.roas|floatformat:2 }} <span class="{{ summary.kpis.roas|roas_signal_class }}"></span></div>
+    <div class="kpi-value {{ summary.kpis.roas|roas_value_class:summary.filters.business_unit }}">{{ summary.kpis.roas|floatformat:2 }} <span class="{{ summary.kpis.roas|roas_signal_class:summary.filters.business_unit }}"></span></div>
   </div>
   <div class="kpi-card compact">
     <small>Ventas web</small>
@@ -829,7 +829,7 @@
         </div>
         <div class="mini-metric">
           <div class="mini-metric-label">ROAS</div>
-          <div class="mini-metric-value {{ summary.kpis.roas|roas_value_class }}">{{ summary.kpis.roas|floatformat:2 }} <span class="{{ summary.kpis.roas|roas_signal_class }}"></span></div>
+          <div class="mini-metric-value {{ summary.kpis.roas|roas_value_class:summary.filters.business_unit }}">{{ summary.kpis.roas|floatformat:2 }} <span class="{{ summary.kpis.roas|roas_signal_class:summary.filters.business_unit }}"></span></div>
         </div>
         <div class="mini-metric">
           <div class="mini-metric-label">Ticket promedio web</div>

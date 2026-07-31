@@ -258,3 +258,45 @@ class PautaDistrisexTests(TestCase):
         salida, _ = self._correr()
 
         self.assertEqual(salida["daily_spend"]["spend_amount"], "0")
+
+
+class SemaforoRoasTests(TestCase):
+    """DistriSex queda fuera del semaforo de ROAS.
+
+    Su ROAS real es ~1.500x porque el mayoreo no se mueve por pauta. Pintarlo
+    verde sugiere que la pauta funciona, cuando no es lo que sostiene el negocio.
+    """
+
+    def setUp(self):
+        from reports.templatetags import report_extras
+
+        self.report_extras = report_extras
+        report_extras._roas_cache().clear()
+
+    def test_distrisex_sale_neutral_aunque_el_roas_sea_altisimo(self):
+        self.assertEqual(
+            self.report_extras.roas_value_class(1500, "distrisex"),
+            "roas-value roas-value-neutral",
+        )
+        self.assertEqual(
+            self.report_extras.roas_signal_class(1500, "distrisex"),
+            "roas-signal roas-signal-neutral",
+        )
+
+    def test_las_demas_marcas_siguen_con_semaforo(self):
+        from reports.models import RoasTrafficLightSetting
+
+        RoasTrafficLightSetting.objects.create(name="Prueba", green_min=4, yellow_min=3)
+        self.report_extras._roas_cache().clear()
+
+        self.assertEqual(self.report_extras.roas_value_class(9, "uva"), "roas-value roas-value-green")
+        self.assertEqual(self.report_extras.roas_value_class(3.5, "bali"), "roas-value roas-value-yellow")
+        self.assertEqual(self.report_extras.roas_value_class(1, "marketplace"), "roas-value roas-value-red")
+
+    def test_sin_marca_el_filtro_sigue_funcionando_como_antes(self):
+        from reports.models import RoasTrafficLightSetting
+
+        RoasTrafficLightSetting.objects.create(name="Prueba", green_min=4, yellow_min=3)
+        self.report_extras._roas_cache().clear()
+
+        self.assertEqual(self.report_extras.roas_value_class(9), "roas-value roas-value-green")

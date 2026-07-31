@@ -195,6 +195,8 @@ body {
 .roas-value-green { color: var(--axis-success) !important; }
 .roas-value-yellow { color: var(--axis-warning) !important; }
 .roas-value-red { color: var(--axis-danger) !important; }
+.roas-signal-neutral { background: rgba(148, 163, 184, 0.1); color: var(--axis-text-muted, #94a3b8); border: 1px solid rgba(148, 163, 184, 0.2); }
+.roas-value-neutral { color: var(--axis-text-muted, #94a3b8) !important; }
 
 .form-control, .form-select {
   background: rgba(0, 0, 0, 0.2);

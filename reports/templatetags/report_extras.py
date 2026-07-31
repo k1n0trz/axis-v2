@@ -100,13 +100,25 @@ def percent_value(value):
     return f"{number:.1f}%".replace(".", ",")
 
 
-@register.filter
-def roas_signal_class(value):
+# Marcas cuyo ROAS no se semaforiza. DistriSex es mayorista y su venta no la
+# mueve la pauta: 292.552 COP de inversion contra 439 M COP de venta en 6 dias dan
+# un ROAS de ~1.500x. Pintarlo verde no informa nada y, peor, sugiere que la pauta
+# esta funcionando cuando no es lo que sostiene el negocio.
+UNIDADES_SIN_SEMAFORO_ROAS = {"distrisex"}
+
+
+def _roas_color(value, business_unit=""):
+    if str(business_unit or "").strip().lower() in UNIDADES_SIN_SEMAFORO_ROAS:
+        return "neutral"
     try:
-        color = _roas_setting().color_for(value)
+        return _roas_setting().color_for(value)
     except Exception:
-        color = "red"
-    return f"roas-signal roas-signal-{color}"
+        return "red"
+
+
+@register.filter
+def roas_signal_class(value, business_unit=""):
+    return f"roas-signal roas-signal-{_roas_color(value, business_unit)}"
 
 
 @register.filter
@@ -115,9 +127,5 @@ def roas_signal_label(value):
 
 
 @register.filter
-def roas_value_class(value):
-    try:
-        color = _roas_setting().color_for(value)
-    except Exception:
-        color = "red"
-    return f"roas-value roas-value-{color}"
+def roas_value_class(value, business_unit=""):
+    return f"roas-value roas-value-{_roas_color(value, business_unit)}"
