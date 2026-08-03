@@ -499,6 +499,14 @@ def build_uva_meta_ads_preview(filters, limit=None, comfama_scope="exclude", for
             "pacing_insights": {"positive": [], "negative": []},
             "country_code": country_code,
             "country_label": country_label,
+            # Las fechas viajan en el payload a proposito: el bloque de espera las
+            # reenvia al endpoint para que cachee bajo la MISMA clave que la vista va
+            # a leer. La primera version las tomaba de `filters` en la plantilla, que
+            # no existe en el contexto de /uva/: llegaban vacias, el endpoint caia a
+            # `hoy`, cacheaba otra clave, la vista seguia en pending y la pagina se
+            # recargaba en bucle infinito.
+            "date_start": date_start.isoformat(),
+            "date_end": date_end.isoformat(),
             "requires_country": False,
             "pending": True,
             "message": f"Preparando los anuncios activos de {country_label}. El panel se completa en unos segundos.",

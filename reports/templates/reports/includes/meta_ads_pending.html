@@ -5,15 +5,19 @@ La pagina ya no espera a Meta: /uva/ tardaba 16 s con la cache fria porque el
 render se bloqueaba en varias peticiones HTTP encadenadas. Ahora sale de
 inmediato con este bloque, y el navegador pide el panel aparte.
 
-No hay riesgo de recargar en bucle: el endpoint deja en cache el resultado, sea
-exito o fallo, asi que la pagina recargada ya no vuelve a estar en `pending`.
+Las fechas salen de `preview`, no de `filters`: ese ultimo no existe en el
+contexto de /uva/, asi que llegaban vacias, el endpoint cacheaba bajo la fecha de
+hoy, la vista seguia sin encontrar su clave y la pagina se recargaba en bucle.
+
+Y la recarga ocurre **una sola vez por combinacion**: si algo vuelve a dejar el
+panel en pending, se muestra el mensaje en vez de recargar otra vez.
 {% endcomment %}
 {% if preview.pending %}
   <div class="empty-state p-4" data-meta-panel-pending
        data-meta-panel-url="{% url 'reports:uva_meta_ads_panel_api' %}"
        data-meta-panel-country="{{ preview.country_code|default:'' }}"
-       data-meta-panel-date-start="{{ filters.date_start|default:'' }}"
-       data-meta-panel-date-end="{{ filters.date_end|default:'' }}"
+       data-meta-panel-date-start="{{ preview.date_start|default:'' }}"
+       data-meta-panel-date-end="{{ preview.date_end|default:'' }}"
        data-meta-panel-scope="{{ comfama_scope|default:'exclude' }}">
     <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
     {{ preview.message }}
@@ -24,11 +28,34 @@ exito o fallo, asi que la pagina recargada ya no vuelve a estar en `pending`.
     (function () {
       var bloque = document.querySelector("[data-meta-panel-pending]");
       if (!bloque) { return; }
+      var pais = bloque.dataset.metaPanelCountry;
+      var desde = bloque.dataset.metaPanelDateStart;
+      var hasta = bloque.dataset.metaPanelDateEnd;
+      var alcance = bloque.dataset.metaPanelScope;
+
+      // Sin rango no se pide nada: el endpoint caeria a la fecha de hoy y cachearia
+      // una clave que la vista nunca va a leer.
+      if (!desde || !hasta) {
+        bloque.textContent = "No se pudo determinar el rango de fechas del panel.";
+        return;
+      }
+
+      // Un solo intento por combinacion y por pestaña. Si tras recargar el panel
+      // sigue en pending, algo no cuadra y hay que decirlo, no reintentar en bucle.
+      var marca = "meta-panel:" + pais + ":" + desde + ":" + hasta + ":" + alcance;
+      try {
+        if (sessionStorage.getItem(marca)) {
+          bloque.textContent = "El panel de Meta no quedo listo en este intento. Vuelve a cargar la pagina en unos minutos.";
+          return;
+        }
+        sessionStorage.setItem(marca, "1");
+      } catch (e) { /* sin sessionStorage se intenta una vez y ya */ }
+
       var cuerpo = new URLSearchParams({
-        country: bloque.dataset.metaPanelCountry,
-        date_start: bloque.dataset.metaPanelDateStart,
-        date_end: bloque.dataset.metaPanelDateEnd,
-        comfama_scope: bloque.dataset.metaPanelScope,
+        country: pais,
+        date_start: desde,
+        date_end: hasta,
+        comfama_scope: alcance,
       });
       var token = document.querySelector("[name=csrfmiddlewaretoken]");
       fetch(bloque.dataset.metaPanelUrl, {

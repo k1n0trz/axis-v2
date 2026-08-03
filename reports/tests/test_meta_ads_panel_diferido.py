@@ -133,3 +133,81 @@ class EndpointDelPanelTests(TestCase):
         self.client.logout()
         respuesta = self.client.post(self.url, {"country": "CO"})
         self.assertIn(respuesta.status_code, (302, 403))
+
+
+@override_settings(
+    META_ACCESS_TOKEN="token-de-prueba",
+    META_CO_ACCOUNT_ID="act_1",
+    META_ADS_PREVIEW_MAX_IFRAMES=0,
+)
+class SinBucleDeRecargaTests(TestCase):
+    """El bloque de espera tiene que pedir el MISMO rango que la vista va a leer.
+
+    Bug reportado en produccion: /uva/ se recargaba en bucle infinito. Las fechas del
+    bloque salian de `filters`, que **no existe** en el contexto de /uva/, asi que
+    llegaban vacias; el endpoint caia a `hoy`, cacheaba esa clave, la vista seguia sin
+    encontrar la suya y el JS recargaba otra vez. Para siempre.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(username="analista", password="secreto", is_staff=True)
+        self.client.force_login(self.user)
+
+    def test_el_payload_pendiente_trae_el_rango_pedido(self):
+        preview = build_uva_meta_ads_preview(dict(FILTROS), allow_live_fetch=False)
+
+        self.assertTrue(preview["pending"])
+        self.assertEqual(preview["date_start"], FILTROS["date_start"])
+        self.assertEqual(preview["date_end"], FILTROS["date_end"])
+
+    def test_la_plantilla_lee_las_fechas_del_preview_y_no_del_contexto(self):
+        """El contrato de la plantilla, que es donde estuvo el bug.
+
+        Se renderiza el include con `filters` **ausente** a proposito: asi era el
+        contexto de /uva/. Si la plantilla volviera a leer `filters.date_start`, los
+        atributos saldrian vacios y el bucle regresaria.
+        """
+        from django.template.loader import render_to_string
+
+        preview = build_uva_meta_ads_preview(dict(FILTROS), allow_live_fetch=False)
+        html = render_to_string(
+            "reports/includes/meta_ads_pending.html",
+            {"preview": preview, "comfama_scope": "exclude"},
+        )
+
+        self.assertIn('data-meta-panel-date-start="2026-07-01"', html)
+        self.assertIn('data-meta-panel-date-end="2026-07-29"', html)
+        self.assertIn('data-meta-panel-country="CO"', html)
+        # Lo que causaba el bucle: los atributos vacios.
+        self.assertNotIn('data-meta-panel-date-start=""', html)
+        self.assertNotIn('data-meta-panel-date-end=""', html)
+
+    def test_tras_pedir_el_panel_la_vista_ya_no_queda_pendiente(self):
+        """El ciclo completo: pendiente -> endpoint -> la vista lo encuentra en cache.
+
+        Si las claves de cache no coinciden, este test falla y el bucle vuelve.
+        """
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as cliente:
+            cliente.return_value.get_active_ads.return_value = [ANUNCIO]
+            cliente.return_value.get_ad_images_by_hashes.return_value = {}
+            respuesta = self.client.post(
+                reverse("reports:uva_meta_ads_panel_api"),
+                {"country": "CO", "date_start": FILTROS["date_start"], "date_end": FILTROS["date_end"]},
+            )
+        self.assertTrue(respuesta.json()["ok"])
+
+        # La vista, sin permiso para ir a Meta, ahora si lo encuentra.
+        with patch("reports.services.meta_ads_panel.MetaAdsClient") as sin_usar:
+            preview = build_uva_meta_ads_preview(dict(FILTROS), allow_live_fetch=False)
+            sin_usar.assert_not_called()
+        self.assertNotIn("pending", preview)
+        self.assertEqual(len(preview["ads"]), 1)
+
+    def test_el_bloque_no_reintenta_sin_rango(self):
+        # Guardia en el JS: sin fechas no se pide nada, para no cachear otra clave.
+        from pathlib import Path
+
+        js = Path("reports/templates/reports/includes/meta_ads_pending.html").read_text(encoding="utf-8")
+        self.assertIn("if (!desde || !hasta)", js)
+        self.assertIn("sessionStorage", js)
