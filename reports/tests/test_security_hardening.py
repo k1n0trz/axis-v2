@@ -163,3 +163,36 @@ class AdminExportPermissionTests(TestCase):
         self.client.force_login(user)
         response = self.client.get("/admin/reports/dailychannelsale/exportar-excel-universal/")
         self.assertIn(response.status_code, (302, 403))
+
+
+class MediaProtegidaRutasRarasTests(TestCase):
+    """Una ruta que no se puede servir es un 404, no un error del servidor.
+
+    `C:/Windows/win.ini` sobrevivia a `normpath`, llegaba al storage y salia como HTTP
+    500. Un 500 ademas delata que la ruta llego mas lejos de lo que deberia.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        self.user = User.objects.create_user(username="analista", password="secreto", is_staff=True)
+        self.client.force_login(self.user)
+
+    def test_una_ruta_absoluta_da_404_y_no_500(self):
+        for ruta in ("C:/Windows/win.ini", "C:/Users/x/.env", "D:/secreto.txt"):
+            with self.subTest(ruta=ruta):
+                respuesta = self.client.get(f"/media/{ruta}")
+                self.assertEqual(respuesta.status_code, 404)
+
+    def test_el_traversal_sigue_bloqueado(self):
+        for ruta in ("../secreto", "a/../../secreto", "../../.env"):
+            with self.subTest(ruta=ruta):
+                self.assertEqual(self.client.get(f"/media/{ruta}").status_code, 404)
+
+    def test_un_archivo_que_no_existe_da_404(self):
+        self.assertEqual(self.client.get("/media/user_profiles/no-existe.png").status_code, 404)
+
+    def test_sin_sesion_de_staff_no_se_sirve(self):
+        self.client.logout()
+        respuesta = self.client.get("/media/user_profiles/foto.png")
+        self.assertIn(respuesta.status_code, (302, 403))

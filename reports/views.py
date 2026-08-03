@@ -2377,7 +2377,11 @@ def settings_view(request):
         messages.error(request, "Debes iniciar sesion para ver tu perfil.")
         return redirect("/admin/login/?next=/settings/")
 
-    profile, _ = UserProfile.objects.get_or_create(user=user)
+    # `user.profile` ya viene cacheado en la instancia porque la barra lateral lo
+    # leyo antes; ir a `get_or_create` de entrada repetia la consulta en cada carga.
+    profile = _safe_user_profile(user)
+    if profile is None:
+        profile, _ = UserProfile.objects.get_or_create(user=user)
     profile_form = ProfileForm(request.POST or None, request.FILES or None, instance=profile, user=user)
     if request.method == "POST":
         if profile_form.is_valid():
