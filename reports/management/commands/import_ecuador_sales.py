@@ -17,6 +17,9 @@ CHANNEL_BY_LABEL = {
     "página web": "ecommerce-uva",
     "whatsapp": "whatsapp-uva-ec",
     "web": "ecommerce-uva",
+    # Muestras a creadoras UGC: no son venta, pero las unidades entregadas si
+    # cuentan. Antes este canal no existia y las filas se descartaban en silencio.
+    "publicidad": "ugc-muestras-uva",
 }
 
 

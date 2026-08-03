@@ -37,6 +37,9 @@ def channel_slug_for_row(country_code, row_value, fallback_slug):
     normalized = normalize_header(row_value)
     if not normalized:
         return fallback_slug
+    if "publicidad" in normalized:
+        # Muestras a creadoras UGC, con precio 0. No es venta pero la unidad salio.
+        return "ugc-muestras-uva"
     if "whatsapp" in normalized:
         return f"whatsapp-uva-{country_code.lower()}"
     if "pagina" in normalized or "web" in normalized:

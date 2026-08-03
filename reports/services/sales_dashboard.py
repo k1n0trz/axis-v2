@@ -34,6 +34,14 @@ ECUADOR_USD_TO_COP_RATE = Decimal("3700")
 # y antes esto estaba escrito como `slug == "ecommerce-uva"` repartido en seis
 # lugares, asi que cualquier marca nueva entraba al total pero no al desglose.
 WEB_CHANNEL_SLUGS = {"ecommerce-uva", "ecommerce-distrisex"}
+# Muestras entregadas a creadoras UGC: importe 0, asi que no mueven los ingresos,
+# pero si entraran al conteo de unidades inflarian "unidades vendidas" con producto
+# regalado. Se registran, no se suman a la venta.
+SAMPLE_CHANNEL_SLUGS = {"ugc-muestras-uva"}
+
+
+def _is_sample_channel(slug):
+    return bool(slug) and slug in SAMPLE_CHANNEL_SLUGS
 WHATSAPP_CHANNEL_PREFIXES = ("whatsapp-uva-", "whatsapp-distrisex")
 
 
@@ -222,6 +230,10 @@ def ensure_uva_catalogs():
     channels = {}
     channel_specs = [("Web", "ecommerce-uva")]
     channel_specs.extend(UVA_WHATSAPP_BY_COUNTRY.values())
+    # Muestras entregadas a creadoras UGC. Va aqui y no solo en la migracion 0058
+    # porque los catalogos no se siembran por migracion: en una base limpia la
+    # unidad Uva todavia no existe cuando esa migracion corre.
+    channel_specs.append(("Muestras UGC", "ugc-muestras-uva"))
     for index, (name, slug) in enumerate(channel_specs, start=1):
         channel = Channel.objects.filter(business_unit=business_unit, slug=slug).first()
         if channel:
@@ -2451,7 +2463,11 @@ def _build_snapshot_response(daily_rows, spend_rows, filters, limit, row_mode):
         sales_whatsapp = sum((sales_value(row.sales_amount) for row in daily_rows if row.channel and _is_whatsapp_channel(row.channel.slug)), ZERO)
         sales_web = sum((sales_value(row.sales_amount) for row in daily_rows if row.channel and row.channel.slug in WEB_CHANNEL_SLUGS), ZERO)
         order_count = sum((getattr(row, "order_count", 0) or getattr(row, "quantity", 0) or 0) for row in daily_rows)
-        direct_units = sum((getattr(row, "units", 0) or getattr(row, "quantity", 0) or 0) for row in daily_rows)
+        direct_units = sum(
+            (getattr(row, "units", 0) or getattr(row, "quantity", 0) or 0)
+            for row in daily_rows
+            if not (row.channel and _is_sample_channel(row.channel.slug))
+        )
         direct_spend_total = sum((getattr(row, "spend_amount", ZERO) or ZERO) for row in daily_rows)
     else:
         sales_total_with_vat = sum((row.sale_value for row in daily_rows), ZERO)
@@ -2467,7 +2483,10 @@ def _build_snapshot_response(daily_rows, spend_rows, filters, limit, row_mode):
     ad_spend_total = sum((row.spend_amount for row in spend_rows), ZERO)
     spend_total = direct_spend_total or ad_spend_total
     category_sales_rows = product_category_channel_sales(filters) if row_mode == "daily" else []
-    product_quantity = sum((row.quantity or 0 for row in category_sales_rows), 0) or direct_units
+    product_quantity = sum(
+        (row.quantity or 0 for row in category_sales_rows if not (row.channel and _is_sample_channel(row.channel.slug))),
+        0,
+    ) or direct_units
     product_quantity_web = sum((row.quantity or 0 for row in category_sales_rows if row.channel and row.channel.slug in WEB_CHANNEL_SLUGS), 0)
     product_quantity_whatsapp = sum((row.quantity or 0 for row in category_sales_rows if row.channel and _is_whatsapp_channel(row.channel.slug)), 0)
     daily_order_counts = _daily_order_counts_by_channel(filters) if row_mode == "daily" else defaultdict(int)
