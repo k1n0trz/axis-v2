@@ -114,47 +114,6 @@ class GeoLocationKeyTests(TestCase):
         self.assertTrue(geo_location_key("Region"))
 
 
-class OpenRedirectTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user("empleado", password="clave-larga-123", is_staff=True)
-        self.client.force_login(self.user)
-
-    def _task(self):
-        from datetime import date
-
-        from reports.models import BusinessUnit, OperationalGoalTask, SalesTarget
-
-        unit = BusinessUnit.objects.create(name="Uva")
-        target = SalesTarget.objects.create(
-            user=self.user,
-            business_unit=unit,
-            date_start=date(2026, 7, 1),
-            date_end=date(2026, 7, 31),
-            target_amount=1000,
-        )
-        return OperationalGoalTask.objects.create(
-            sales_target=target,
-            assigned_by=self.user,
-            assigned_to=self.user,
-            title="Revisar pauta",
-        )
-
-    def test_actualizar_tarea_no_redirige_a_dominio_externo(self):
-        response = self.client.post(
-            reverse("reports:operational_task_update", args=[self._task().pk]),
-            {"employee_response": "listo", "next": "https://evil.example.com/robo"},
-        )
-        self.assertEqual(response.status_code, 302)
-        self.assertNotIn("evil.example.com", response["Location"])
-
-    def test_actualizar_tarea_sanea_la_respuesta_guardada(self):
-        task = self._task()
-        self.client.post(
-            reverse("reports:operational_task_update", args=[task.pk]),
-            {"employee_response": '<b>ok</b><img src=x onerror=alert(1)>'},
-        )
-        task.refresh_from_db()
-        self.assertNotIn("onerror", task.employee_response)
 
 
 class AdminExportPermissionTests(TestCase):

@@ -56,7 +56,19 @@ class Command(BaseCommand):
                 {"status": run.status, "date": str(run.target_date or ""), "summary": run.summary[:90]},
             )
 
-        payload["business_units"] = list(
-            m.BusinessUnit.objects.filter(is_active=True).order_by("display_order").values_list("slug", flat=True)
-        )
+        # Detalle por marca: dos unidades con nombre parecido pueden partir los
+        # totales en dos sin que nadie lo note.
+        payload["business_units"] = []
+        for unit in m.BusinessUnit.objects.order_by("display_order", "slug"):
+            payload["business_units"].append({
+                "slug": unit.slug,
+                "name": unit.name,
+                "id": unit.id,
+                "active": unit.is_active,
+                "channels": m.Channel.objects.filter(business_unit=unit).count(),
+                "channel_sales": m.DailyChannelSale.objects.filter(business_unit=unit).count(),
+                "category_sales": m.DailyProductCategorySale.objects.filter(business_unit=unit).count(),
+                "ad_spend": m.DailyAdSpend.objects.filter(business_unit=unit).count(),
+                "countries": list(unit.countries.values_list("code", flat=True)),
+            })
         self.stdout.write(json.dumps(payload, indent=2, default=str))
