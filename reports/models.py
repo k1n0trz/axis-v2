@@ -1378,3 +1378,57 @@ class IntegrationRun(TimestampedModel):
         if not self.finished_at:
             return None
         return (self.finished_at - self.started_at).total_seconds()
+
+
+class AiConversation(TimestampedModel):
+    """Una conversacion con la IA interna, por usuario y por sesion."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ai_conversations")
+    session_key = models.CharField(max_length=64, blank=True, help_text="Sesion del navegador que la inicio.")
+    title = models.CharField(max_length=160, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        verbose_name = "Conversacion IA"
+        verbose_name_plural = "Conversaciones IA"
+        indexes = [models.Index(fields=["user", "-updated_at"], name="reports_aiconv_user_idx")]
+
+    def __str__(self):
+        return f"{self.user.username}: {self.title or 'sin titulo'}"
+
+
+class AiMessage(TimestampedModel):
+    """Un mensaje de la conversacion, con lo que costo.
+
+    El costo se guarda por mensaje y no se recalcula: los precios cambian, y un
+    historico recalculado con el precio de hoy no serviria para auditar el gasto.
+    """
+
+    class Role(models.TextChoices):
+        SYSTEM = "system", "Sistema"
+        USER = "user", "Usuario"
+        ASSISTANT = "assistant", "IA"
+        TOOL = "tool", "Herramienta"
+
+    conversation = models.ForeignKey(AiConversation, on_delete=models.CASCADE, related_name="messages")
+    role = models.CharField(max_length=16, choices=Role.choices)
+    content = models.TextField(blank=True)
+    model = models.CharField(max_length=80, blank=True)
+    prompt_tokens = models.PositiveIntegerField(default=0)
+    completion_tokens = models.PositiveIntegerField(default=0)
+    cost_usd = models.DecimalField(max_digits=10, decimal_places=6, default=Decimal("0"))
+    tools_used = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        verbose_name = "Mensaje IA"
+        verbose_name_plural = "Mensajes IA"
+        indexes = [models.Index(fields=["conversation", "created_at"], name="reports_aimsg_conv_idx")]
+
+    def __str__(self):
+        return f"{self.get_role_display()}: {self.content[:60]}"
+
+    @property
+    def total_tokens(self):
+        return self.prompt_tokens + self.completion_tokens

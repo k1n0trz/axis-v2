@@ -308,3 +308,25 @@ LOGGING = {
     },
 }
 
+# --- IA interna -------------------------------------------------------------
+# DeepSeek hace el trabajo de chat; DeepInfra queda para respaldo, embeddings y
+# clasificacion masiva barata (el mapa producto -> categoria de DistriSex).
+DEEPSEEK_API_KEY = config("DEEPSEEK_API_KEY", default="")
+DEEPSEEK_API_URL = config("DEEPSEEK_API_URL", default="https://api.deepseek.com")
+DEEPSEEK_CHAT_MODEL = config("DEEPSEEK_CHAT_MODEL", default="deepseek-chat")
+DEEPSEEK_REASONER_MODEL = config("DEEPSEEK_REASONER_MODEL", default="deepseek-reasoner")
+DEEPINFRA_API_KEY = config("DEEPINFRA_API_KEY", default="")
+DEEPINFRA_API_URL = config("DEEPINFRA_API_URL", default="https://api.deepinfra.com/v1/openai")
+
+AI_REQUEST_TIMEOUT = config("AI_REQUEST_TIMEOUT", default=60, cast=int)
+AI_MAX_RETRIES = config("AI_MAX_RETRIES", default=2, cast=int)
+
+# Techo de gasto por usuario y por dia. Va desde el primer commit y no despues: un
+# widget en todas las paginas puede convertirse en muchas llamadas sin que nadie lo
+# note, y el costo no avisa hasta que llega la factura.
+AI_DAILY_TOKEN_BUDGET = config("AI_DAILY_TOKEN_BUDGET", default=400000, cast=int)
+AI_DAILY_COST_LIMIT_USD = config("AI_DAILY_COST_LIMIT_USD", default="2.00")
+# Precios por millon de tokens. Configurables porque cambian y no quiero que un
+# numero desactualizado en el codigo distorsione el control de gasto.
+AI_INPUT_COST_PER_MTOK = config("AI_INPUT_COST_PER_MTOK", default="0.27")
+AI_OUTPUT_COST_PER_MTOK = config("AI_OUTPUT_COST_PER_MTOK", default="1.10")
