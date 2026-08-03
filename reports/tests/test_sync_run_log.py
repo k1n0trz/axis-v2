@@ -237,3 +237,35 @@ class GoogleAdsSiemprePorApiTests(TestCase):
         nombres = self._nombres(ONEDRIVE_GOOGLE_ADS_FILE_PATH="axis/google-ads.xlsx")
 
         self.assertNotIn("OneDrive Google Ads Workbook", nombres)
+
+class FiltroDeFuentesTests(TestCase):
+    """--only en el orquestador: rellenar una fuente sin arrastrar las demas."""
+
+    def _comando(self):
+        from reports.management.commands.sync_axis_daily_data import Command
+
+        return Command()
+
+    def test_sin_only_no_filtra_nada(self):
+        tareas = [{"name": "WooCommerce DistriSex"}, {"name": "Meta Ads Colombia"}]
+
+        self.assertEqual(self._comando()._filter_tasks(tareas, ""), tareas)
+
+    def test_only_deja_solo_la_fuente_pedida(self):
+        tareas = [{"name": "WooCommerce DistriSex"}, {"name": "Meta Ads Colombia"}]
+
+        filtradas = self._comando()._filter_tasks(tareas, "distrisex")
+
+        self.assertEqual([t["name"] for t in filtradas], ["WooCommerce DistriSex"])
+
+    def test_only_acepta_varias_separadas_por_punto_y_coma(self):
+        tareas = [
+            {"name": "WooCommerce DistriSex"},
+            {"name": "Google Ads DistriSex"},
+            {"name": "Meta Ads Colombia"},
+        ]
+
+        filtradas = self._comando()._filter_tasks(tareas, "woocommerce distrisex;meta ads")
+
+        self.assertEqual(len(filtradas), 2)
+        self.assertNotIn("Google Ads DistriSex", [t["name"] for t in filtradas])

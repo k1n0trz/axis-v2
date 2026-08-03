@@ -5,7 +5,7 @@ from io import StringIO
 
 from django.conf import settings
 from django.core.management import call_command
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -25,6 +25,14 @@ class Command(BaseCommand):
         parser.add_argument("--meta-rules", default="docs/mappings/meta-category-rules.example.json")
         parser.add_argument("--google-rules", default="docs/mappings/google-category-rules.json")
         parser.add_argument(
+            "--only",
+            default="",
+            help=(
+                "Corre solo las fuentes cuyo nombre contenga este texto (varias separadas "
+                "por ;). Para rellenar una fuente sin arrastrar Meta y Google de vuelta."
+            ),
+        )
+        parser.add_argument(
             "--onedrive-sales-lookback-days",
             type=int,
             default=getattr(settings, "ONEDRIVE_SALES_LOOKBACK_DAYS", 3),
@@ -36,6 +44,12 @@ class Command(BaseCommand):
         lookback_days = max(1, int(options["lookback_days"] or 1))
         dates = [target_date - timedelta(days=offset) for offset in range(lookback_days - 1, -1, -1)]
         tasks = self._build_tasks_for_dates(dates, options)
+        tasks = self._filter_tasks(tasks, options["only"])
+        if options["only"] and not tasks:
+            raise CommandError(
+                f"Ninguna fuente coincide con --only '{options['only']}'. "
+                "Corre con --dry-run para ver los nombres disponibles."
+            )
 
         if options["dry_run"]:
             self.stdout.write(
@@ -190,6 +204,13 @@ class Command(BaseCommand):
         if not partes:
             partes.append("sin novedades")
         return f"{task_name}: " + ", ".join(partes[:8])
+
+    def _filter_tasks(self, tasks, only):
+        """Deja solo las fuentes que pidio --only. Sin --only no filtra nada."""
+        patrones = [p.strip().lower() for p in str(only or "").split(";") if p.strip()]
+        if not patrones:
+            return tasks
+        return [t for t in tasks if any(p in t["name"].lower() for p in patrones)]
 
     def _build_tasks_for_dates(self, dates, options):
         tasks = []
