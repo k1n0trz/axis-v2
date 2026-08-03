@@ -3,7 +3,7 @@
   <div class="panel-header align-items-start">
     <div>
       <h2 class="section-title h4 mb-1">{{ meta_ads_heading|default:"Anuncios activos en Meta Ads" }}</h2>
-      <p class="panel-caption mb-0">{{ meta_ads_caption|default:"Preview de creatividades activas segun la cuenta publicitaria configurada." }}</p>
+      <p class="panel-caption mb-0">{% if meta_ads_caption %}{{ meta_ads_caption }}{% elif meta_ads_preview.country_label %}Preview de creatividades activas para {{ meta_ads_preview.country_label }} segun la cuenta publicitaria configurada.{% else %}Preview de creatividades activas segun la cuenta publicitaria configurada.{% endif %}</p>
     </div>
     <span class="badge bg-white bg-opacity-10 text-white-50 border-0"><span data-meta-visible-count>{{ meta_ads_preview.ads|length }}</span>/<span data-meta-total-count>{{ meta_ads_preview.ads|length }}</span> activos</span>
   </div>
