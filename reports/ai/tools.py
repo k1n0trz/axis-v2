@@ -310,6 +310,30 @@ def get_data_freshness(user, **_):
     }
 
 
+def list_my_files(user, **_):
+    """Los archivos que esta persona le paso a la IA, de esta sesion y de las anteriores.
+
+    Solo el inventario: leer el contenido de un Excel llega en la Etapa G, con los
+    parsers que ya existen. Aca la IA solo sabe que archivos tiene a mano.
+    """
+    from .attachments import list_attachments
+
+    return {
+        "archivos": [
+            {
+                "id": a.pk,
+                "nombre": a.original_name,
+                "tipo": a.content_type,
+                "kb": round(a.size_bytes / 1024),
+                "subido": a.created_at.strftime("%Y-%m-%d %H:%M"),
+                "descripcion": a.description,
+            }
+            for a in list_attachments(user)[:MAX_ROWS]
+        ],
+        "nota": "Todavia no puedes leer el contenido de estos archivos, solo saber que existen.",
+    }
+
+
 def get_websites_health(user, **_):
     """Estado de las webs monitoreadas."""
     permitidas = allowed_business_units(user)
@@ -344,6 +368,7 @@ TOOLS = {
     "get_category_sales": get_category_sales,
     "get_data_freshness": get_data_freshness,
     "get_websites_health": get_websites_health,
+    "list_my_files": list_my_files,
 }
 
 _RANGO = {
@@ -423,6 +448,12 @@ TOOL_SPECS = [
     _spec(
         "get_websites_health",
         "Estado de las webs monitoreadas: HTTP, cuando se reviso y puntaje de PageSpeed.",
+        {},
+    ),
+    _spec(
+        "list_my_files",
+        "Archivos que esta persona te ha pasado, de esta sesion y de las anteriores. "
+        "Todavia no puedes leer su contenido, solo saber que existen.",
         {},
     ),
 ]

@@ -18,8 +18,13 @@ INLINE_CONTENT_TYPES = {
 }
 
 
-@staff_member_required
-def protected_media(request, path):
+def stream_storage_file(path, filename=""):
+    """Sirve un archivo del storage. Quien llame decide si el usuario tiene derecho.
+
+    `protected_media` solo exige sesion de staff, asi que no sirve para archivos con
+    dueño: cualquier miembro del equipo que adivinara la ruta los veria. Los adjuntos de
+    la IA usan esta funcion desde una vista que primero comprueba de quien es.
+    """
     normalized_path = posixpath.normpath(path).lstrip("/")
     if not normalized_path or normalized_path == "." or normalized_path.startswith("../"):
         raise Http404("Archivo no encontrado.")
@@ -41,5 +46,10 @@ def protected_media(request, path):
         archivo,
         content_type=content_type,
         as_attachment=not inline,
-        filename=posixpath.basename(normalized_path),
+        filename=filename or posixpath.basename(normalized_path),
     )
+
+
+@staff_member_required
+def protected_media(request, path):
+    return stream_storage_file(path)

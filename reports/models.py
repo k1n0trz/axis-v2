@@ -1449,6 +1449,45 @@ class AiMessage(TimestampedModel):
         return self.prompt_tokens + self.completion_tokens
 
 
+class AiAttachment(TimestampedModel):
+    """Un archivo que alguien le paso a la IA, disponible en las siguientes sesiones.
+
+    Se guarda por usuario y no por conversacion: el usuario sube el Excel de despachos
+    una vez y lo sigue teniendo la semana siguiente. `conversation` solo deja constancia
+    de donde salio.
+
+    El `sha256` es la clave real: subir dos veces el mismo archivo no crea dos filas ni
+    dos objetos en el bucket. Sin eso, un archivo que alguien reenvia cada dia se
+    acumula sin que nadie lo note.
+    """
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ai_attachments")
+    conversation = models.ForeignKey(
+        AiConversation, null=True, blank=True, on_delete=models.SET_NULL, related_name="attachments"
+    )
+    file = models.FileField(upload_to="ai_attachments/")
+    original_name = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=120, blank=True)
+    size_bytes = models.PositiveBigIntegerField(default=0)
+    sha256 = models.CharField(max_length=64, db_index=True)
+    description = models.CharField(max_length=300, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Archivo IA"
+        verbose_name_plural = "Archivos IA"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "sha256"], name="reports_aiattachment_user_hash_unique"
+            )
+        ]
+        indexes = [models.Index(fields=["user", "is_active"], name="reports_aiatt_user_idx")]
+
+    def __str__(self):
+        return f"{self.user.username}: {self.original_name}"
+
+
 class AiMemory(TimestampedModel):
     """Lo que la IA aprendio de una persona y le sirve en la siguiente conversacion.
 

@@ -8,10 +8,20 @@ import json
 import re
 
 from django.db import transaction
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
-from ..models import AiConversation, AiMemory, AiMessage
+from ..media_views import stream_storage_file
+from ..models import AiAttachment, AiConversation, AiMemory, AiMessage
+from .attachments import (
+    ALLOWED_EXTENSIONS,
+    AttachmentError,
+    forget_attachment,
+    list_attachments,
+    max_size_bytes,
+    save_attachment,
+)
 from .budget import BudgetExceeded, check_budget, cost_for, usage_today
 from .context import build_system_prompt, is_ai_enabled
 from .memory import forget, mark_used, memory_blocks, relevant_memories, remember
@@ -109,6 +119,18 @@ def _usage_payload(user):
     """El gasto del dia, en tipos que JSON entienda (cost_usd viene en Decimal)."""
     gastado = usage_today(user)
     return {"tokens": gastado["tokens"], "cost_usd": float(gastado["cost_usd"])}
+
+
+def _serialize_attachment(attachment):
+    return {
+        "id": attachment.pk,
+        "name": attachment.original_name,
+        "size_kb": round(attachment.size_bytes / 1024),
+        "content_type": attachment.content_type,
+        "description": attachment.description,
+        "uploaded_at": attachment.created_at.isoformat(),
+        "url": reverse("reports:ai_attachment_download", args=[attachment.pk]),
+    }
 
 
 def _serialize(message):
@@ -292,3 +314,60 @@ def ai_feedback(request):
     if not actualizados:
         return JsonResponse({"detail": "Ese mensaje no existe."}, status=404)
     return JsonResponse({"feedback": valor})
+
+
+@require_POST
+def ai_attachment_upload(request):
+    """Recibe un archivo y lo deja disponible tambien en las proximas sesiones."""
+    subido = request.FILES.get("file")
+    if not subido:
+        return JsonResponse({"detail": "No llego ningun archivo."}, status=400)
+
+    try:
+        attachment, era_nuevo = save_attachment(
+            request.user,
+            subido,
+            conversation=_current_conversation(request, create=True),
+            description=(request.POST.get("description") or "").strip(),
+        )
+    except AttachmentError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
+    return JsonResponse({
+        "attachment": _serialize_attachment(attachment),
+        "already_had_it": not era_nuevo,
+    })
+
+
+@require_GET
+def ai_attachments(request):
+    """Los archivos que esta persona le ha pasado a la IA."""
+    return JsonResponse({
+        "attachments": [_serialize_attachment(a) for a in list_attachments(request.user)],
+        "max_mb": max_size_bytes() // (1024 * 1024),
+        "allowed": sorted(ALLOWED_EXTENSIONS),
+    })
+
+
+@require_http_methods(["POST", "DELETE"])
+def ai_attachment_forget(request, attachment_id):
+    """Lo saca de la lista. El objeto queda en el bucket por si fue un error."""
+    retirados = forget_attachment(request.user, attachment_id)
+    if not retirados:
+        return JsonResponse({"detail": "Ese archivo no existe o ya estaba retirado."}, status=404)
+    return JsonResponse({"forgotten": attachment_id})
+
+
+@require_GET
+def ai_attachment_download(request, attachment_id):
+    """Descarga con dueño comprobado.
+
+    No usa `protected_media` a proposito: esa vista solo exige sesion de staff, asi que
+    cualquiera del equipo que adivinara la ruta veria el archivo de otra persona.
+    """
+    attachment = AiAttachment.objects.filter(
+        pk=attachment_id, user=request.user, is_active=True
+    ).first()
+    if not attachment:
+        raise Http404("Archivo no encontrado.")
+    return stream_storage_file(attachment.file.name, filename=attachment.original_name)

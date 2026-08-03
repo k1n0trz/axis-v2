@@ -34,6 +34,10 @@ urlpatterns = [
     path("api/ai/memories/", ai_views.ai_memories, name="ai_memories"),
     path("api/ai/memories/<int:memory_id>/forget/", ai_views.ai_memory_forget, name="ai_memory_forget"),
     path("api/ai/feedback/", ai_views.ai_feedback, name="ai_feedback"),
+    path("api/ai/files/", ai_views.ai_attachments, name="ai_attachments"),
+    path("api/ai/files/upload/", ai_views.ai_attachment_upload, name="ai_attachment_upload"),
+    path("api/ai/files/<int:attachment_id>/", ai_views.ai_attachment_download, name="ai_attachment_download"),
+    path("api/ai/files/<int:attachment_id>/forget/", ai_views.ai_attachment_forget, name="ai_attachment_forget"),
     path("api/attachments/", api_views.AttachmentListAPIView.as_view(), name="api_attachments"),
 ]
 

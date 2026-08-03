@@ -330,3 +330,6 @@ AI_DAILY_COST_LIMIT_USD = config("AI_DAILY_COST_LIMIT_USD", default="2.00")
 # numero desactualizado en el codigo distorsione el control de gasto.
 AI_INPUT_COST_PER_MTOK = config("AI_INPUT_COST_PER_MTOK", default="0.27")
 AI_OUTPUT_COST_PER_MTOK = config("AI_OUTPUT_COST_PER_MTOK", default="1.10")
+# Tope de un archivo que se le pasa a la IA. Los Excel de despachos rondan 1-3 MB;
+# 15 MB deja margen sin que una subida se coma la memoria del contenedor.
+AI_ATTACHMENT_MAX_BYTES = config("AI_ATTACHMENT_MAX_BYTES", default=15 * 1024 * 1024, cast=int)
