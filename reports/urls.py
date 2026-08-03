@@ -31,6 +31,9 @@ urlpatterns = [
     path("api/tasks/", api_views.WeeklyTaskListAPIView.as_view(), name="api_tasks"),
     path("api/ai/history/", ai_views.ai_history, name="ai_history"),
     path("api/ai/chat/", ai_views.ai_chat, name="ai_chat"),
+    path("api/ai/memories/", ai_views.ai_memories, name="ai_memories"),
+    path("api/ai/memories/<int:memory_id>/forget/", ai_views.ai_memory_forget, name="ai_memory_forget"),
+    path("api/ai/feedback/", ai_views.ai_feedback, name="ai_feedback"),
     path("api/attachments/", api_views.AttachmentListAPIView.as_view(), name="api_attachments"),
 ]
 

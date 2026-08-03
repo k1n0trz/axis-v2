@@ -1386,6 +1386,14 @@ class AiConversation(TimestampedModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ai_conversations")
     session_key = models.CharField(max_length=64, blank=True, help_text="Sesion del navegador que la inicio.")
     title = models.CharField(max_length=160, blank=True)
+    summary = models.TextField(
+        blank=True,
+        help_text="Resumen de los turnos viejos. Se manda en vez de la historia completa.",
+    )
+    summarized_until = models.PositiveIntegerField(
+        default=0, help_text="Id del ultimo mensaje que ya entro en el resumen."
+    )
+    distilled_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -1420,6 +1428,13 @@ class AiMessage(TimestampedModel):
     cost_usd = models.DecimalField(max_digits=10, decimal_places=6, default=Decimal("0"))
     tools_used = models.JSONField(default=list, blank=True)
 
+    class Feedback(models.TextChoices):
+        NONE = "", "Sin calificar"
+        UP = "up", "Sirvio"
+        DOWN = "down", "No sirvio"
+
+    feedback = models.CharField(max_length=8, choices=Feedback.choices, blank=True, default="")
+
     class Meta:
         ordering = ["created_at", "id"]
         verbose_name = "Mensaje IA"
@@ -1432,3 +1447,45 @@ class AiMessage(TimestampedModel):
     @property
     def total_tokens(self):
         return self.prompt_tokens + self.completion_tokens
+
+
+class AiMemory(TimestampedModel):
+    """Lo que la IA aprendio de una persona y le sirve en la siguiente conversacion.
+
+    Se guarda como texto legible a proposito: el usuario tiene que poder leer y borrar
+    lo que la IA cree saber de el. Una memoria equivocada que no se puede ver es peor
+    que no tener memoria.
+
+    El contenido sale de mensajes del usuario, asi que para el modelo es DATO: se
+    inyecta en un bloque marcado como notas, nunca como instrucciones del sistema.
+    """
+
+    class Kind(models.TextChoices):
+        PREFERENCE = "preference", "Preferencia de trabajo"
+        STYLE = "style", "Forma de comunicarse"
+        CONTEXT = "context", "Contexto de la operacion"
+        DECISION = "decision", "Decision tomada"
+
+    class Origin(models.TextChoices):
+        DISTILLED = "distilled", "Deducida de una conversacion"
+        EXPLICIT = "explicit", "El usuario pidio recordarla"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ai_memories")
+    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.CONTEXT)
+    origin = models.CharField(max_length=16, choices=Origin.choices, default=Origin.DISTILLED)
+    content = models.TextField()
+    source_conversation = models.ForeignKey(
+        AiConversation, null=True, blank=True, on_delete=models.SET_NULL, related_name="memories"
+    )
+    is_active = models.BooleanField(default=True)
+    times_used = models.PositiveIntegerField(default=0)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-last_used_at", "-updated_at"]
+        verbose_name = "Memoria IA"
+        verbose_name_plural = "Memorias IA"
+        indexes = [models.Index(fields=["user", "is_active"], name="reports_aimem_user_idx")]
+
+    def __str__(self):
+        return f"{self.user.username}: {self.content[:60]}"

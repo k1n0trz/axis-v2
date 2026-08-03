@@ -2,7 +2,11 @@
 Asistente de Axis. Se pinta vacio: el historial se pide solo al abrirlo, para no meter
 consultas ni latencia en el render de cada pagina.
 {% endcomment %}
-<div id="axis-ai" class="axis-ai" data-history-url="{% url 'reports:ai_history' %}" data-chat-url="{% url 'reports:ai_chat' %}">
+<div id="axis-ai" class="axis-ai"
+     data-history-url="{% url 'reports:ai_history' %}"
+     data-chat-url="{% url 'reports:ai_chat' %}"
+     data-memories-url="{% url 'reports:ai_memories' %}"
+     data-feedback-url="{% url 'reports:ai_feedback' %}">
   <button type="button" class="axis-ai__toggle" aria-expanded="false" aria-controls="axis-ai-panel" title="Asistente de Axis">
     <span class="axis-ai__toggle-icon">&#10022;</span>
     <span class="axis-ai__toggle-text">Asistente</span>
@@ -14,8 +18,16 @@ consultas ni latencia en el render de cada pagina.
         <strong>Asistente de Axis</strong>
         <span class="axis-ai__usage" data-role="usage"></span>
       </div>
-      <button type="button" class="axis-ai__close" data-role="close" aria-label="Cerrar">&times;</button>
+      <div class="axis-ai__actions">
+        <button type="button" class="axis-ai__icon" data-role="memories-toggle" title="Lo que recuerda de ti">&#9776;</button>
+        <button type="button" class="axis-ai__close" data-role="close" aria-label="Cerrar">&times;</button>
+      </div>
     </header>
+
+    <div class="axis-ai__memories" data-role="memories" hidden>
+      <p class="axis-ai__memories-title">Lo que recuerda de ti</p>
+      <ul data-role="memories-list"></ul>
+    </div>
 
     <div class="axis-ai__log" data-role="log" aria-live="polite"></div>
 
@@ -40,7 +52,22 @@ consultas ni latencia en el render de cada pagina.
   .axis-ai__header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px;
     border-bottom: 1px solid rgba(255,255,255,.08); color: #e2e8f0; font-size: .9rem; }
   .axis-ai__usage { display: block; color: #64748b; font-size: .7rem; margin-top: 2px; }
-  .axis-ai__close { background: none; border: 0; color: #94a3b8; font-size: 1.4rem; line-height: 1; cursor: pointer; }
+  .axis-ai__actions { display: flex; align-items: center; gap: 4px; }
+  .axis-ai__close, .axis-ai__icon { background: none; border: 0; color: #94a3b8; line-height: 1; cursor: pointer; }
+  .axis-ai__close { font-size: 1.4rem; }
+  .axis-ai__icon { font-size: 1rem; padding: 4px 6px; border-radius: 6px; }
+  .axis-ai__icon:hover, .axis-ai__icon[aria-pressed="true"] { background: rgba(148,163,184,.15); color: #e2e8f0; }
+  .axis-ai__memories { border-bottom: 1px solid rgba(255,255,255,.08); padding: 12px 16px; max-height: 190px; overflow-y: auto; }
+  .axis-ai__memories-title { margin: 0 0 8px; color: #94a3b8; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+  .axis-ai__memories ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .axis-ai__memories li { display: flex; gap: 8px; align-items: flex-start; color: #cbd5e1; font-size: .76rem; line-height: 1.45; }
+  .axis-ai__memories li span { flex: 1; }
+  .axis-ai__memories button { background: none; border: 0; color: #64748b; cursor: pointer; font-size: .9rem; line-height: 1; }
+  .axis-ai__memories button:hover { color: #fca5a5; }
+  .axis-ai__memories--empty { color: #64748b; font-size: .76rem; }
+  .axis-ai__vote { display: flex; gap: 6px; margin-top: 6px; }
+  .axis-ai__vote button { background: none; border: 0; color: #475569; cursor: pointer; font-size: .8rem; padding: 0; }
+  .axis-ai__vote button:hover, .axis-ai__vote button[aria-pressed="true"] { color: #a5b4fc; }
   .axis-ai__log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
   .axis-ai__msg { max-width: 88%; padding: 10px 13px; border-radius: 12px; font-size: .82rem; line-height: 1.5;
     white-space: pre-wrap; word-break: break-word; }
@@ -86,6 +113,71 @@ consultas ni latencia en el render de cada pagina.
       return el;
     }
 
+    function addVote(el, messageId, current) {
+      if (!messageId) return;
+      const box = document.createElement('div');
+      box.className = 'axis-ai__vote';
+      [['up', '▲ Sirvio'], ['down', '▼ No sirvio']].forEach(function (pair) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = pair[1];
+        btn.setAttribute('aria-pressed', current === pair[0] ? 'true' : 'false');
+        btn.addEventListener('click', async function () {
+          // Un mismo clic dos veces retira la calificacion.
+          const value = btn.getAttribute('aria-pressed') === 'true' ? '' : pair[0];
+          await fetch(root.dataset.feedbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            body: JSON.stringify({ message_id: messageId, feedback: value }),
+          }).catch(function () {});
+          box.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+          if (value) btn.setAttribute('aria-pressed', 'true');
+        });
+        box.appendChild(btn);
+      });
+      el.appendChild(box);
+    }
+
+    async function loadMemories() {
+      const list = root.querySelector('[data-role="memories-list"]');
+      list.innerHTML = '';
+      try {
+        const response = await fetch(root.dataset.memoriesUrl);
+        const data = await response.json();
+        if (!(data.memories || []).length) {
+          const empty = document.createElement('li');
+          empty.className = 'axis-ai__memories--empty';
+          empty.textContent = 'Todavia no ha guardado nada. Dile "recuerda que..." y lo anota.';
+          list.appendChild(empty);
+          return;
+        }
+        data.memories.forEach(function (memory) {
+          const item = document.createElement('li');
+          const text = document.createElement('span');
+          text.textContent = memory.content;
+          const drop = document.createElement('button');
+          drop.type = 'button';
+          drop.title = 'Que lo olvide';
+          drop.textContent = '×';
+          drop.addEventListener('click', async function () {
+            await fetch(root.dataset.memoriesUrl + memory.id + '/forget/', {
+              method: 'POST',
+              headers: { 'X-CSRFToken': csrfToken() },
+            }).catch(function () {});
+            item.remove();
+          });
+          item.appendChild(text);
+          item.appendChild(drop);
+          list.appendChild(item);
+        });
+      } catch (error) {
+        const failed = document.createElement('li');
+        failed.className = 'axis-ai__memories--empty';
+        failed.textContent = 'No se pudieron cargar las notas.';
+        list.appendChild(failed);
+      }
+    }
+
     function showUsage(data) {
       if (!data) return;
       const cost = Number(data.cost_usd || 0).toFixed(4);
@@ -106,7 +198,8 @@ consultas ni latencia en el render de cada pagina.
           return;
         }
         (data.messages || []).forEach(function (m) {
-          bubble(m.role === 'user' ? 'user' : 'assistant', m.content);
+          const el = bubble(m.role === 'user' ? 'user' : 'assistant', m.content);
+          if (m.role === 'assistant') addVote(el, m.id, m.feedback);
         });
         if (!(data.messages || []).length) {
           bubble('hint', 'Puedo explicarte como funciona Axis, que significa una metrica o como se calcula algo. Todavia no puedo consultar cifras: si te doy un numero, no confies en el.');
@@ -132,6 +225,15 @@ consultas ni latencia en el render de cada pagina.
 
     toggle.addEventListener('click', open);
     root.querySelector('[data-role="close"]').addEventListener('click', close);
+
+    const memoriesToggle = root.querySelector('[data-role="memories-toggle"]');
+    const memoriesBox = root.querySelector('[data-role="memories"]');
+    memoriesToggle.addEventListener('click', function () {
+      const showing = !memoriesBox.hidden;
+      memoriesBox.hidden = showing;
+      memoriesToggle.setAttribute('aria-pressed', showing ? 'false' : 'true');
+      if (!showing) loadMemories();
+    });
 
     input.addEventListener('keydown', function (event) {
       if (event.key === 'Enter' && !event.shiftKey) {
@@ -162,8 +264,11 @@ consultas ni latencia en el render de cada pagina.
         if (!response.ok) {
           bubble('error', data.detail || 'El asistente no pudo responder.');
         } else {
-          bubble('assistant', (data.reply && data.reply.content) || '(sin respuesta)');
+          const el = bubble('assistant', (data.reply && data.reply.content) || '(sin respuesta)');
+          addVote(el, data.reply && data.reply.id, '');
+          if (data.remembered) bubble('hint', 'Anotado: ' + data.remembered);
           showUsage(data.usage);
+          if (!memoriesBox.hidden) loadMemories();
         }
       } catch (error) {
         pending.remove();

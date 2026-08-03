@@ -411,6 +411,16 @@ class Command(BaseCommand):
                     "command": ["fetch_meta_followers_email_reports", "--all"],
                 }
             )
+        if getattr(settings, "DEEPSEEK_API_KEY", ""):
+            # Sin --date a proposito: la destilacion no es por fecha, y
+            # `_build_tasks_for_dates` deduplica los comandos sin fecha, asi que en una
+            # corrida de varios dias se ejecuta una sola vez.
+            tasks.append(
+                {
+                    "name": "IA memorias",
+                    "command": ["distill_ai_memories"],
+                }
+            )
 
         return tasks
 

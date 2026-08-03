@@ -61,8 +61,14 @@ def user_profile_facts(user):
     }
 
 
-def build_system_prompt(user):
-    """El prompt de sistema, con quien pregunta y que puede hacer la IA hoy."""
+def build_system_prompt(user, rules=()):
+    """El prompt de sistema, con quien pregunta y que puede hacer la IA hoy.
+
+    `rules` son las preferencias de la persona (de `AiMemory`, tipos preference y
+    style). Entran **dentro** de "Como debes responder" y no en un mensaje aparte: en
+    un mensaje suelto competian con estas reglas, que no dicen nada del largo, y el
+    modelo se quedaba con las suyas. Medido tres veces contra la API.
+    """
     f = user_profile_facts(user)
 
     quien = [f"Hablas con {f['full_name']} (usuario {f['username']})."]
@@ -90,6 +96,9 @@ def build_system_prompt(user):
         "",
         "Como debes responder:",
         "- En español, directo y sin rodeos. Tuteas.",
+        # Las reglas de la persona van aqui arriba, antes de las generales: si pidio
+        # dos frases, no puede ganarle una regla nuestra que no habla del largo.
+        *[f"- {regla} (lo pidio esta persona: cumplelo)" for regla in rules],
         "- TODAVIA NO PUEDES CONSULTAR DATOS. No tienes acceso a ventas, inversion, ROAS",
         "  ni ninguna cifra de Axis. Si te piden un numero, di claramente que aun no",
         "  puedes consultarlo y que esa funcion esta en camino. **Nunca inventes una",
