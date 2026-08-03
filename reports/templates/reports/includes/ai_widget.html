@@ -1,0 +1,178 @@
+{% comment %}
+Asistente de Axis. Se pinta vacio: el historial se pide solo al abrirlo, para no meter
+consultas ni latencia en el render de cada pagina.
+{% endcomment %}
+<div id="axis-ai" class="axis-ai" data-history-url="{% url 'reports:ai_history' %}" data-chat-url="{% url 'reports:ai_chat' %}">
+  <button type="button" class="axis-ai__toggle" aria-expanded="false" aria-controls="axis-ai-panel" title="Asistente de Axis">
+    <span class="axis-ai__toggle-icon">&#10022;</span>
+    <span class="axis-ai__toggle-text">Asistente</span>
+  </button>
+
+  <section id="axis-ai-panel" class="axis-ai__panel" hidden>
+    <header class="axis-ai__header">
+      <div>
+        <strong>Asistente de Axis</strong>
+        <span class="axis-ai__usage" data-role="usage"></span>
+      </div>
+      <button type="button" class="axis-ai__close" data-role="close" aria-label="Cerrar">&times;</button>
+    </header>
+
+    <div class="axis-ai__log" data-role="log" aria-live="polite"></div>
+
+    <form class="axis-ai__form" data-role="form">
+      <textarea data-role="input" rows="2" maxlength="4000"
+                placeholder="Pregunta lo que necesites de Axis..." required></textarea>
+      <button type="submit" data-role="send">Enviar</button>
+    </form>
+  </section>
+</div>
+
+<style>
+  .axis-ai { position: fixed; right: 24px; bottom: 24px; z-index: 60; font-family: 'Plus Jakarta Sans', sans-serif; }
+  .axis-ai__toggle { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border: 1px solid rgba(255,255,255,.12);
+    border-radius: 999px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; font-size: .85rem;
+    font-weight: 600; cursor: pointer; box-shadow: 0 10px 30px rgba(99,102,241,.35); }
+  .axis-ai__toggle:hover { filter: brightness(1.08); }
+  .axis-ai__toggle-icon { font-size: 1rem; }
+  .axis-ai__panel { width: min(400px, calc(100vw - 32px)); height: min(560px, calc(100vh - 120px)); display: flex;
+    flex-direction: column; background: #0f172a; border: 1px solid rgba(255,255,255,.1); border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(2,6,23,.6); overflow: hidden; }
+  .axis-ai__header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px;
+    border-bottom: 1px solid rgba(255,255,255,.08); color: #e2e8f0; font-size: .9rem; }
+  .axis-ai__usage { display: block; color: #64748b; font-size: .7rem; margin-top: 2px; }
+  .axis-ai__close { background: none; border: 0; color: #94a3b8; font-size: 1.4rem; line-height: 1; cursor: pointer; }
+  .axis-ai__log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .axis-ai__msg { max-width: 88%; padding: 10px 13px; border-radius: 12px; font-size: .82rem; line-height: 1.5;
+    white-space: pre-wrap; word-break: break-word; }
+  .axis-ai__msg--user { align-self: flex-end; background: #4f46e5; color: #fff; border-bottom-right-radius: 4px; }
+  .axis-ai__msg--assistant { align-self: flex-start; background: #1e293b; color: #e2e8f0; border-bottom-left-radius: 4px; }
+  .axis-ai__msg--error { align-self: stretch; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35); color: #fca5a5; }
+  .axis-ai__msg--hint { align-self: stretch; background: rgba(148,163,184,.08); color: #94a3b8; font-size: .76rem; }
+  .axis-ai__form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid rgba(255,255,255,.08); }
+  .axis-ai__form textarea { flex: 1; resize: none; background: #131c2e; border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px; padding: 9px 11px; color: #e2e8f0; font-size: .82rem; font-family: inherit; }
+  .axis-ai__form button { padding: 0 16px; border: 0; border-radius: 10px; background: #6366f1; color: #fff;
+    font-size: .8rem; font-weight: 600; cursor: pointer; }
+  .axis-ai__form button:disabled { opacity: .5; cursor: default; }
+  @media (max-width: 640px) { .axis-ai { right: 12px; bottom: 12px; } }
+</style>
+
+<script>
+  (function () {
+    const root = document.getElementById('axis-ai');
+    if (!root) return;
+
+    const toggle = root.querySelector('.axis-ai__toggle');
+    const panel = root.querySelector('.axis-ai__panel');
+    const log = root.querySelector('[data-role="log"]');
+    const form = root.querySelector('[data-role="form"]');
+    const input = root.querySelector('[data-role="input"]');
+    const send = root.querySelector('[data-role="send"]');
+    const usage = root.querySelector('[data-role="usage"]');
+    let historyLoaded = false;
+    let busy = false;
+
+    function csrfToken() {
+      const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+      return match ? decodeURIComponent(match[1]) : '';
+    }
+
+    function bubble(role, text) {
+      const el = document.createElement('div');
+      el.className = 'axis-ai__msg axis-ai__msg--' + role;
+      el.textContent = text;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+      return el;
+    }
+
+    function showUsage(data) {
+      if (!data) return;
+      const cost = Number(data.cost_usd || 0).toFixed(4);
+      usage.textContent = (data.tokens || 0) + ' tokens hoy · ' + cost + ' USD';
+    }
+
+    async function loadHistory() {
+      if (historyLoaded) return;
+      historyLoaded = true;
+      try {
+        const response = await fetch(root.dataset.historyUrl, { headers: { 'X-Requested-With': 'fetch' } });
+        if (!response.ok) throw new Error('historial');
+        const data = await response.json();
+        showUsage(data.usage);
+        if (!data.enabled) {
+          bubble('hint', 'El asistente no esta configurado en este entorno.');
+          form.hidden = true;
+          return;
+        }
+        (data.messages || []).forEach(function (m) {
+          bubble(m.role === 'user' ? 'user' : 'assistant', m.content);
+        });
+        if (!(data.messages || []).length) {
+          bubble('hint', 'Puedo explicarte como funciona Axis, que significa una metrica o como se calcula algo. Todavia no puedo consultar cifras: si te doy un numero, no confies en el.');
+        }
+      } catch (error) {
+        bubble('error', 'No se pudo cargar el historial.');
+      }
+    }
+
+    function open() {
+      panel.hidden = false;
+      toggle.hidden = true;
+      toggle.setAttribute('aria-expanded', 'true');
+      loadHistory();
+      input.focus();
+    }
+
+    function close() {
+      panel.hidden = true;
+      toggle.hidden = false;
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+
+    toggle.addEventListener('click', open);
+    root.querySelector('[data-role="close"]').addEventListener('click', close);
+
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      const text = input.value.trim();
+      if (!text || busy) return;
+
+      busy = true;
+      send.disabled = true;
+      input.value = '';
+      bubble('user', text);
+      const pending = bubble('hint', 'Pensando...');
+
+      try {
+        const response = await fetch(root.dataset.chatUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+          body: JSON.stringify({ message: text }),
+        });
+        const data = await response.json().catch(function () { return {}; });
+        pending.remove();
+        if (!response.ok) {
+          bubble('error', data.detail || 'El asistente no pudo responder.');
+        } else {
+          bubble('assistant', (data.reply && data.reply.content) || '(sin respuesta)');
+          showUsage(data.usage);
+        }
+      } catch (error) {
+        pending.remove();
+        bubble('error', 'No hubo conexion con el asistente.');
+      } finally {
+        busy = false;
+        send.disabled = false;
+        input.focus();
+      }
+    });
+  })();
+</script>

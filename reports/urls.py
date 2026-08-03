@@ -1,6 +1,7 @@
 ﻿from django.urls import path
 
 from . import api_views, views
+from .ai import views as ai_views
 
 app_name = "reports"
 
@@ -28,6 +29,8 @@ urlpatterns = [
     path("api/dashboard/summary/", api_views.DashboardSummaryAPIView.as_view(), name="api_dashboard_summary"),
     path("api/metrics/", api_views.MetricRecordListAPIView.as_view(), name="api_metrics"),
     path("api/tasks/", api_views.WeeklyTaskListAPIView.as_view(), name="api_tasks"),
+    path("api/ai/history/", ai_views.ai_history, name="ai_history"),
+    path("api/ai/chat/", ai_views.ai_chat, name="ai_chat"),
     path("api/attachments/", api_views.AttachmentListAPIView.as_view(), name="api_attachments"),
 ]
 
