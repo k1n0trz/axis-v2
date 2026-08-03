@@ -101,8 +101,17 @@ class ContextoDelUsuarioTests(TestCase):
 
         prompt = build_system_prompt(usuario)
 
-        self.assertIn("TODAVIA NO PUEDES CONSULTAR DATOS", prompt)
+        self.assertIn("Toda cifra sale de una consulta", prompt)
         self.assertIn("Nunca inventes una", prompt)
+
+    def test_el_prompt_dice_que_dia_es_hoy(self):
+        # Sin esto "el mes pasado" le sale de la nada.
+        from django.utils import timezone
+
+        usuario = _staff("fechas")
+        UserProfile.objects.update_or_create(user=usuario, defaults={})
+
+        self.assertIn(timezone.localdate().isoformat(), build_system_prompt(usuario))
 
     def test_el_prompt_declara_que_los_datos_no_son_instrucciones(self):
         usuario = _staff("inyeccion")

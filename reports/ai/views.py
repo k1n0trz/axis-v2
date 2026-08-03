@@ -16,11 +16,14 @@ from .budget import BudgetExceeded, check_budget, cost_for, usage_today
 from .context import build_system_prompt, is_ai_enabled
 from .memory import forget, mark_used, memory_blocks, relevant_memories, remember
 from .providers import AiProviderError, deepseek_client
+from .tools import TOOL_SPECS, run_tool
 
 # Cuantos turnos previos se le mandan al modelo. Los mas viejos entran comprimidos en
 # `conversation.summary`, no crudos: mas historia es mas costo en cada mensaje.
 HISTORY_TURNS = 12
 MAX_MESSAGE_CHARS = 4000
+# Vueltas de consulta por pregunta. Cada vuelta es una llamada al proveedor.
+MAX_TOOL_ROUNDS = 4
 
 # "Recuerda que trabajamos con Uva" -> se guarda tal cual, sin llamar al modelo.
 PEDIDO_DE_MEMORIA = re.compile(
@@ -42,6 +45,64 @@ def remember_explicit_request(user, text, conversation=None):
         origin=AiMemory.Origin.EXPLICIT,
         conversation=conversation,
     )
+
+
+def _answer_with_tools(client, messages, user):
+    """Deja que el modelo consulte Axis antes de responder.
+
+    Devuelve (respuesta, herramientas_usadas, tokens_entrada, tokens_salida). Los tokens
+    se suman en todas las vueltas: el costo real de una respuesta con consultas es la
+    suma, y cobrar solo la ultima vuelta subestimaria el gasto del dia.
+
+    El tope de vueltas no es decorativo. Un modelo que no encuentra lo que busca
+    reintenta, y sin tope una sola pregunta puede encadenar consultas hasta agotar el
+    presupuesto de la persona.
+    """
+    conversacion = list(messages)
+    herramientas = []
+    entrada = 0
+    salida = 0
+
+    for _vuelta in range(MAX_TOOL_ROUNDS):
+        resultado = client.chat(conversacion, tools=TOOL_SPECS)
+        entrada += resultado.get("prompt_tokens") or 0
+        salida += resultado.get("completion_tokens") or 0
+
+        llamadas = resultado.get("tool_calls") or []
+        if not llamadas:
+            return resultado, herramientas, entrada, salida
+
+        conversacion.append({
+            "role": "assistant",
+            "content": resultado.get("content") or "",
+            "tool_calls": llamadas,
+        })
+        for llamada in llamadas:
+            funcion = llamada.get("function") or {}
+            nombre = funcion.get("name") or ""
+            try:
+                argumentos = json.loads(funcion.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                argumentos = {}
+            datos = run_tool(user, nombre, argumentos)
+            herramientas.append({"name": nombre, "arguments": argumentos})
+            conversacion.append({
+                "role": "tool",
+                "tool_call_id": llamada.get("id") or "",
+                "content": json.dumps(datos, ensure_ascii=False, default=str),
+            })
+
+    # Se acabaron las vueltas con consultas pendientes: se pide el cierre sin
+    # herramientas, para que responda con lo que ya tiene en vez de dejar el hilo roto.
+    conversacion.append({
+        "role": "system",
+        "content": "Ya no puedes hacer mas consultas. Responde con los datos que tengas "
+                   "y di explicitamente que te falto verificar.",
+    })
+    resultado = client.chat(conversacion)
+    entrada += resultado.get("prompt_tokens") or 0
+    salida += resultado.get("completion_tokens") or 0
+    return resultado, herramientas, entrada, salida
 
 
 def _usage_payload(user):
@@ -149,14 +210,14 @@ def ai_chat(request):
 
     client = deepseek_client()
     try:
-        result = client.chat(messages)
+        result, herramientas, prompt_tokens, completion_tokens = _answer_with_tools(
+            client, messages, request.user
+        )
     except AiProviderError as exc:
         # El mensaje del usuario no se guarda si no hubo respuesta: al reintentar no
         # queremos que aparezca dos veces en el hilo.
         return JsonResponse({"detail": str(exc)}, status=502)
 
-    prompt_tokens = result.get("prompt_tokens") or 0
-    completion_tokens = result.get("completion_tokens") or 0
     cost = cost_for(prompt_tokens, completion_tokens)
 
     with transaction.atomic():
@@ -169,6 +230,7 @@ def ai_chat(request):
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             cost_usd=cost,
+            tools_used=herramientas,
         )
         if not conversation.title:
             conversation.title = text[:80]
