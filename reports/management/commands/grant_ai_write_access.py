@@ -32,8 +32,10 @@ class Command(BaseCommand):
         parser.add_argument("--user", required=True)
         parser.add_argument(
             "--business-unit",
-            default="",
             action="append",
+            # `default=None` y no "": con action="append" argparse le hace .append() al
+            # default, y sobre una cadena eso revienta.
+            default=None,
             help="Slug de marca a asignar en el perfil. Se puede repetir.",
         )
         parser.add_argument(

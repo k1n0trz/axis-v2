@@ -216,3 +216,55 @@ class AlcanceDeLaCargaTests(TestCase):
         respuesta = self._subir_y_cargar(usuario)
 
         self.assertEqual(respuesta.status_code, 200)
+
+
+class ComandoDeHabilitacionTests(TestCase):
+    """`grant_ai_write_access`: los dos pasos juntos."""
+
+    def setUp(self):
+        from reports.models import BusinessUnit
+
+        self.usuario = _staff("karen")
+        BusinessUnit.objects.get_or_create(name="Marketplace", defaults={"slug": "marketplace"})
+
+    def _correr(self, *args):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        salida = StringIO()
+        call_command("grant_ai_write_access", *args, stdout=salida)
+        return salida.getvalue()
+
+    def test_habilita_grupo_y_permisos_en_una_sola_corrida(self):
+        # Sin --business-unit tambien tiene que funcionar: es el caso mas comun.
+        salida = self._correr("--user", "karen")
+
+        self.assertIn("puede confirmar cargas: True", salida)
+
+    def test_asigna_las_marcas_que_se_le_pasen(self):
+        self._correr("--user", "karen", "--business-unit", "marketplace")
+
+        usuario = User.objects.get(pk=self.usuario.pk)
+        self.assertEqual([b.name for b in usuario.profile.business_units.all()], ["Marketplace"])
+
+    def test_un_slug_que_no_existe_falla_sin_tocar_nada(self):
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError):
+            self._correr("--user", "karen", "--business-unit", "inventada")
+
+    def test_revocar_quita_la_llave(self):
+        self._correr("--user", "karen")
+
+        self._correr("--user", "karen", "--revoke")
+
+        self.assertFalse(can_import_data(User.objects.get(pk=self.usuario.pk)))
+
+    def test_avisa_si_el_grupo_trae_permisos_adentro(self):
+        grupo, _ = Group.objects.get_or_create(name=WRITE_GROUP)
+        grupo.permissions.add(Permission.objects.get(codename="delete_user"))
+
+        salida = self._correr("--user", "karen")
+
+        self.assertIn("Deberia ir vacio", salida)
