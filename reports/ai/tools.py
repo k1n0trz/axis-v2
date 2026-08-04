@@ -433,6 +433,35 @@ def preview_data_entry(user, kind, **datos):
     return {**plan, "aplicado": False, "nota": "Falta que la persona confirme con el boton."}
 
 
+def preview_template_file(user, attachment_id, business_unit, sheet="", **_):
+    """Revisa la plantilla del admin (Fecha/Pais/Canal/Ventas/Inversion) fila por fila.
+
+    No escribe. Cada fila se valida como si la hubieran dictado, asi que un archivo no
+    puede escribir lo que un dictado no podria.
+    """
+    from .data_entry import EntryError
+    from .spreadsheets import AttachmentGone, attachment_for, preview_template
+
+    attachment = attachment_for(user, attachment_id)
+    if not attachment:
+        return {"error": "No encuentro ese archivo entre los tuyos. Usa list_my_files."}
+    try:
+        revision = preview_template(attachment, user, business_unit, sheet_name=sheet)
+    except (EntryError, AttachmentGone) as exc:
+        return {"error": str(exc)}
+    return {
+        "filas_listas": len(revision["planes"]),
+        "filas_con_problema": len(revision["problemas"]),
+        "problemas": revision["problemas"][:10],
+        "resumen": [
+            {"fila": p["fila"], "que": p["que"], "fecha": p["fecha"],
+             "antes": p["antes"], "despues": p["despues"]}
+            for p in revision["planes"][:15]
+        ],
+        "nota": "Nada registrado todavia: la persona confirma con el boton.",
+    }
+
+
 def get_websites_health(user, **_):
     """Estado de las webs monitoreadas."""
     permitidas = allowed_business_units(user)
@@ -472,6 +501,7 @@ TOOLS = {
     "get_config": get_config,
     "what_can_i_update": what_can_i_update,
     "preview_data_entry": preview_data_entry,
+    "preview_template_file": preview_template_file,
     "preview_config_change": preview_config_change,
     "preview_file_import": preview_file_import,
 }
@@ -578,6 +608,18 @@ TOOL_SPECS = [
             "unidades": {"type": "string", "description": "Solo para ventas, opcional."},
         },
         ("kind", "marca", "fecha", "monto"),
+    ),
+    _spec(
+        "preview_template_file",
+        "Revisa un archivo con la forma de la plantilla del admin (Fecha, Pais, Canal, "
+        "Ventas, Inversion, Pedidos, Unidades) y muestra fila por fila que quedaria y que "
+        "esta mal. NO escribe: lo confirma la persona.",
+        {
+            "attachment_id": {"type": "integer"},
+            "business_unit": {"type": "string", "description": "De que marca son esas filas."},
+            "sheet": {"type": "string"},
+        },
+        ("attachment_id", "business_unit"),
     ),
     _spec(
         "get_config",

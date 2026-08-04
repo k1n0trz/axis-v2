@@ -282,3 +282,104 @@ def apply_entry(user, kind, **datos):
         field="monto", old_value=plan["antes"], new_value=plan["despues"],
     )
     return {**plan, "aplicado": True, "nota": "Este dato SI quedo registrado en Axis."}
+
+
+# La plantilla que el admin ya exporta ("DESCARGAR PLANTILLA" en Ventas Marketplace).
+# Cabecera en la fila 1 y una fila por dia/pais/canal.
+PLANTILLA_COLUMNAS = ("fecha", "pais", "canal", "ventas", "inversion", "pedidos", "unidades")
+PLANTILLA_MINIMAS = {"fecha", "pais", "canal"}
+MAX_FILAS_PLANTILLA = 400
+
+
+def plan_workbook(user, ruta, marca, hoja_nombre=""):
+    """Cada fila de la plantilla, validada como si la hubieran dictado.
+
+    No hay importador nuevo: la plantilla es N entradas, y pasan por el mismo
+    `plan_entry` que el chat. Asi un archivo no puede escribir lo que un dictado no
+    podria --otra marca, otro pais, una fecha futura-- ni saltarse el aviso de que ya
+    habia un valor.
+    """
+    from openpyxl import load_workbook
+
+    libro = load_workbook(filename=ruta, read_only=True, data_only=True)
+    try:
+        hoja = libro[hoja_nombre] if hoja_nombre else libro.active
+        filas = list(hoja.iter_rows(min_row=1, values_only=True))
+    finally:
+        libro.close()
+
+    if not filas:
+        raise EntryError("El archivo esta vacio.")
+    cabecera = [normalize_text(c) for c in filas[0]]
+    if not PLANTILLA_MINIMAS.issubset(set(cabecera)):
+        raise EntryError(
+            "Esta hoja no tiene la forma de la plantilla. Se esperan las columnas "
+            f"{', '.join(PLANTILLA_COLUMNAS)} en la primera fila."
+        )
+
+    indice = {nombre: cabecera.index(nombre) for nombre in cabecera if nombre}
+    planes = []
+    problemas = []
+    for numero, fila in enumerate(filas[1:], start=2):
+        if not any(c is not None and str(c).strip() for c in (fila or [])):
+            continue
+        if len(planes) + len(problemas) >= MAX_FILAS_PLANTILLA:
+            problemas.append({"fila": numero, "error": "Se alcanzo el tope de filas por archivo."})
+            break
+
+        def celda(nombre):
+            posicion = indice.get(nombre)
+            if posicion is None or posicion >= len(fila):
+                return None
+            return fila[posicion]
+
+        fecha = celda("fecha")
+        # openpyxl devuelve datetime en las celdas con formato de fecha.
+        fecha = fecha.date().isoformat() if hasattr(fecha, "date") else fecha
+        comun = {"marca": marca, "pais": celda("pais"), "fecha": fecha}
+
+        for tipo, columna, extra in (
+            ("ventas_de_canal", "ventas", {"canal": celda("canal"), "pedidos": celda("pedidos") or 0,
+                                           "unidades": celda("unidades") or 0}),
+            ("gasto_publicitario", "inversion", {"plataforma": celda("canal")}),
+        ):
+            valor = celda(columna)
+            if valor is None or str(valor).strip() in ("", "0"):
+                # Una celda vacia o en cero no es un dato: la plantilla trae las dos
+                # columnas siempre, y escribir ceros borraria lo que ya hubiera.
+                continue
+            try:
+                planes.append({"fila": numero, **plan_entry(user, tipo, monto=valor, **comun, **extra)})
+            except EntryError as exc:
+                problemas.append({"fila": numero, "columna": columna, "error": str(exc)})
+
+    return {"planes": planes, "problemas": problemas}
+
+
+def apply_workbook(user, ruta, marca, hoja_nombre=""):
+    """Registra todas las filas validadas. Las que fallaron se reportan, no se inventan."""
+    from ..integrations.run_log import track_run
+
+    revision = plan_workbook(user, ruta, marca, hoja_nombre)
+    aplicados = 0
+    with track_run(
+        "IA plantilla", command=f"{marca} (via asistente, {user.get_username()})"
+    ) as run:
+        for plan in revision["planes"]:
+            datos = {"marca": marca, "pais": None, "fecha": plan["claves"]["fecha"],
+                     "monto": plan["monto"]}
+            claves = plan["claves"]
+            datos["pais"] = claves["pais"]
+            if plan["tipo"] == "gasto_publicitario":
+                datos["plataforma"] = claves["plataforma"]
+            else:
+                datos["canal"] = claves["canal"]
+                datos["pedidos"] = plan.get("pedidos") or 0
+                datos["unidades"] = plan.get("unidades") or 0
+            apply_entry(user, plan["tipo"], **datos)
+            aplicados += 1
+        run.summary = (
+            f"{aplicados} filas registradas, {len(revision['problemas'])} con problema"
+        )
+    return {**revision, "aplicados": aplicados,
+            "nota": f"{aplicados} datos quedaron registrados en Axis."}

@@ -1,6 +1,6 @@
 """Deja completo el catalogo de plataformas de pauta.
 
-Marketplace pauta dentro de Mercado Libre y de Falabella, y ninguna de las dos existia
+Marketplace pauta dentro de Mercadolibre, Falabella, Rappi y Farmatodo, y ninguna existia
 como plataforma: Axis solo conocia Google Ads y Meta Ads. Sin ellas, Karen no podia
 registrar "el gasto de Mercado Libre fue X" --el asistente respondia, con razon, que esa
 plataforma no existe-- y el ROAS de Marketplace se calculaba contra una inversion de cero.
@@ -11,9 +11,15 @@ from django.core.management.base import BaseCommand
 
 from reports.models import AdPlatform
 
+# El nombre va **igual que el canal** en Axis, no "bonito": la plantilla del admin dice
+# `Mercadolibre` sin espacio, y Karen dice "el gasto de Mercadolibre". Llamarla "Mercado
+# Libre Ads" hacia que ni el archivo ni el dictado la encontraran. El slug lleva `-ads`
+# para que en el codigo se distinga del canal del mismo nombre.
 PLATAFORMAS = (
-    ("Mercado Libre Ads", "mercadolibre-ads"),
-    ("Falabella Ads", "falabella-ads"),
+    ("Mercadolibre", "mercadolibre-ads"),
+    ("Falabella", "falabella-ads"),
+    ("Rappi", "rappi-ads"),
+    ("Farmatodo", "farmatodo-ads"),
 )
 
 

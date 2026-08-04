@@ -283,6 +283,22 @@ def _plan(attachment, sheet_name="", shape_key=""):
     return hoja, forma
 
 
+def preview_template(attachment, user, business_unit, sheet_name=""):
+    """Revisa la plantilla del admin fila por fila. No escribe nada."""
+    from .data_entry import plan_workbook
+
+    with materialized(attachment) as ruta:
+        return plan_workbook(user, ruta, business_unit, hoja_nombre=sheet_name)
+
+
+def apply_template(attachment, user, business_unit, sheet_name=""):
+    """Registra la plantilla del admin. Solo tras confirmacion humana."""
+    from .data_entry import apply_workbook
+
+    with materialized(attachment) as ruta:
+        return apply_workbook(user, ruta, business_unit, hoja_nombre=sheet_name)
+
+
 def preview_import(attachment, sheet_name="", shape_key=""):
     """Corre el importador de verdad y deshace la transaccion. Nada queda escrito."""
     hoja, forma = _plan(attachment, sheet_name, shape_key)
