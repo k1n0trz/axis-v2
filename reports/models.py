@@ -1488,6 +1488,32 @@ class AiAttachment(TimestampedModel):
         return f"{self.user.username}: {self.original_name}"
 
 
+class AiConfigChange(TimestampedModel):
+    """Bitacora de los cambios de configuracion que se hicieron desde el asistente.
+
+    Separada de `IntegrationRun` a proposito: ahi va "corrio y le fue asi", y aqui va
+    "esto valia X y ahora vale Y, y lo cambio esta persona". Cuando alguien pregunte por
+    que el semaforo cambio de umbral, la respuesta tiene que estar en una fila, no en un
+    log que ya rotó.
+    """
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ai_config_changes")
+    target = models.CharField(max_length=40)
+    object_label = models.CharField(max_length=160)
+    field = models.CharField(max_length=40)
+    old_value = models.CharField(max_length=200)
+    new_value = models.CharField(max_length=200)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Cambio de configuracion IA"
+        verbose_name_plural = "Cambios de configuracion IA"
+        indexes = [models.Index(fields=["target", "-created_at"], name="reports_aicfg_target_idx")]
+
+    def __str__(self):
+        return f"{self.object_label}: {self.field} {self.old_value} -> {self.new_value}"
+
+
 class AiMemory(TimestampedModel):
     """Lo que la IA aprendio de una persona y le sirve en la siguiente conversacion.
 

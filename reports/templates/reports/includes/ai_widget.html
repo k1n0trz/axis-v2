@@ -8,7 +8,8 @@ consultas ni latencia en el render de cada pagina.
      data-memories-url="{% url 'reports:ai_memories' %}"
      data-feedback-url="{% url 'reports:ai_feedback' %}"
      data-files-url="{% url 'reports:ai_attachments' %}"
-     data-upload-url="{% url 'reports:ai_attachment_upload' %}">
+     data-upload-url="{% url 'reports:ai_attachment_upload' %}"
+     data-config-url="{% url 'reports:ai_config_apply' %}">
   <button type="button" class="axis-ai__toggle" aria-expanded="false" aria-controls="axis-ai-panel" title="Asistente de Axis">
     <span class="axis-ai__toggle-icon">&#10022;</span>
     <span class="axis-ai__toggle-text">Asistente</span>
@@ -307,6 +308,48 @@ consultas ni latencia en el render de cada pagina.
       caja.appendChild(acciones);
     }
 
+    // El boton sale del cambio que la herramienta ya valido, no de lo que el modelo
+    // haya escrito en su texto: se confirma exactamente lo que se validó.
+    function askConfigConfirm(cambio) {
+      const caja = bubble('hint',
+        'Cambio de configuracion listo: ' + cambio.target + ' "' + (cambio.name || '') + '" · '
+        + cambio.field + ' = ' + cambio.value + '. Nada aplicado todavia.');
+      const acciones = document.createElement('div');
+      acciones.className = 'axis-ai__vote';
+      const si = document.createElement('button');
+      si.type = 'button';
+      si.textContent = 'Aplicar';
+      const no = document.createElement('button');
+      no.type = 'button';
+      no.textContent = 'Cancelar';
+      no.addEventListener('click', function () {
+        acciones.remove();
+        caja.textContent += ' (cancelado)';
+      });
+      si.addEventListener('click', async function () {
+        acciones.remove();
+        try {
+          const response = await fetch(root.dataset.configUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            body: JSON.stringify(Object.assign({ confirm: true }, cambio)),
+          });
+          const data = await response.json().catch(function () { return {}; });
+          if (!response.ok) {
+            bubble('error', data.detail || 'No se pudo aplicar el cambio.');
+            return;
+          }
+          const a = data.applied;
+          bubble('hint', 'Aplicado: ' + a.objeto + ' · ' + a.campo + ' ' + a.antes + ' -> ' + a.despues);
+        } catch (error) {
+          bubble('error', 'No se pudo aplicar el cambio.');
+        }
+      });
+      acciones.appendChild(si);
+      acciones.appendChild(no);
+      caja.appendChild(acciones);
+    }
+
     async function loadFiles() {
       const list = root.querySelector('[data-role="files-list"]');
       const hint = root.querySelector('[data-role="files-hint"]');
@@ -462,6 +505,7 @@ consultas ni latencia en el render de cada pagina.
           const el = bubble('assistant', (data.reply && data.reply.content) || '(sin respuesta)');
           addVote(el, data.reply && data.reply.id, '');
           if (data.remembered) bubble('hint', 'Anotado: ' + data.remembered);
+          if (data.pending_change) askConfigConfirm(data.pending_change);
           showUsage(data.usage);
           if (!memoriesBox.hidden) loadMemories();
         }

@@ -7,6 +7,7 @@ costo 16 s en el panel de Meta: nada bloqueante de red en el camino de la pagina
 import json
 import re
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import Http404, JsonResponse
 from django.urls import reverse
@@ -23,9 +24,10 @@ from .attachments import (
     save_attachment,
 )
 from .budget import BudgetExceeded, check_budget, cost_for, usage_today
+from .config_changes import ConfigError, apply_change
 from .context import build_system_prompt, is_ai_enabled
 from .memory import forget, mark_used, memory_blocks, relevant_memories, remember
-from .permissions import can_import_data, why_not_import
+from .permissions import can_import_data, why_not_config, why_not_import
 from .providers import AiProviderError, deepseek_client
 from .spreadsheets import (
     AttachmentGone,
@@ -103,7 +105,12 @@ def _answer_with_tools(client, messages, user):
             except json.JSONDecodeError:
                 argumentos = {}
             datos = run_tool(user, nombre, argumentos)
-            herramientas.append({"name": nombre, "arguments": argumentos})
+            herramientas.append({
+                "name": nombre,
+                "arguments": argumentos,
+                # Sin esto se ofreceria un boton "aplicar" sobre un cambio que no valido.
+                "failed": bool(isinstance(datos, dict) and datos.get("error")),
+            })
             conversacion.append({
                 "role": "tool",
                 "tool_call_id": llamada.get("id") or "",
@@ -121,6 +128,25 @@ def _answer_with_tools(client, messages, user):
     entrada += resultado.get("prompt_tokens") or 0
     salida += resultado.get("completion_tokens") or 0
     return resultado, herramientas, entrada, salida
+
+
+def _pending_config_change(herramientas):
+    """El cambio que quedo validado y espera confirmacion, si hubo alguno.
+
+    Sale de los argumentos con que se llamo `preview_config_change`, no del texto que
+    escribio el modelo: el boton tiene que confirmar exactamente lo que se valido.
+    """
+    for llamada in reversed(herramientas):
+        if llamada.get("name") == "preview_config_change" and not llamada.get("failed"):
+            argumentos = llamada.get("arguments") or {}
+            if all(argumentos.get(k) for k in ("target", "field", "value")):
+                return {
+                    "target": argumentos.get("target"),
+                    "name": argumentos.get("name", ""),
+                    "field": argumentos.get("field"),
+                    "value": argumentos.get("value"),
+                }
+    return None
 
 
 def _usage_payload(user):
@@ -270,6 +296,7 @@ def ai_chat(request):
 
     return JsonResponse({
         "conversation_id": conversation.id,
+        "pending_change": _pending_config_change(herramientas),
         "reply": _serialize(reply),
         "usage": _usage_payload(request.user),
         "recalled": len(recalled),
@@ -433,3 +460,39 @@ def ai_attachment_preview(request, attachment_id):
     except (ImportNotPossible, AttachmentGone) as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
     return JsonResponse({"preview": resultado, "can_import": can_import_data(request.user)})
+
+
+@require_POST
+def ai_config_apply(request):
+    """Aplica un cambio de configuracion ya confirmado por una persona.
+
+    Los cuatro parametros se vuelven a validar aqui. No se confia en el plan que el
+    navegador devuelva: entre la simulacion y la confirmacion pudo cambiar el dato, y
+    quien manda es el estado de la base en este momento.
+    """
+    motivo = why_not_config(request.user)
+    if motivo:
+        return JsonResponse({"detail": motivo}, status=403)
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    if payload.get("confirm") is not True:
+        return JsonResponse({"detail": "Falta la confirmacion explicita."}, status=400)
+
+    try:
+        resultado = apply_change(
+            request.user,
+            payload.get("target") or "",
+            payload.get("name") or "",
+            payload.get("field") or "",
+            payload.get("value") or "",
+        )
+    except ConfigError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    except ValidationError as exc:
+        # La restriccion del modelo (amarillo <= verde) llega por aca.
+        return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
+
+    return JsonResponse({"applied": resultado})

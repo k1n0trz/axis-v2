@@ -361,6 +361,29 @@ def preview_file_import(user, attachment_id, sheet="", **_):
         return {"error": str(exc)}
 
 
+def get_config(user, **_):
+    """Que se puede cambiar sin desplegar codigo, y como esta hoy."""
+    from .config_changes import describe_config
+
+    return describe_config(user)
+
+
+def preview_config_change(user, target, name, field, value, **_):
+    """Valida un cambio de configuracion y lo muestra. NO lo aplica.
+
+    Lo aplica una persona con el boton, igual que la carga de archivos. El boton lo
+    dibuja el widget con **esta** salida, no con lo que el modelo escriba en su texto:
+    asi lo que se confirma es exactamente lo que se valido.
+    """
+    from .config_changes import ConfigError, plan_change
+
+    try:
+        plan = plan_change(user, target, name, field, value)
+    except ConfigError as exc:
+        return {"error": str(exc)}
+    return {**plan, "aplicado": False, "nota": "Todavia no se aplico: falta que la persona confirme."}
+
+
 def get_websites_health(user, **_):
     """Estado de las webs monitoreadas."""
     permitidas = allowed_business_units(user)
@@ -397,6 +420,8 @@ TOOLS = {
     "get_websites_health": get_websites_health,
     "list_my_files": list_my_files,
     "describe_file": describe_file,
+    "get_config": get_config,
+    "preview_config_change": preview_config_change,
     "preview_file_import": preview_file_import,
 }
 
@@ -478,6 +503,26 @@ TOOL_SPECS = [
         "get_websites_health",
         "Estado de las webs monitoreadas: HTTP, cuando se reviso y puntaje de PageSpeed.",
         {},
+    ),
+    _spec(
+        "get_config",
+        "Marcas, paises, canales y umbrales del semaforo de ROAS, con los campos que se "
+        "pueden cambiar sin desplegar codigo. Solo se **editan** los que ya existen: "
+        "crear una marca o un pais nuevo, y borrar cualquiera, no se puede por aqui.",
+        {},
+    ),
+    _spec(
+        "preview_config_change",
+        "Valida un cambio de configuracion y muestra el antes/despues. NO lo aplica: lo "
+        "confirma la persona con un boton. Usala cuando pidan cambiar una marca, un pais, "
+        "un canal o los umbrales del semaforo.",
+        {
+            "target": {"type": "string", "enum": ["marca", "pais", "canal", "semaforo_roas"]},
+            "name": {"type": "string", "description": "Cual, por nombre. Para el semaforo puede ir vacio."},
+            "field": {"type": "string", "description": "Campo a cambiar. get_config lista los validos."},
+            "value": {"type": "string", "description": "Valor nuevo."},
+        },
+        ("target", "name", "field", "value"),
     ),
     _spec(
         "list_my_files",

@@ -35,6 +35,26 @@ def can_import_data(user):
     return in_write_group(user) and all(user.has_perm(p) for p in IMPORT_PERMISSIONS)
 
 
+def can_change_config(user):
+    """Si esta persona puede aplicar cambios de configuracion.
+
+    El permiso concreto lo revisa `apply_change` segun lo que se vaya a tocar: cambiar
+    una marca y cambiar el semaforo no piden el mismo.
+    """
+    return in_write_group(user)
+
+
+def why_not_config(user):
+    if not write_group_exists():
+        return f"El grupo '{WRITE_GROUP}' no existe todavia en este entorno."
+    if not in_write_group(user):
+        return (
+            f"Solo quien este en el grupo '{WRITE_GROUP}' puede aplicar cambios de "
+            "configuracion. Puedo validarte el cambio y mostrartelo, pero no aplicarlo."
+        )
+    return ""
+
+
 def why_not_import(user):
     """El motivo, para decirselo a la persona en vez de un 403 pelado."""
     if not write_group_exists():
