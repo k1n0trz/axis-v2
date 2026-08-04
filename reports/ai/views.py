@@ -26,6 +26,7 @@ from .attachments import (
 )
 from .budget import BudgetExceeded, check_budget, cost_for, usage_report, usage_today
 from .config_changes import ConfigError, apply_change
+from .data_entry import EntryError, apply_entry
 from .context import build_system_prompt, is_ai_enabled
 from .memory import forget, mark_used, memory_blocks, relevant_memories, remember
 from .permissions import can_import_data, why_not_config, why_not_import
@@ -156,6 +157,14 @@ def _pending_config_change(herramientas):
                     "field": argumentos.get("field"),
                     "value": argumentos.get("value"),
                 }
+    return None
+
+
+def _pending_data_entry(herramientas):
+    """El dato dictado que quedo validado y espera confirmacion."""
+    for llamada in reversed(herramientas):
+        if llamada.get("name") == "preview_data_entry" and not llamada.get("failed"):
+            return llamada.get("arguments") or None
     return None
 
 
@@ -327,6 +336,7 @@ def ai_chat(request):
     return JsonResponse({
         "conversation_id": conversation.id,
         "pending_change": _pending_config_change(herramientas),
+        "pending_entry": _pending_data_entry(herramientas),
         # El usuario tiene que enterarse de que un nombre en sus datos trae texto raro:
         # es en su plataforma de anuncios donde hay que arreglarlo.
         "injection_warnings": sospechas,
@@ -570,3 +580,26 @@ def ai_conversation_new(request):
 def ai_usage(request):
     """Panel de gasto de la IA. Sin llamadas al proveedor: solo suma lo ya guardado."""
     return JsonResponse(usage_report(request.user))
+
+
+@require_POST
+def ai_data_entry_apply(request):
+    """Registra un dato dictado, ya confirmado por una persona."""
+    motivo = why_not_config(request.user)
+    if motivo:
+        return JsonResponse({"detail": motivo}, status=403)
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    if payload.get("confirm") is not True:
+        return JsonResponse({"detail": "Falta la confirmacion explicita."}, status=400)
+
+    datos = {k: v for k, v in payload.items() if k not in ("confirm", "kind")}
+    try:
+        resultado = apply_entry(request.user, payload.get("kind") or "", **datos)
+    except EntryError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
+    return JsonResponse({"applied": resultado})

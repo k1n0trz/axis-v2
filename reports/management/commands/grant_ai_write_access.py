@@ -15,6 +15,11 @@ from django.core.management.base import BaseCommand, CommandError
 from reports.ai.permissions import IMPORT_PERMISSIONS, WRITE_GROUP, can_import_data
 from reports.models import BusinessUnit, UserProfile
 
+# Registrar un dato hablando necesita el de inversion, que no esta en IMPORT_PERMISSIONS:
+# Karen quedo habilitada para cargar archivos pero no para dictar un gasto, que es justo
+# lo que ella hace todos los dias.
+ENTRY_PERMISSIONS = ("reports.change_dailyadspend",)
+
 # Los de importar mas los de configuracion: si alguien puede confirmar cargas, tambien
 # necesita poder aplicar los cambios de configuracion que el asistente le proponga.
 CONFIG_PERMISSIONS = (
@@ -69,7 +74,11 @@ class Command(BaseCommand):
             return
 
         usuario.groups.add(grupo)
-        rutas = list(IMPORT_PERMISSIONS) + (list(CONFIG_PERMISSIONS) if options["config"] else [])
+        rutas = (
+            list(IMPORT_PERMISSIONS)
+            + list(ENTRY_PERMISSIONS)
+            + (list(CONFIG_PERMISSIONS) if options["config"] else [])
+        )
         for ruta in rutas:
             codename = ruta.split(".")[-1]
             usuario.user_permissions.add(Permission.objects.get(codename=codename))

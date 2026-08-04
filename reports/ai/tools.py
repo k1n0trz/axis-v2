@@ -410,6 +410,29 @@ def preview_config_change(user, target, name, field, value, **_):
     return {**plan, "aplicado": False, "nota": "Todavia no se aplico: falta que la persona confirme."}
 
 
+def what_can_i_update(user, **_):
+    """Que datos puede registrar esta persona hablando, y con que informacion."""
+    from .data_entry import describe_entry_types
+
+    return describe_entry_types(user)
+
+
+def preview_data_entry(user, kind, **datos):
+    """Valida un dato dictado y muestra el antes/despues. NO lo registra.
+
+    Si falta algo --la fecha, el pais, la plataforma-- devuelve que falta para que se lo
+    preguntes. No rellenes huecos con supuestos: un dato en el dia equivocado no se nota
+    hasta el cierre de mes.
+    """
+    from .data_entry import EntryError, plan_entry
+
+    try:
+        plan = plan_entry(user, kind, **datos)
+    except EntryError as exc:
+        return {"error": str(exc)}
+    return {**plan, "aplicado": False, "nota": "Falta que la persona confirme con el boton."}
+
+
 def get_websites_health(user, **_):
     """Estado de las webs monitoreadas."""
     permitidas = allowed_business_units(user)
@@ -447,6 +470,8 @@ TOOLS = {
     "list_my_files": list_my_files,
     "describe_file": describe_file,
     "get_config": get_config,
+    "what_can_i_update": what_can_i_update,
+    "preview_data_entry": preview_data_entry,
     "preview_config_change": preview_config_change,
     "preview_file_import": preview_file_import,
 }
@@ -529,6 +554,30 @@ TOOL_SPECS = [
         "get_websites_health",
         "Estado de las webs monitoreadas: HTTP, cuando se reviso y puntaje de PageSpeed.",
         {},
+    ),
+    _spec(
+        "what_can_i_update",
+        "Que datos puede registrar esta persona hablando (sin archivo) y que informacion "
+        "hace falta para cada uno. Usala si te piden actualizar algo y no sabes si se puede.",
+        {},
+    ),
+    _spec(
+        "preview_data_entry",
+        "Valida un dato que la persona te dicto --por ejemplo 'ayer el gasto de Meta en "
+        "Bali fue 320.000'-- y muestra el antes/despues. NO lo registra: lo confirma ella "
+        "con un boton. Si falta un dato, devuelve que falta: preguntalo, no lo supongas.",
+        {
+            "kind": {"type": "string", "enum": ["gasto_publicitario", "ventas_de_canal"]},
+            "marca": {"type": "string", "description": "Uva, Bali, Marketplace, DistriSex..."},
+            "pais": {"type": "string", "description": "Colombia, Ecuador, Mexico o su codigo."},
+            "plataforma": {"type": "string", "description": "Solo para gasto: Meta Ads, Google Ads..."},
+            "canal": {"type": "string", "description": "Solo para ventas: WhatsApp Bali, Ecommerce Uva..."},
+            "fecha": {"type": "string", "description": "AAAA-MM-DD, o 'ayer' / 'hoy'."},
+            "monto": {"type": "string", "description": "El valor en COP."},
+            "pedidos": {"type": "string", "description": "Solo para ventas, opcional."},
+            "unidades": {"type": "string", "description": "Solo para ventas, opcional."},
+        },
+        ("kind", "marca", "fecha", "monto"),
     ),
     _spec(
         "get_config",

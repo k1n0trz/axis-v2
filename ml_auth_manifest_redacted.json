@@ -1,0 +1,164 @@
+{
+  "generated_at": "2026-08-04",
+  "security": {
+    "redacted": true,
+    "full_secret_values_included": false,
+    "masking": "first_4 + *** + last_4"
+  },
+  "gcp": {
+    "active_project_id": "sylvan-cycle-487021-f7",
+    "active_account": "comu***.com",
+    "region": "us-central1",
+    "project_number": "176676286159"
+  },
+  "cloud_run_services": [
+    {
+      "name": "axis-temp",
+      "role": "Axis ML Data / aplicación principal",
+      "region": "us-central1",
+      "mercadolibre_environment": [
+        {
+          "name": "MERCADOLIBRE_CLIENT_ID",
+          "source": "secret_manager",
+          "secret": "axis-mercadolibre-client-id",
+          "masked_value": "4733***5749"
+        },
+        {
+          "name": "MERCADOLIBRE_CLIENT_SECRET",
+          "source": "secret_manager",
+          "secret": "axis-mercadolibre-client-secret",
+          "masked_value": "d9Wz***P5g0"
+        },
+        {
+          "name": "MERCADOLIBRE_SITE_ID",
+          "source": "direct",
+          "masked_value": "***"
+        },
+        {
+          "name": "MERCADOLIBRE_API_URL",
+          "source": "direct",
+          "masked_value": "http***.com"
+        }
+      ]
+    },
+    {
+      "name": "analizador-catalogo-test",
+      "role": "Auditor / analizador de catálogo",
+      "region": "us-central1",
+      "mercadolibre_environment": [
+        {
+          "name": "MERCADOLIBRE_CLIENT_ID",
+          "source": "secret_manager",
+          "secret": "axis-mercadolibre-client-id",
+          "masked_value": "4733***5749"
+        },
+        {
+          "name": "MERCADOLIBRE_CLIENT_SECRET",
+          "source": "secret_manager",
+          "secret": "axis-mercadolibre-client-secret",
+          "masked_value": "d9Wz***P5g0"
+        },
+        {
+          "name": "MELI_CLIENT_ID",
+          "source": "direct",
+          "masked_value": "6241***7352"
+        },
+        {
+          "name": "MELI_CLIENT_SECRET",
+          "source": "secret_manager",
+          "secret": "analizador-catalogo-test-meli-client-secret",
+          "masked_value": "Vb7N***690O"
+        },
+        {
+          "name": "MELI_PUBLIC_KEY",
+          "source": "secret_manager",
+          "secret": "analizador-catalogo-test-meli-public-key",
+          "masked_value": "APP_***db60"
+        },
+        {
+          "name": "MELI_API_URL",
+          "source": "direct",
+          "masked_value": "http***.com"
+        },
+        {
+          "name": "MERCADOLIBRE_API_URL",
+          "source": "direct",
+          "masked_value": "http***.com"
+        },
+        {
+          "name": "MERCADOLIBRE_SITE_ID",
+          "source": "direct",
+          "masked_value": "***"
+        }
+      ]
+    }
+  ],
+  "cloud_run_jobs_using_axis_mercadolibre_credentials": [
+    "axis-temp-migrate",
+    "axis-temp-sync-daily",
+    "axis-temp-websites-health"
+  ],
+  "secret_manager": [
+    {
+      "name": "axis-mercadolibre-client-id",
+      "latest_enabled_version": "1",
+      "masked_value": "4733***5749",
+      "value_length": 16
+    },
+    {
+      "name": "axis-mercadolibre-client-secret",
+      "latest_enabled_version": "1",
+      "masked_value": "d9Wz***P5g0",
+      "value_length": 32
+    },
+    {
+      "name": "analizador-catalogo-test-meli-client-secret",
+      "latest_enabled_version": "1",
+      "masked_value": "Vb7N***690O",
+      "value_length": 32
+    },
+    {
+      "name": "analizador-catalogo-test-meli-public-key",
+      "latest_enabled_version": "1",
+      "masked_value": "APP_***db60",
+      "value_length": 44
+    }
+  ],
+  "token_inventory": {
+    "MERCADOLIBRE_REFRESH_TOKEN": {
+      "exists_in_cloud_run_services": false,
+      "exists_in_cloud_run_jobs": false,
+      "exists_in_secret_manager": false,
+      "equivalent_found": false
+    },
+    "MERCADOLIBRE_ACCESS_TOKEN": {
+      "exists_in_cloud_run_services": false,
+      "exists_in_cloud_run_jobs": false,
+      "exists_in_secret_manager": false,
+      "equivalent_found": "runtime_only",
+      "note": "Axis solicita un access token transitorio con grant_type=client_credentials y no lo persiste."
+    }
+  },
+  "client_id_verification": {
+    "requested_client_id": "4733***5749",
+    "axis_secret_equals_requested_client_id": true,
+    "auditor_direct_meli_client_id_equals_requested_client_id": false,
+    "note": "analizador-catalogo-test tiene dos juegos de nombres: MERCADOLIBRE_* apunta al cliente de Axis; MELI_* apunta a otro cliente del Auditor."
+  },
+  "migration_assessment": {
+    "exportable_without_reauthorization": [
+      "Axis client ID",
+      "Axis client secret",
+      "Auditor MELI client ID",
+      "Auditor MELI client secret",
+      "Auditor MELI public key",
+      "API URL",
+      "site ID"
+    ],
+    "not_available_for_export": [
+      "Mercado Libre refresh token",
+      "Mercado Libre persisted access token"
+    ],
+    "local_mcp_note": "Si el MCP exige authorization_code + refresh_token, será necesario autorizarlo nuevamente; el paquete actual replica el esquema client_credentials usado por Axis."
+  }
+}

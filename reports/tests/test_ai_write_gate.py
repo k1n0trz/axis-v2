@@ -268,3 +268,11 @@ class ComandoDeHabilitacionTests(TestCase):
         salida = self._correr("--user", "karen")
 
         self.assertIn("Deberia ir vacio", salida)
+
+    def test_habilita_tambien_el_permiso_de_registrar_gasto(self):
+        # Karen quedo habilitada para archivos pero no para dictar un gasto, que es lo
+        # que hace todos los dias.
+        self._correr("--user", "karen")
+
+        usuario = User.objects.get(pk=self.usuario.pk)
+        self.assertTrue(usuario.has_perm("reports.change_dailyadspend"))
