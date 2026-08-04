@@ -161,3 +161,58 @@ class EndpointDeCargaTests(TestCase):
         self._cargar(confirm=True)
 
         self.assertEqual(DailyChannelSale.objects.count(), filas)
+
+
+@override_settings(MEDIA_ROOT=MEDIA_TEMPORAL, DEEPSEEK_API_KEY="clave-de-prueba")
+class AlcanceDeLaCargaTests(TestCase):
+    """La carga tambien se acota a las marcas del usuario, no solo la lectura."""
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(MEDIA_TEMPORAL, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        from reports.models import BusinessUnit
+
+        self.uva, _ = BusinessUnit.objects.get_or_create(name="Uva", defaults={"slug": "uva"})
+        self.marketplace, _ = BusinessUnit.objects.get_or_create(
+            name="Marketplace", defaults={"slug": "marketplace"}
+        )
+
+    def _subir_y_cargar(self, user):
+        self.client.force_login(user)
+        attachment = _archivo(user)
+        return self.client.post(
+            reverse("reports:ai_attachment_import", args=[attachment.pk]),
+            data=json.dumps({"confirm": True}),
+            content_type="application/json",
+        )
+
+    def test_quien_no_ve_la_marca_del_archivo_no_puede_cargarlo(self):
+        # El archivo de despachos escribe en Uva; Karen solo ve Marketplace.
+        karen = _en_el_grupo(_staff("karen"))
+        karen.profile.business_units.set([self.marketplace])
+
+        respuesta = self._subir_y_cargar(User.objects.get(pk=karen.pk))
+
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("no esta entre las que ves", respuesta.json()["detail"])
+        self.assertFalse(DailyChannelSale.objects.exists())
+
+    def test_quien_si_ve_la_marca_carga_normal(self):
+        usuario = _en_el_grupo(_staff("alejo"))
+        usuario.profile.business_units.set([self.uva, self.marketplace])
+
+        respuesta = self._subir_y_cargar(User.objects.get(pk=usuario.pk))
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertTrue(DailyChannelSale.objects.exists())
+
+    def test_sin_marcas_asignadas_puede_cargar(self):
+        # Sin marcas en el perfil se ve todo el tablero: la carga sigue esa misma regla.
+        usuario = _en_el_grupo(_staff("sin-marcas"))
+
+        respuesta = self._subir_y_cargar(usuario)
+
+        self.assertEqual(respuesta.status_code, 200)

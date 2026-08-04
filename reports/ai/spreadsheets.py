@@ -43,6 +43,8 @@ KNOWN_SHAPES = (
         "required": {"fecha", "producto", "cantidad"},
         "optional": {"valor", "moneda", "centro de costos", "envio"},
         "command": "fetch_onedrive_excel",
+        # En que marca escribe. Se compara con las marcas del usuario antes de cargar.
+        "business_unit": "uva",
         # El canal por defecto del importador es el de Colombia. Sin fijarlo aqui, un
         # archivo de Ecuador cuyas filas no traigan CENTRO DE COSTOS aterrizaba en
         # whatsapp-uva-co: ventas de Ecuador contadas como de Colombia.
@@ -61,6 +63,7 @@ KNOWN_SHAPES = (
         "required": {"fecha", "producto", "cantidad"},
         "optional": {"ventas", "total cop", "valor", "canal", "origen"},
         "command": "fetch_onedrive_excel",
+        "business_unit": "uva",
         "extra_args": [
             "--country", "CO", "--business-unit", "uva",
             "--channel-slug", "whatsapp-uva-co", "--sync-axis",
@@ -324,6 +327,33 @@ class _Rollback(Exception):
     """Aborta el atomic() a proposito para deshacer la simulacion."""
 
 
+def _check_scope(user, forma):
+    """Que la marca donde escribe el importador este entre las que ve la persona.
+
+    Sin esto, quien solo ve Marketplace podia cargar un archivo que escribe en Uva: el
+    filtro de marcas cubria las **lecturas** pero no esta escritura, que entra por un
+    importador con la marca fija en sus argumentos.
+    """
+    destino = forma.get("business_unit", "")
+    if not destino:
+        return
+
+    perfil = getattr(user, "profile", None)
+    asignadas = list(perfil.business_units.all()) if perfil else []
+    if not asignadas:
+        # Sin marcas en el perfil se ve todo el tablero, asi que no hay nada que acotar.
+        # Se mira el perfil y no la lista de marcas activas a proposito: la marca destino
+        # puede no existir todavia --el importador la crea-- y compararla contra lo que
+        # hay hoy daria una negacion falsa.
+        return
+
+    if destino.lower() not in {b.slug.lower() for b in asignadas}:
+        raise ImportNotPossible(
+            f"Este archivo carga datos de '{destino}', y esa marca no esta entre las que "
+            "ves en Axis. Pidele a alguien con acceso a esa marca que lo cargue."
+        )
+
+
 def apply_import(attachment, user, sheet_name="", shape_key=""):
     """Corre el importador de verdad y **si** deja los cambios escritos.
 
@@ -334,6 +364,7 @@ def apply_import(attachment, user, sheet_name="", shape_key=""):
     from ..integrations.run_log import track_run
 
     hoja, forma = _plan(attachment, sheet_name, shape_key)
+    _check_scope(user, forma)
 
     with materialized(attachment) as ruta:
         argumentos = [
