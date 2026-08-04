@@ -24,12 +24,13 @@ from .attachments import (
     max_size_bytes,
     save_attachment,
 )
-from .budget import BudgetExceeded, check_budget, cost_for, usage_today
+from .budget import BudgetExceeded, check_budget, cost_for, usage_report, usage_today
 from .config_changes import ConfigError, apply_change
 from .context import build_system_prompt, is_ai_enabled
 from .memory import forget, mark_used, memory_blocks, relevant_memories, remember
 from .permissions import can_import_data, why_not_config, why_not_import
 from .providers import AiProviderError, deepseek_client
+from .sanitize import wrap_tool_result
 from .spreadsheets import (
     AttachmentGone,
     ImportNotPossible,
@@ -81,6 +82,7 @@ def _answer_with_tools(client, messages, user):
     """
     conversacion = list(messages)
     herramientas = []
+    sospechas = []
     entrada = 0
     salida = 0
 
@@ -91,7 +93,7 @@ def _answer_with_tools(client, messages, user):
 
         llamadas = resultado.get("tool_calls") or []
         if not llamadas:
-            return resultado, herramientas, entrada, salida
+            return resultado, herramientas, entrada, salida, sospechas
 
         conversacion.append({
             "role": "assistant",
@@ -112,10 +114,17 @@ def _answer_with_tools(client, messages, user):
                 # Sin esto se ofreceria un boton "aplicar" sobre un cambio que no valido.
                 "failed": bool(isinstance(datos, dict) and datos.get("error")),
             })
+            # El resultado va rotulado como dato, en el mismo mensaje: un aviso en el
+            # prompt de sistema de hace veinte turnos pesa mucho menos que aca.
+            envuelto, encontrados = wrap_tool_result(
+                nombre, json.dumps(datos, ensure_ascii=False, default=str), user
+            )
+            if encontrados:
+                sospechas.append({"tool": nombre, "patterns": encontrados})
             conversacion.append({
                 "role": "tool",
                 "tool_call_id": llamada.get("id") or "",
-                "content": json.dumps(datos, ensure_ascii=False, default=str),
+                "content": envuelto,
             })
 
     # Se acabaron las vueltas con consultas pendientes: se pide el cierre sin
@@ -128,7 +137,7 @@ def _answer_with_tools(client, messages, user):
     resultado = client.chat(conversacion)
     entrada += resultado.get("prompt_tokens") or 0
     salida += resultado.get("completion_tokens") or 0
-    return resultado, herramientas, entrada, salida
+    return resultado, herramientas, entrada, salida, sospechas
 
 
 def _pending_config_change(herramientas):
@@ -287,7 +296,7 @@ def ai_chat(request):
 
     client = deepseek_client()
     try:
-        result, herramientas, prompt_tokens, completion_tokens = _answer_with_tools(
+        result, herramientas, prompt_tokens, completion_tokens, sospechas = _answer_with_tools(
             client, messages, request.user
         )
     except AiProviderError as exc:
@@ -318,6 +327,9 @@ def ai_chat(request):
     return JsonResponse({
         "conversation_id": conversation.id,
         "pending_change": _pending_config_change(herramientas),
+        # El usuario tiene que enterarse de que un nombre en sus datos trae texto raro:
+        # es en su plataforma de anuncios donde hay que arreglarlo.
+        "injection_warnings": sospechas,
         "reply": _serialize(reply),
         "usage": _usage_payload(request.user),
         "recalled": len(recalled),
@@ -552,3 +564,9 @@ def ai_conversation_new(request):
         user=request.user, session_key=request.session.session_key or ""
     )
     return JsonResponse({"conversation_id": conversacion.pk})
+
+
+@require_GET
+def ai_usage(request):
+    """Panel de gasto de la IA. Sin llamadas al proveedor: solo suma lo ya guardado."""
+    return JsonResponse(usage_report(request.user))

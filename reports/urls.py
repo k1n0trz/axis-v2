@@ -31,6 +31,7 @@ urlpatterns = [
     path("api/tasks/", api_views.WeeklyTaskListAPIView.as_view(), name="api_tasks"),
     path("api/ai/history/", ai_views.ai_history, name="ai_history"),
     path("api/ai/chat/", ai_views.ai_chat, name="ai_chat"),
+    path("api/ai/usage/", ai_views.ai_usage, name="ai_usage"),
     path("api/ai/conversations/", ai_views.ai_conversations, name="ai_conversations"),
     path("api/ai/conversations/new/", ai_views.ai_conversation_new, name="ai_conversation_new"),
     path("api/ai/memories/", ai_views.ai_memories, name="ai_memories"),

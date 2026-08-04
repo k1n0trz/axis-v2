@@ -11,7 +11,8 @@ consultas ni latencia en el render de cada pagina.
      data-upload-url="{% url 'reports:ai_attachment_upload' %}"
      data-config-url="{% url 'reports:ai_config_apply' %}"
      data-conversations-url="{% url 'reports:ai_conversations' %}"
-     data-new-conversation-url="{% url 'reports:ai_conversation_new' %}">
+     data-new-conversation-url="{% url 'reports:ai_conversation_new' %}"
+     data-usage-url="{% url 'reports:ai_usage' %}">
   <button type="button" class="axis-ai__toggle" aria-expanded="false" aria-controls="axis-ai-panel" title="Asistente de Axis">
     <span class="axis-ai__toggle-icon">&#10022;</span>
     <span class="axis-ai__toggle-text">Asistente</span>
@@ -21,7 +22,7 @@ consultas ni latencia en el render de cada pagina.
     <header class="axis-ai__header">
       <div>
         <strong>Asistente de Axis</strong>
-        <span class="axis-ai__usage" data-role="usage"></span>
+        <button type="button" class="axis-ai__usage" data-role="usage" title="Ver el gasto"></button>
       </div>
       <div class="axis-ai__actions">
         <button type="button" class="axis-ai__icon" data-role="chats-toggle" title="Conversaciones anteriores">&#128337;</button>
@@ -30,6 +31,11 @@ consultas ni latencia en el render de cada pagina.
         <button type="button" class="axis-ai__close" data-role="close" aria-label="Cerrar">&times;</button>
       </div>
     </header>
+
+    <div class="axis-ai__memories" data-role="costs" hidden>
+      <p class="axis-ai__memories-title">Gasto del asistente</p>
+      <ul data-role="costs-list"></ul>
+    </div>
 
     <div class="axis-ai__memories" data-role="chats" hidden>
       <p class="axis-ai__memories-title">Conversaciones</p>
@@ -73,7 +79,9 @@ consultas ni latencia en el render de cada pagina.
     box-shadow: 0 24px 60px rgba(2,6,23,.6); overflow: hidden; }
   .axis-ai__header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px;
     border-bottom: 1px solid rgba(255,255,255,.08); color: #e2e8f0; font-size: .9rem; }
-  .axis-ai__usage { display: block; color: #64748b; font-size: .7rem; margin-top: 2px; }
+  .axis-ai__usage { display: block; background: none; border: 0; padding: 0; color: #64748b;
+    font-size: .7rem; margin-top: 2px; cursor: pointer; text-align: left; }
+  .axis-ai__usage:hover { color: #a5b4fc; }
   .axis-ai__actions { display: flex; align-items: center; gap: 4px; }
   .axis-ai__close, .axis-ai__icon { background: none; border: 0; color: #94a3b8; line-height: 1; cursor: pointer; }
   .axis-ai__close { font-size: 1.4rem; }
@@ -490,10 +498,12 @@ consultas ni latencia en el render de cada pagina.
     const filesBox = root.querySelector('[data-role="files"]');
     const chatsToggle = root.querySelector('[data-role="chats-toggle"]');
     const chatsBox = root.querySelector('[data-role="chats"]');
+    const costsBox = root.querySelector('[data-role="costs"]');
 
     function abrirSolo(box, button, load) {
       const showing = !box.hidden;
-      [[memoriesBox, memoriesToggle], [filesBox, filesToggle], [chatsBox, chatsToggle]].forEach(
+      [[memoriesBox, memoriesToggle], [filesBox, filesToggle], [chatsBox, chatsToggle],
+       [costsBox, usage]].forEach(
         function (par) {
           par[0].hidden = true;
           par[1].setAttribute('aria-pressed', 'false');
@@ -516,6 +526,37 @@ consultas ni latencia en el render de cada pagina.
     chatsToggle.addEventListener('click', function () {
       abrirSolo(chatsBox, chatsToggle, loadChats);
     });
+
+    usage.addEventListener('click', function () {
+      abrirSolo(costsBox, usage, loadCosts);
+    });
+
+    async function loadCosts() {
+      const list = root.querySelector('[data-role="costs-list"]');
+      list.innerHTML = '';
+      function fila(texto) {
+        const item = document.createElement('li');
+        item.innerHTML = '';
+        item.textContent = texto;
+        list.appendChild(item);
+      }
+      try {
+        const data = await (await fetch(root.dataset.usageUrl)).json();
+        const m = data.mio;
+        fila('Hoy: ' + m.hoy.tokens + ' tokens · ' + m.hoy.cost_usd.toFixed(4) + ' USD');
+        fila('Ultimos 7 dias: ' + m.ultimos_7.tokens + ' tokens · ' + m.ultimos_7.cost_usd.toFixed(4) + ' USD');
+        fila('Ultimos 30 dias: ' + m.ultimos_30.tokens + ' tokens · ' + m.ultimos_30.cost_usd.toFixed(4) + ' USD');
+        fila('Tope diario: ' + data.topes.tokens_por_dia + ' tokens · ' + data.topes.usd_por_dia + ' USD');
+        if (data.equipo) {
+          fila('— Equipo, ultimos 30 dias: ' + data.equipo.ultimos_30.cost_usd.toFixed(4) + ' USD');
+          (data.equipo.por_persona || []).forEach(function (p) {
+            fila('   ' + p.usuario + ': ' + p.tokens + ' tokens · ' + p.cost_usd.toFixed(4) + ' USD');
+          });
+        }
+      } catch (error) {
+        fila('No se pudo cargar el gasto.');
+      }
+    }
 
     root.querySelector('[data-role="new-chat"]').addEventListener('click', async function () {
       try {
@@ -592,6 +633,11 @@ consultas ni latencia en el render de cada pagina.
           addVote(el, data.reply && data.reply.id, '');
           if (data.remembered) bubble('hint', 'Anotado: ' + data.remembered);
           if (data.pending_change) askConfigConfirm(data.pending_change);
+          (data.injection_warnings || []).forEach(function (aviso) {
+            bubble('error', 'Ojo: los datos que devolvio ' + aviso.tool + ' traen texto que '
+              + 'parece un intento de darle ordenes al asistente. No se obedecio, pero '
+              + 'conviene revisar ese nombre en la plataforma de origen.');
+          });
           showUsage(data.usage);
           if (!memoriesBox.hidden) loadMemories();
         }

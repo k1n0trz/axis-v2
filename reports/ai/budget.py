@@ -5,6 +5,7 @@ paginas puede convertirse en muchas llamadas sin que nadie lo note, y el costo n
 avisa hasta que llega la factura. El mismo razonamiento que llevo a que el panel de
 Meta no bloquee el render: lo que no se ve, no se controla.
 """
+from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -65,3 +66,78 @@ def check_budget(user):
             f"({gastado['cost_usd']} usados). Se reinicia manana."
         )
     return gastado
+
+
+def usage_report(user):
+    """Gasto de la IA: el propio siempre, y el del equipo si la persona lo lidera.
+
+    Un analista no necesita ver cuanto gasta el resto; un jefe si, porque el tope es por
+    persona y el que se dispara no avisa solo.
+    """
+    from django.contrib.auth.models import User
+
+    from reports.models import AiMessage
+
+    ahora = timezone.localtime()
+    hoy = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    def _rango(desde):
+        fila = AiMessage.objects.filter(created_at__gte=desde).aggregate(
+            prompt=Sum("prompt_tokens"), completion=Sum("completion_tokens"), cost=Sum("cost_usd")
+        )
+        return fila
+
+    def _mio(desde):
+        fila = AiMessage.objects.filter(conversation__user=user, created_at__gte=desde).aggregate(
+            prompt=Sum("prompt_tokens"), completion=Sum("completion_tokens"), cost=Sum("cost_usd")
+        )
+        return {
+            "tokens": (fila["prompt"] or 0) + (fila["completion"] or 0),
+            "cost_usd": float(fila["cost"] or 0),
+        }
+
+    perfil = getattr(user, "profile", None)
+    rol = getattr(perfil, "role", None)
+    lidera = bool(getattr(rol, "is_leadership_role", False)) or user.is_superuser
+
+    reporte = {
+        "mio": {
+            "hoy": _mio(hoy),
+            "ultimos_7": _mio(hoy - timedelta(days=6)),
+            "ultimos_30": _mio(hoy - timedelta(days=29)),
+        },
+        "topes": {
+            "tokens_por_dia": int(getattr(settings, "AI_DAILY_TOKEN_BUDGET", 0) or 0),
+            "usd_por_dia": float(_setting_decimal("AI_DAILY_COST_LIMIT_USD", "2.00")),
+        },
+        "precios_por_mtok": {
+            "entrada": float(_setting_decimal("AI_INPUT_COST_PER_MTOK", "0.27")),
+            "salida": float(_setting_decimal("AI_OUTPUT_COST_PER_MTOK", "1.10")),
+        },
+        "lidera": lidera,
+    }
+
+    if lidera:
+        equipo = _rango(hoy - timedelta(days=29))
+        reporte["equipo"] = {
+            "ultimos_30": {
+                "tokens": (equipo["prompt"] or 0) + (equipo["completion"] or 0),
+                "cost_usd": float(equipo["cost"] or 0),
+            },
+            "por_persona": [
+                {
+                    "usuario": fila["conversation__user__username"],
+                    "tokens": (fila["prompt"] or 0) + (fila["completion"] or 0),
+                    "cost_usd": float(fila["cost"] or 0),
+                }
+                for fila in AiMessage.objects.filter(created_at__gte=hoy - timedelta(days=29))
+                .values("conversation__user__username")
+                .annotate(
+                    prompt=Sum("prompt_tokens"),
+                    completion=Sum("completion_tokens"),
+                    cost=Sum("cost_usd"),
+                )
+                .order_by("-cost")[:15]
+            ],
+        }
+    return reporte
