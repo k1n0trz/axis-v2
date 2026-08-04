@@ -9,7 +9,9 @@ consultas ni latencia en el render de cada pagina.
      data-feedback-url="{% url 'reports:ai_feedback' %}"
      data-files-url="{% url 'reports:ai_attachments' %}"
      data-upload-url="{% url 'reports:ai_attachment_upload' %}"
-     data-config-url="{% url 'reports:ai_config_apply' %}">
+     data-config-url="{% url 'reports:ai_config_apply' %}"
+     data-conversations-url="{% url 'reports:ai_conversations' %}"
+     data-new-conversation-url="{% url 'reports:ai_conversation_new' %}">
   <button type="button" class="axis-ai__toggle" aria-expanded="false" aria-controls="axis-ai-panel" title="Asistente de Axis">
     <span class="axis-ai__toggle-icon">&#10022;</span>
     <span class="axis-ai__toggle-text">Asistente</span>
@@ -22,11 +24,18 @@ consultas ni latencia en el render de cada pagina.
         <span class="axis-ai__usage" data-role="usage"></span>
       </div>
       <div class="axis-ai__actions">
+        <button type="button" class="axis-ai__icon" data-role="chats-toggle" title="Conversaciones anteriores">&#128337;</button>
         <button type="button" class="axis-ai__icon" data-role="files-toggle" title="Tus archivos">&#128206;</button>
         <button type="button" class="axis-ai__icon" data-role="memories-toggle" title="Lo que recuerda de ti">&#9776;</button>
         <button type="button" class="axis-ai__close" data-role="close" aria-label="Cerrar">&times;</button>
       </div>
     </header>
+
+    <div class="axis-ai__memories" data-role="chats" hidden>
+      <p class="axis-ai__memories-title">Conversaciones</p>
+      <ul data-role="chats-list"></ul>
+      <button type="button" class="axis-ai__upload" data-role="new-chat">Nueva conversacion</button>
+    </div>
 
     <div class="axis-ai__memories" data-role="memories" hidden>
       <p class="axis-ai__memories-title">Lo que recuerda de ti</p>
@@ -78,6 +87,9 @@ consultas ni latencia en el render de cada pagina.
   .axis-ai__memories button { background: none; border: 0; color: #64748b; cursor: pointer; font-size: .9rem; line-height: 1; }
   .axis-ai__memories button:hover { color: #fca5a5; }
   .axis-ai__memories--empty { color: #64748b; font-size: .76rem; }
+  .axis-ai__chat-link { background: none; border: 0; padding: 0; color: #a5b4fc; font-size: .78rem;
+    text-align: left; cursor: pointer; }
+  .axis-ai__chat-link:hover { text-decoration: underline; }
   .axis-ai__load { display: block; margin-top: 4px; padding: 3px 8px; border: 1px solid rgba(99,102,241,.5);
     border-radius: 6px; background: none; color: #a5b4fc; font-size: .68rem; cursor: pointer; }
   .axis-ai__load:hover { background: rgba(99,102,241,.15); }
@@ -122,6 +134,7 @@ consultas ni latencia en el render de cada pagina.
     const usage = root.querySelector('[data-role="usage"]');
     let historyLoaded = false;
     let filesWhyNot = '';
+    let currentConversation = null;
     let busy = false;
 
     function csrfToken() {
@@ -209,13 +222,18 @@ consultas ni latencia en el render de cada pagina.
       usage.textContent = (data.tokens || 0) + ' tokens hoy · ' + cost + ' USD';
     }
 
-    async function loadHistory() {
-      if (historyLoaded) return;
+    async function loadHistory(conversationId) {
+      if (historyLoaded && !conversationId) return;
       historyLoaded = true;
+      log.innerHTML = '';
+      const url = conversationId
+        ? root.dataset.historyUrl + '?conversation=' + conversationId
+        : root.dataset.historyUrl;
       try {
-        const response = await fetch(root.dataset.historyUrl, { headers: { 'X-Requested-With': 'fetch' } });
+        const response = await fetch(url, { headers: { 'X-Requested-With': 'fetch' } });
         if (!response.ok) throw new Error('historial');
         const data = await response.json();
+        currentConversation = data.conversation_id;
         showUsage(data.usage);
         if (!data.enabled) {
           bubble('hint', 'El asistente no esta configurado en este entorno.');
@@ -350,6 +368,48 @@ consultas ni latencia en el render de cada pagina.
       caja.appendChild(acciones);
     }
 
+    async function loadChats() {
+      const list = root.querySelector('[data-role="chats-list"]');
+      list.innerHTML = '';
+      try {
+        const response = await fetch(root.dataset.conversationsUrl);
+        const data = await response.json();
+        if (!(data.conversations || []).length) {
+          const empty = document.createElement('li');
+          empty.className = 'axis-ai__memories--empty';
+          empty.textContent = 'Todavia no hay conversaciones guardadas.';
+          list.appendChild(empty);
+          return;
+        }
+        data.conversations.forEach(function (chat) {
+          const item = document.createElement('li');
+          const boton = document.createElement('button');
+          boton.type = 'button';
+          boton.className = 'axis-ai__chat-link';
+          boton.textContent = chat.title;
+          const meta = document.createElement('small');
+          meta.textContent = chat.messages + ' mensajes · ' + chat.updated_at.slice(0, 10)
+            + (chat.id === data.current_id ? ' · en curso' : '');
+          const envoltura = document.createElement('span');
+          envoltura.appendChild(boton);
+          envoltura.appendChild(meta);
+          boton.addEventListener('click', function () {
+            currentConversation = chat.id;
+            loadHistory(chat.id);
+            root.querySelector('[data-role="chats"]').hidden = true;
+            chatsToggle.setAttribute('aria-pressed', 'false');
+          });
+          item.appendChild(envoltura);
+          list.appendChild(item);
+        });
+      } catch (error) {
+        const failed = document.createElement('li');
+        failed.className = 'axis-ai__memories--empty';
+        failed.textContent = 'No se pudieron cargar las conversaciones.';
+        list.appendChild(failed);
+      }
+    }
+
     async function loadFiles() {
       const list = root.querySelector('[data-role="files-list"]');
       const hint = root.querySelector('[data-role="files-hint"]');
@@ -428,24 +488,50 @@ consultas ni latencia en el render de cada pagina.
     const memoriesBox = root.querySelector('[data-role="memories"]');
     const filesToggle = root.querySelector('[data-role="files-toggle"]');
     const filesBox = root.querySelector('[data-role="files"]');
+    const chatsToggle = root.querySelector('[data-role="chats-toggle"]');
+    const chatsBox = root.querySelector('[data-role="chats"]');
 
-    function togglePanel(box, button, load, otherBox, otherButton) {
+    function abrirSolo(box, button, load) {
       const showing = !box.hidden;
-      box.hidden = showing;
-      button.setAttribute('aria-pressed', showing ? 'false' : 'true');
+      [[memoriesBox, memoriesToggle], [filesBox, filesToggle], [chatsBox, chatsToggle]].forEach(
+        function (par) {
+          par[0].hidden = true;
+          par[1].setAttribute('aria-pressed', 'false');
+        }
+      );
       if (!showing) {
-        // Los dos paneles juntos no caben: el chat quedaria en una franja.
-        otherBox.hidden = true;
-        otherButton.setAttribute('aria-pressed', 'false');
+        // Los paneles no se apilan: juntos dejarian el chat en una franja.
+        box.hidden = false;
+        button.setAttribute('aria-pressed', 'true');
         load();
       }
     }
 
     memoriesToggle.addEventListener('click', function () {
-      togglePanel(memoriesBox, memoriesToggle, loadMemories, filesBox, filesToggle);
+      abrirSolo(memoriesBox, memoriesToggle, loadMemories);
     });
     filesToggle.addEventListener('click', function () {
-      togglePanel(filesBox, filesToggle, loadFiles, memoriesBox, memoriesToggle);
+      abrirSolo(filesBox, filesToggle, loadFiles);
+    });
+    chatsToggle.addEventListener('click', function () {
+      abrirSolo(chatsBox, chatsToggle, loadChats);
+    });
+
+    root.querySelector('[data-role="new-chat"]').addEventListener('click', async function () {
+      try {
+        const response = await fetch(root.dataset.newConversationUrl, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrfToken() },
+        });
+        const data = await response.json();
+        currentConversation = data.conversation_id;
+        log.innerHTML = '';
+        bubble('hint', 'Conversacion nueva. La anterior queda guardada en el reloj de arriba.');
+        chatsBox.hidden = true;
+        chatsToggle.setAttribute('aria-pressed', 'false');
+      } catch (error) {
+        bubble('error', 'No se pudo abrir una conversacion nueva.');
+      }
     });
 
     root.querySelector('[data-role="file-input"]').addEventListener('change', async function (event) {
@@ -495,7 +581,7 @@ consultas ni latencia en el render de cada pagina.
         const response = await fetch(root.dataset.chatUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
-          body: JSON.stringify({ message: text }),
+          body: JSON.stringify({ message: text, conversation_id: currentConversation }),
         });
         const data = await response.json().catch(function () { return {}; });
         pending.remove();

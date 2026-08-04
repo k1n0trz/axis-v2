@@ -8,6 +8,7 @@ import json
 import re
 
 from django.core.exceptions import ValidationError
+from django.db.models import Count
 from django.db import transaction
 from django.http import Http404, JsonResponse
 from django.urls import reverse
@@ -177,6 +178,15 @@ def _serialize(message):
     }
 
 
+def _conversation_by_id(request, conversation_id):
+    """Una conversacion del usuario por id. Acotada a el: los ids son adivinables."""
+    if not conversation_id:
+        return None
+    return AiConversation.objects.filter(
+        pk=conversation_id, user=request.user, is_active=True
+    ).first()
+
+
 def _current_conversation(request, create=False):
     """La conversacion abierta de este usuario en esta sesion."""
     if not request.session.session_key:
@@ -196,8 +206,17 @@ def _current_conversation(request, create=False):
 
 @require_GET
 def ai_history(request):
-    """Historial de la conversacion en curso. Sin llamadas al proveedor."""
-    conversation = _current_conversation(request)
+    """Historial de una conversacion. Sin llamadas al proveedor.
+
+    Sin `?conversation=` devuelve la de esta sesion; con id, la que se pida, siempre que
+    sea de esta persona. Antes solo existia el primer caso: las conversaciones viejas
+    quedaban guardadas pero sin forma de verlas, que para el usuario es lo mismo que
+    haberlas perdido.
+    """
+    conversation = (
+        _conversation_by_id(request, request.GET.get("conversation"))
+        or _current_conversation(request)
+    )
     messages = []
     if conversation:
         messages = [
@@ -239,7 +258,9 @@ def ai_chat(request):
     except BudgetExceeded as exc:
         return JsonResponse({"detail": str(exc), "budget_exceeded": True}, status=429)
 
-    conversation = _current_conversation(request, create=True)
+    conversation = _conversation_by_id(request, payload.get("conversation_id")) or (
+        _current_conversation(request, create=True)
+    )
     history = list(
         conversation.messages.filter(role__in=("user", "assistant"))
         .exclude(pk__lte=conversation.summarized_until)
@@ -496,3 +517,38 @@ def ai_config_apply(request):
         return JsonResponse({"detail": "; ".join(exc.messages)}, status=400)
 
     return JsonResponse({"applied": resultado})
+
+
+@require_GET
+def ai_conversations(request):
+    """Las conversaciones de esta persona, para poder volver a una."""
+    conversaciones = (
+        AiConversation.objects.filter(user=request.user, is_active=True)
+        .annotate(mensajes=Count("messages"))
+        .filter(mensajes__gt=0)
+        .order_by("-updated_at")[:30]
+    )
+    actual = _current_conversation(request)
+    return JsonResponse({
+        "current_id": actual.pk if actual else None,
+        "conversations": [
+            {
+                "id": c.pk,
+                "title": c.title or "Sin titulo",
+                "messages": c.mensajes,
+                "updated_at": c.updated_at.isoformat(),
+            }
+            for c in conversaciones
+        ],
+    })
+
+
+@require_POST
+def ai_conversation_new(request):
+    """Abre una conversacion en blanco sin borrar la anterior."""
+    if not request.session.session_key:
+        request.session.save()
+    conversacion = AiConversation.objects.create(
+        user=request.user, session_key=request.session.session_key or ""
+    )
+    return JsonResponse({"conversation_id": conversacion.pk})
