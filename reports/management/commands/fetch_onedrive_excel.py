@@ -5,6 +5,8 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+from pathlib import Path
+
 from openpyxl import load_workbook
 
 from reports.integrations.axis_sync import AxisSyncService
@@ -80,6 +82,21 @@ class Command(BaseCommand):
         parser.add_argument("--client-id", default="")
         parser.add_argument("--client-secret", default="")
         parser.add_argument("--column-map", default="")
+        parser.add_argument(
+            "--file",
+            default="",
+            help=(
+                "Lee un Excel local en vez de bajarlo de OneDrive. Existe para que un "
+                "archivo que alguien sube al asistente pase por ESTE importador y no por "
+                "una copia de su logica."
+            ),
+        )
+        parser.add_argument(
+            "--header-row",
+            type=int,
+            default=1,
+            help="Fila de la cabecera. Las hojas de despachos la traen mas abajo.",
+        )
         parser.add_argument("--default-currency", default="COP")
         parser.add_argument("--exchange-rate", default="1")
         parser.add_argument("--auth-mode", choices=("delegated", "application"), default=getattr(settings, "ONEDRIVE_AUTH_MODE", "delegated"))
@@ -98,8 +115,15 @@ class Command(BaseCommand):
         elif options["country"].upper() == "CO" and not options["sheet"]:
             options["sheet"] = getattr(settings, "ONEDRIVE_COLOMBIA_SHEET", "Colombia")
         drive_path = options["drive_path"] or default_path
-        if not all([tenant_id, client_id, client_secret, drive_path]):
+        # Con --file no se toca OneDrive, asi que exigir sus credenciales impediria
+        # importar un archivo local en un entorno que no tiene Graph configurado.
+        if not options["file"] and not all([tenant_id, client_id, client_secret, drive_path]):
             raise CommandError("Faltan credenciales o ubicacion del archivo en OneDrive.")
+
+        # Lo que queda registrado como origen. Con --file no es la ruta de OneDrive:
+        # una fila que dice venir del Excel compartido cuando la subio alguien al
+        # asistente manda a auditar el archivo equivocado.
+        source_label = Path(options["file"]).name if options["file"] else drive_path
 
         mapping = load_json_mapping(options["column_map"]) if options["column_map"] else {
             "date": ["fecha"],
@@ -138,18 +162,35 @@ class Command(BaseCommand):
                     return value
             return Decimal("0")
 
+        def _rows_from_workbook(source):
+            """Filas de un libro ya abierto, con la cabecera donde este."""
+            libro = load_workbook(filename=source, read_only=True, data_only=True)
+            hoja = libro[options["sheet"]] if options["sheet"] else libro.active
+            fila_cabecera = max(1, int(options["header_row"] or 1))
+            cabeceras = [
+                str(celda or "").strip()
+                for celda in next(
+                    hoja.iter_rows(min_row=fila_cabecera, max_row=fila_cabecera, values_only=True)
+                )
+            ]
+            return libro, (
+                dict(zip(cabeceras, fila))
+                for fila in hoja.iter_rows(min_row=fila_cabecera + 1, values_only=True)
+            )
+
         workbook = None
-        if options["auth_mode"] == "delegated":
+        if options["file"]:
+            # Archivo local: ni credenciales ni red. Es el camino que usa el asistente
+            # cuando alguien le sube un Excel.
+            workbook, rows = _rows_from_workbook(options["file"])
+        elif options["auth_mode"] == "delegated":
             token_payload = onedrive.refresh_access_token()
             buffer = onedrive.download_file_content_by_path(
                 token_payload["access_token"],
                 drive_path,
                 user_id=drive_user_id or None,
             )
-            workbook = load_workbook(filename=buffer, read_only=True, data_only=True)
-            sheet = workbook[options["sheet"]] if options["sheet"] else workbook.active
-            headers = [str(cell or "").strip() for cell in next(sheet.iter_rows(min_row=1, max_row=1, values_only=True))]
-            rows = (dict(zip(headers, row)) for row in sheet.iter_rows(min_row=2, values_only=True))
+            workbook, rows = _rows_from_workbook(buffer)
         else:
             if not drive_user_id:
                 raise CommandError("En modo application necesitas ONEDRIVE_USER_ID.")
@@ -269,7 +310,7 @@ class Command(BaseCommand):
                 sales_amount=values["sales"],
                 order_count=values["rows"],
                 units=values["qty"],
-                source_file=drive_path,
+                source_file=source_label,
                 notes="Importado desde OneDrive.",
             )
             for (sale_date, channel_slug, _, _), values in sorted(channel_totals.items())
@@ -287,7 +328,7 @@ class Command(BaseCommand):
                 original_currency=currency,
                 exchange_rate=effective_rate,
                 quantity=values["qty"],
-                source_file=drive_path,
+                source_file=source_label,
                 notes="Productos fuente: " + ", ".join(sorted(values["products"])),
             )
             for (slug, sale_date, channel_slug, currency, effective_rate), values in sorted(aggregated.items())

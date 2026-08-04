@@ -77,6 +77,10 @@ consultas ni latencia en el render de cada pagina.
   .axis-ai__memories button { background: none; border: 0; color: #64748b; cursor: pointer; font-size: .9rem; line-height: 1; }
   .axis-ai__memories button:hover { color: #fca5a5; }
   .axis-ai__memories--empty { color: #64748b; font-size: .76rem; }
+  .axis-ai__load { display: block; margin-top: 4px; padding: 3px 8px; border: 1px solid rgba(99,102,241,.5);
+    border-radius: 6px; background: none; color: #a5b4fc; font-size: .68rem; cursor: pointer; }
+  .axis-ai__load:hover { background: rgba(99,102,241,.15); }
+  .axis-ai__load:disabled { opacity: .5; cursor: default; }
   .axis-ai__memories li a { color: #a5b4fc; text-decoration: none; }
   .axis-ai__memories li a:hover { text-decoration: underline; }
   .axis-ai__memories li small { display: block; color: #64748b; font-size: .68rem; }
@@ -116,6 +120,7 @@ consultas ni latencia en el render de cada pagina.
     const send = root.querySelector('[data-role="send"]');
     const usage = root.querySelector('[data-role="usage"]');
     let historyLoaded = false;
+    let filesWhyNot = '';
     let busy = false;
 
     function csrfToken() {
@@ -228,6 +233,80 @@ consultas ni latencia en el render de cada pagina.
       }
     }
 
+    // Cargar es de dos pasos a proposito: primero se simula y se muestra el diff, y solo
+    // despues se confirma. Un boton que escribe de una no le da a nadie la oportunidad
+    // de ver que iba a pasar.
+    async function startImport(file, boton) {
+      boton.disabled = true;
+      boton.textContent = 'Simulando...';
+      try {
+        const response = await fetch(root.dataset.filesUrl + file.id + '/preview/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+          body: JSON.stringify({}),
+        });
+        const data = await response.json().catch(function () { return {}; });
+        if (!response.ok) {
+          bubble('error', data.detail || 'No se pudo simular la carga.');
+          return;
+        }
+        const p = data.preview;
+        const canal = p.cambios.ventas_por_canal;
+        bubble('hint',
+          'Simulacion de ' + p.archivo + ' (hoja ' + p.hoja + ', ' + p.periodo_del_archivo + '):\n'
+          + '· ventas por canal: ' + canal.filas_nuevas + ' filas, ' + canal.cambio_de_monto + ' COP\n'
+          + '· ventas por categoria: ' + p.cambios.ventas_por_categoria.filas_nuevas + ' filas\n'
+          + 'Nada escrito todavia.');
+        if (!data.can_import) {
+          bubble('hint', 'No puedes confirmar la carga con tu usuario. ' + (filesWhyNot || ''));
+          return;
+        }
+        askConfirm(file, p);
+      } catch (error) {
+        bubble('error', 'No se pudo simular la carga.');
+      } finally {
+        boton.disabled = false;
+        boton.textContent = 'Cargar a Axis';
+      }
+    }
+
+    function askConfirm(file, preview) {
+      const caja = bubble('hint', '');
+      caja.textContent = '¿Confirmas cargar ' + preview.archivo + ' a Axis? Esto si escribe.';
+      const acciones = document.createElement('div');
+      acciones.className = 'axis-ai__vote';
+      const si = document.createElement('button');
+      si.type = 'button';
+      si.textContent = 'Si, cargar';
+      const no = document.createElement('button');
+      no.type = 'button';
+      no.textContent = 'Cancelar';
+      no.addEventListener('click', function () { acciones.remove(); caja.textContent += ' (cancelado)'; });
+      si.addEventListener('click', async function () {
+        acciones.remove();
+        try {
+          const response = await fetch(root.dataset.filesUrl + file.id + '/import/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            body: JSON.stringify({ confirm: true, sheet: preview.hoja }),
+          });
+          const data = await response.json().catch(function () { return {}; });
+          if (!response.ok) {
+            bubble('error', data.detail || 'No se pudo cargar.');
+            return;
+          }
+          const canal = data.imported.cambios.ventas_por_canal;
+          bubble('hint', 'Cargado: ' + canal.filas_nuevas + ' filas de venta, '
+            + canal.cambio_de_monto + ' COP. Quedo escrito en Axis.');
+        } catch (error) {
+          bubble('error', 'No se pudo cargar.');
+        }
+      });
+      acciones.appendChild(si);
+      acciones.appendChild(no);
+      caja.appendChild(acciones);
+    }
+
     async function loadFiles() {
       const list = root.querySelector('[data-role="files-list"]');
       const hint = root.querySelector('[data-role="files-hint"]');
@@ -236,6 +315,7 @@ consultas ni latencia en el render de cada pagina.
         const response = await fetch(root.dataset.filesUrl);
         const data = await response.json();
         hint.textContent = '· hasta ' + data.max_mb + ' MB · ' + (data.allowed || []).join(' ');
+        filesWhyNot = data.why_not_import || '';
         if (!(data.attachments || []).length) {
           const empty = document.createElement('li');
           empty.className = 'axis-ai__memories--empty';
@@ -253,6 +333,14 @@ consultas ni latencia en el render de cada pagina.
           meta.textContent = file.size_kb + ' KB · ' + file.uploaded_at.slice(0, 10);
           wrap.appendChild(link);
           wrap.appendChild(meta);
+          if (/\.xlsx?$/i.test(file.name)) {
+            const cargar = document.createElement('button');
+            cargar.type = 'button';
+            cargar.className = 'axis-ai__load';
+            cargar.textContent = 'Cargar a Axis';
+            cargar.addEventListener('click', function () { startImport(file, cargar); });
+            wrap.appendChild(cargar);
+          }
           const drop = document.createElement('button');
           drop.type = 'button';
           drop.title = 'Quitar de la lista';

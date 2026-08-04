@@ -334,6 +334,33 @@ def list_my_files(user, **_):
     }
 
 
+def describe_file(user, attachment_id, **_):
+    """Que hay dentro de un Excel que subio esta persona, sin escribir nada."""
+    from .spreadsheets import attachment_for, describe_attachment
+
+    attachment = attachment_for(user, attachment_id)
+    if not attachment:
+        return {"error": "No encuentro ese archivo entre los tuyos. Usa list_my_files."}
+    return describe_attachment(attachment)
+
+
+def preview_file_import(user, attachment_id, sheet="", **_):
+    """Simula la carga: corre el importador real y deshace la transaccion.
+
+    No escribe. Lo que devuelve es el diff medido, no una prediccion: es la unica forma
+    de que la vista previa no se desincronice del importador.
+    """
+    from .spreadsheets import AttachmentGone, ImportNotPossible, attachment_for, preview_import
+
+    attachment = attachment_for(user, attachment_id)
+    if not attachment:
+        return {"error": "No encuentro ese archivo entre los tuyos. Usa list_my_files."}
+    try:
+        return preview_import(attachment, sheet_name=sheet)
+    except (ImportNotPossible, AttachmentGone) as exc:
+        return {"error": str(exc)}
+
+
 def get_websites_health(user, **_):
     """Estado de las webs monitoreadas."""
     permitidas = allowed_business_units(user)
@@ -369,6 +396,8 @@ TOOLS = {
     "get_data_freshness": get_data_freshness,
     "get_websites_health": get_websites_health,
     "list_my_files": list_my_files,
+    "describe_file": describe_file,
+    "preview_file_import": preview_file_import,
 }
 
 _RANGO = {
@@ -452,9 +481,26 @@ TOOL_SPECS = [
     ),
     _spec(
         "list_my_files",
-        "Archivos que esta persona te ha pasado, de esta sesion y de las anteriores. "
-        "Todavia no puedes leer su contenido, solo saber que existen.",
+        "Archivos que esta persona te ha pasado, de esta sesion y de las anteriores.",
         {},
+    ),
+    _spec(
+        "describe_file",
+        "Mira dentro de un Excel subido: hojas, fila de cabecera, columnas, una muestra "
+        "de filas y si Axis reconoce su forma. No escribe nada.",
+        {"attachment_id": {"type": "integer", "description": "Id que devuelve list_my_files."}},
+        ("attachment_id",),
+    ),
+    _spec(
+        "preview_file_import",
+        "Simula cargar el archivo: corre el importador real y deshace la transaccion, y "
+        "devuelve cuantas filas y cuanto monto cambiarian. NO escribe nada. Usala siempre "
+        "antes de proponer una carga, y muestrale el resultado a la persona.",
+        {
+            "attachment_id": {"type": "integer"},
+            "sheet": {"type": "string", "description": "Hoja, si el archivo tiene varias importables."},
+        },
+        ("attachment_id",),
     ),
 ]
 

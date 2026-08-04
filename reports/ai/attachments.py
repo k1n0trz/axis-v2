@@ -60,6 +60,16 @@ def _hash_and_size(archivo):
     return digest.hexdigest(), total
 
 
+def _stored(attachment):
+    """Si el contenido sigue en el storage. La fila y el objeto pueden divergir."""
+    if not attachment.file:
+        return False
+    try:
+        return attachment.file.storage.exists(attachment.file.name)
+    except (OSError, ValueError):
+        return False
+
+
 def max_size_bytes():
     return int(getattr(settings, "AI_ATTACHMENT_MAX_BYTES", MAX_SIZE_BYTES) or MAX_SIZE_BYTES)
 
@@ -87,6 +97,15 @@ def save_attachment(user, uploaded, conversation=None, description=""):
         raise AttachmentError(f"El archivo pesa mas de {tope // (1024 * 1024)} MB.")
 
     existente = AiAttachment.objects.filter(user=user, sha256=firma).first()
+    if existente and not _stored(existente):
+        # La fila esta pero el contenido no. Devolverla daria un archivo que no se puede
+        # abrir, y el error saldria mucho despues, al intentar leerlo. Se vuelve a
+        # guardar el contenido sobre la misma fila.
+        existente.file.save(f"{user.pk}/{firma[:16]}{extension}", uploaded, save=False)
+        existente.is_active = True
+        existente.size_bytes = tamano
+        existente.save()
+        return existente, False
     if existente:
         campos = []
         if not existente.is_active:

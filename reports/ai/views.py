@@ -25,7 +25,15 @@ from .attachments import (
 from .budget import BudgetExceeded, check_budget, cost_for, usage_today
 from .context import build_system_prompt, is_ai_enabled
 from .memory import forget, mark_used, memory_blocks, relevant_memories, remember
+from .permissions import can_import_data, why_not_import
 from .providers import AiProviderError, deepseek_client
+from .spreadsheets import (
+    AttachmentGone,
+    ImportNotPossible,
+    apply_import,
+    attachment_for,
+    preview_import,
+)
 from .tools import TOOL_SPECS, run_tool
 
 # Cuantos turnos previos se le mandan al modelo. Los mas viejos entran comprimidos en
@@ -344,6 +352,8 @@ def ai_attachments(request):
     """Los archivos que esta persona le ha pasado a la IA."""
     return JsonResponse({
         "attachments": [_serialize_attachment(a) for a in list_attachments(request.user)],
+        "can_import": can_import_data(request.user),
+        "why_not_import": why_not_import(request.user),
         "max_mb": max_size_bytes() // (1024 * 1024),
         "allowed": sorted(ALLOWED_EXTENSIONS),
     })
@@ -371,3 +381,55 @@ def ai_attachment_download(request, attachment_id):
     if not attachment:
         raise Http404("Archivo no encontrado.")
     return stream_storage_file(attachment.file.name, filename=attachment.original_name)
+
+
+@require_POST
+def ai_attachment_import(request, attachment_id):
+    """Carga de verdad un archivo a Axis.
+
+    **Esto no es una herramienta del modelo.** La IA diagnostica, simula y explica; el
+    boton lo aprieta una persona. Un modelo que puede escribir solo porque le dijeron
+    "cargalo" no tiene ningun freno cuando entiende mal la instruccion.
+
+    Pide `confirm=true` aparte: llegar aqui por accidente no debe escribir nada.
+    """
+    motivo = why_not_import(request.user)
+    if motivo:
+        return JsonResponse({"detail": motivo}, status=403)
+
+    attachment = attachment_for(request.user, attachment_id)
+    if not attachment:
+        return JsonResponse({"detail": "Ese archivo no existe o ya lo retiraste."}, status=404)
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    if payload.get("confirm") is not True:
+        return JsonResponse(
+            {"detail": "Falta la confirmacion explicita."}, status=400
+        )
+
+    try:
+        resultado = apply_import(attachment, request.user, sheet_name=payload.get("sheet") or "")
+    except (ImportNotPossible, AttachmentGone) as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
+    return JsonResponse({"imported": resultado})
+
+
+@require_POST
+def ai_attachment_preview(request, attachment_id):
+    """Simula la carga desde el widget. Cualquiera la puede pedir: no escribe."""
+    attachment = attachment_for(request.user, attachment_id)
+    if not attachment:
+        return JsonResponse({"detail": "Ese archivo no existe o ya lo retiraste."}, status=404)
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    try:
+        resultado = preview_import(attachment, sheet_name=payload.get("sheet") or "")
+    except (ImportNotPossible, AttachmentGone) as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return JsonResponse({"preview": resultado, "can_import": can_import_data(request.user)})

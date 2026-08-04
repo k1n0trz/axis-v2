@@ -214,9 +214,14 @@ class RegistroDeHerramientasTests(TestCase):
 
         self.assertEqual(declaradas, set(TOOLS))
 
-    def test_ninguna_herramienta_escribe(self):
-        # Si alguna consulta gana un create/update/delete, esta prueba debe fallar:
-        # la Etapa E es de solo lectura y la escritura llega con su propio permiso.
+    def test_ninguna_herramienta_escribe_por_su_cuenta(self):
+        """El registro de consultas no escribe.
+
+        Ojo con el alcance: `preview_file_import` SI corre un importador que escribe,
+        pero dentro de un `atomic()` que se revierte, y eso lo cubre
+        `test_la_vista_previa_no_deja_nada_escrito`. Lo que fija esta prueba es que
+        ninguna consulta de `tools.py` escriba por si misma, sin ese rollback.
+        """
         import inspect
 
         import reports.ai.tools as modulo

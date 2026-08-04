@@ -38,6 +38,8 @@ urlpatterns = [
     path("api/ai/files/upload/", ai_views.ai_attachment_upload, name="ai_attachment_upload"),
     path("api/ai/files/<int:attachment_id>/", ai_views.ai_attachment_download, name="ai_attachment_download"),
     path("api/ai/files/<int:attachment_id>/forget/", ai_views.ai_attachment_forget, name="ai_attachment_forget"),
+    path("api/ai/files/<int:attachment_id>/preview/", ai_views.ai_attachment_preview, name="ai_attachment_preview"),
+    path("api/ai/files/<int:attachment_id>/import/", ai_views.ai_attachment_import, name="ai_attachment_import"),
     path("api/attachments/", api_views.AttachmentListAPIView.as_view(), name="api_attachments"),
 ]
 
