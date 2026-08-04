@@ -47,32 +47,41 @@ def _archivo(user):
 
 
 class LlaveDeEscrituraTests(TestCase):
-    def test_sin_grupo_nadie_escribe_ni_siendo_superusuario(self):
-        # Ser superusuario no alcanza: la llave se da a mano.
-        jefe = _staff("alejo", superuser=True)
+    """Dos clases de escritura y no piden lo mismo.
 
-        self.assertFalse(can_import_data(jefe))
-        self.assertIn("no existe todavia", why_not_import(jefe))
+    Los **datos propios** siguen los permisos de Django: quien entre manana con el rol
+    correcto ya puede, sin que nadie lo habilite a mano. La **configuracion global**
+    --que le cambia el tablero a todos-- si exige la llave del grupo.
+    """
 
-    def test_en_el_grupo_y_con_permisos_si_escribe(self):
-        usuario = _en_el_grupo(_staff("editrafficker"))
+    def test_los_datos_propios_solo_piden_el_permiso_de_django(self):
+        usuario = _staff("nueva-persona")
+        for ruta in IMPORT_PERMISSIONS:
+            usuario.user_permissions.add(Permission.objects.get(codename=ruta.split(".")[1]))
 
+        usuario = User.objects.get(pk=usuario.pk)
         self.assertTrue(can_import_data(usuario))
         self.assertEqual(why_not_import(usuario), "")
 
-    def test_estar_en_el_grupo_sin_los_permisos_no_alcanza(self):
-        # El grupo abre la puerta; el permiso dice que se puede mover adentro.
+    def test_sin_el_permiso_de_django_no_carga_aunque_este_en_el_grupo(self):
         usuario = _en_el_grupo(_staff("analista"), con_permisos=False)
 
         self.assertFalse(can_import_data(usuario))
-        self.assertIn("faltan permisos", why_not_import(usuario))
+        self.assertIn("no tiene permiso", why_not_import(usuario))
 
-    def test_quien_no_esta_en_el_grupo_recibe_el_motivo(self):
-        _en_el_grupo(_staff("editrafficker"))
+    def test_la_configuracion_global_si_exige_la_llave(self):
+        from reports.ai.permissions import why_not_config
+
         ajeno = _staff("karen")
 
-        self.assertFalse(can_import_data(ajeno))
-        self.assertIn(WRITE_GROUP, why_not_import(ajeno))
+        self.assertIn(WRITE_GROUP, why_not_config(ajeno))
+
+    def test_con_la_llave_puede_tocar_la_configuracion(self):
+        from reports.ai.permissions import why_not_config
+
+        usuario = _en_el_grupo(_staff("editrafficker"))
+
+        self.assertEqual(why_not_config(usuario), "")
 
     def test_cargar_no_es_una_herramienta_del_modelo(self):
         # La IA diagnostica y simula; el boton lo aprieta una persona.
@@ -254,12 +263,15 @@ class ComandoDeHabilitacionTests(TestCase):
         with self.assertRaises(CommandError):
             self._correr("--user", "karen", "--business-unit", "inventada")
 
-    def test_revocar_quita_la_llave(self):
+    def test_revocar_quita_la_llave_del_grupo(self):
+        # Revocar saca del grupo, que es lo que controla la configuracion global. Los
+        # permisos de Django se quedan: los datos propios no dependen de la llave.
         self._correr("--user", "karen")
 
         self._correr("--user", "karen", "--revoke")
 
-        self.assertFalse(can_import_data(User.objects.get(pk=self.usuario.pk)))
+        usuario = User.objects.get(pk=self.usuario.pk)
+        self.assertFalse(usuario.groups.filter(name=WRITE_GROUP).exists())
 
     def test_avisa_si_el_grupo_trae_permisos_adentro(self):
         grupo, _ = Group.objects.get_or_create(name=WRITE_GROUP)

@@ -29,7 +29,7 @@ from .config_changes import ConfigError, apply_change
 from .data_entry import EntryError, apply_entry
 from .context import build_system_prompt, is_ai_enabled
 from .memory import forget, mark_used, memory_blocks, relevant_memories, remember
-from .permissions import can_import_data, why_not_config, why_not_import
+from .permissions import can_import_data, why_not_config, why_not_enter_data, why_not_import
 from .providers import AiProviderError, deepseek_client
 from .sanitize import wrap_tool_result
 from .spreadsheets import (
@@ -584,8 +584,14 @@ def ai_usage(request):
 
 @require_POST
 def ai_data_entry_apply(request):
-    """Registra un dato dictado, ya confirmado por una persona."""
-    motivo = why_not_config(request.user)
+    """Registra un dato dictado, ya confirmado por una persona.
+
+    No exige la llave del grupo: registrar el gasto de ayer de tu propia marca es lo que
+    esta persona ya hace en el admin, y los permisos de Django mas el alcance por marca
+    son exactamente el control que corresponde. La llave se reserva para la configuracion
+    global, que le cambia el tablero a todos.
+    """
+    motivo = why_not_enter_data(request.user)
     if motivo:
         return JsonResponse({"detail": motivo}, status=403)
 

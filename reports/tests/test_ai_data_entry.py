@@ -59,6 +59,10 @@ class CatalogosMixin:
 class ValidarDatoTests(CatalogosMixin, TestCase):
     def setUp(self):
         self.crear()
+        # Dos paises a proposito: con uno solo el pais se infiere y no habria nada que
+        # preguntar, que es justo lo que prueba `PaisInferidoTests`.
+        self.ec, _ = Country.objects.get_or_create(name="Ecuador", defaults={"code": "EC"})
+        self.bali.countries.set([self.co, self.ec])
         self.user = _staff("estefy")
         self.user.profile.business_units.set([self.bali])
 
@@ -89,7 +93,7 @@ class ValidarDatoTests(CatalogosMixin, TestCase):
                 plataforma="Meta Ads", fecha="ayer", monto="100000",
             )
 
-        self.assertIn("Falta el pais", str(contexto.exception))
+        self.assertIn("Preguntale de cual es", str(contexto.exception))
 
     def test_sin_plataforma_se_pregunta(self):
         with self.assertRaises(MissingData):
@@ -254,8 +258,12 @@ class EndpointYBotonTests(CatalogosMixin, TestCase):
         self.assertEqual(respuesta.status_code, 400)
         self.assertFalse(DailyAdSpend.objects.exists())
 
-    def test_sin_la_llave_del_grupo_no_registra(self):
-        self.client.force_login(_staff("ajena", con_llave=False))
+    def test_sin_permiso_de_django_no_registra(self):
+        # La llave del grupo ya no hace falta para los datos propios: lo que manda es el
+        # permiso de Django, que es lo que esta persona ya usa en el admin.
+        ajena = _staff("ajena", con_llave=False, permisos=())
+        ajena.profile.business_units.set([self.bali])
+        self.client.force_login(ajena)
 
         respuesta = self._registrar(
             confirm=True, kind="gasto_publicitario", marca="Bali", pais="Colombia",
@@ -288,16 +296,16 @@ class EndpointYBotonTests(CatalogosMixin, TestCase):
         self.assertFalse(DailyAdSpend.objects.exists())
 
     def test_un_dato_incompleto_no_ofrece_boton(self):
-        # Falta el pais: el modelo tiene que preguntarlo, no ofrecer un boton.
+        # Sin plataforma no se puede inferir nada: el modelo tiene que preguntarla.
         respuestas = [
             {**RESPUESTA_FALSA, "tool_calls": [{
                 "id": "c1",
                 "function": {"name": "preview_data_entry", "arguments": json.dumps({
                     "kind": "gasto_publicitario", "marca": "Bali",
-                    "plataforma": "Meta Ads", "fecha": "ayer", "monto": "320000",
+                    "fecha": "ayer", "monto": "320000",
                 })},
             }]},
-            {**RESPUESTA_FALSA, "content": "De que pais?"},
+            {**RESPUESTA_FALSA, "content": "De que plataforma?"},
         ]
         with patch("reports.ai.views.deepseek_client") as cliente:
             cliente.return_value.chat.side_effect = respuestas
@@ -308,3 +316,97 @@ class EndpointYBotonTests(CatalogosMixin, TestCase):
             )
 
         self.assertIsNone(respuesta.json()["pending_entry"])
+
+
+class PaisInferidoTests(CatalogosMixin, TestCase):
+    """Si la marca vende en un solo pais, no se pregunta."""
+
+    def setUp(self):
+        self.crear()
+        self.ec, _ = Country.objects.get_or_create(name="Ecuador", defaults={"code": "EC"})
+        self.user = _staff("estefy")
+        self.user.profile.business_units.set([self.bali])
+
+    def test_con_un_solo_pais_no_lo_pregunta(self):
+        # Bali vende solo en Colombia: preguntarlo todos los dias es ruido, y el ruido
+        # entrena a la gente a contestar sin leer.
+        self.bali.countries.set([self.co])
+
+        plan = plan_entry(
+            self.user, "gasto_publicitario", marca="Bali",
+            plataforma="Meta Ads", fecha="ayer", monto="320000",
+        )
+
+        self.assertEqual(plan["fecha"], self.ayer.isoformat())
+        self.assertIn("Colombia", plan["que"])
+
+    def test_con_varios_paises_si_lo_pregunta(self):
+        self.bali.countries.set([self.co, self.ec])
+
+        with self.assertRaises(MissingData) as contexto:
+            plan_entry(
+                self.user, "gasto_publicitario", marca="Bali",
+                plataforma="Meta Ads", fecha="ayer", monto="320000",
+            )
+
+        self.assertIn("Colombia", str(contexto.exception))
+        self.assertIn("Ecuador", str(contexto.exception))
+
+    def test_un_pais_que_la_marca_no_tiene_se_rechaza(self):
+        self.bali.countries.set([self.co])
+
+        with self.assertRaises(EntryError) as contexto:
+            plan_entry(
+                self.user, "gasto_publicitario", marca="Bali", pais="Ecuador",
+                plataforma="Meta Ads", fecha="ayer", monto="320000",
+            )
+
+        self.assertIn("no tiene Ecuador", str(contexto.exception))
+
+
+class SinLlaveDelGrupoTests(CatalogosMixin, TestCase):
+    """Registrar los datos de mi propia marca no exige la llave del grupo.
+
+    Antes si, y eso convertia cada persona nueva en una tarea manual. Los permisos de
+    Django mas el alcance por marca son el control que corresponde.
+    """
+
+    def setUp(self):
+        self.crear()
+        self.bali.countries.set([self.co])
+        self.user = _staff("nueva-persona", con_llave=False)
+        self.user.profile.business_units.set([self.bali])
+        self.client.force_login(self.user)
+
+    @override_settings(DEEPSEEK_API_KEY="clave-de-prueba")
+    def test_sin_grupo_pero_con_permiso_si_registra(self):
+        respuesta = self.client.post(
+            reverse("reports:ai_data_entry_apply"),
+            data=json.dumps({
+                "confirm": True, "kind": "gasto_publicitario", "marca": "Bali",
+                "plataforma": "Meta Ads", "fecha": "ayer", "monto": "320000",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertTrue(DailyAdSpend.objects.exists())
+
+    @override_settings(DEEPSEEK_API_KEY="clave-de-prueba")
+    def test_sin_permiso_de_django_no_registra(self):
+        sin_permiso = _staff("solo-lectura", con_llave=False, permisos=())
+        sin_permiso.profile.business_units.set([self.bali])
+        self.client.force_login(sin_permiso)
+
+        respuesta = self.client.post(
+            reverse("reports:ai_data_entry_apply"),
+            data=json.dumps({
+                "confirm": True, "kind": "gasto_publicitario", "marca": "Bali",
+                "plataforma": "Meta Ads", "fecha": "ayer", "monto": "320000",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(respuesta.status_code, 403)
+        self.assertIn("no tiene permiso", respuesta.json()["detail"])
+        self.assertFalse(DailyAdSpend.objects.exists())

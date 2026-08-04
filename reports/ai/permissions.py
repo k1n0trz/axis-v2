@@ -18,6 +18,20 @@ from django.contrib.auth.models import Group
 
 WRITE_GROUP = "IA Escritura"
 
+# Dos clases de escritura, y no piden lo mismo:
+#
+# **Los datos propios** --el gasto de ayer de mi marca, las ventas de mi canal-- siguen
+# los permisos de Django y el alcance de marcas del perfil. Si Axis dice que Karen puede
+# editar inversion y su perfil dice Marketplace, puede registrar inversion de Marketplace.
+# No hace falta habilitarla a mano: quien entre manana con el rol correcto ya puede.
+#
+# **La configuracion global** --desactivar una marca, mover los umbrales del semaforo--
+# afecta el tablero de todos, y ahi si se exige la llave del grupo. Un umbral mal puesto
+# cambia el color de la pauta para toda la empresa.
+#
+# Antes las dos cosas pedian la llave, y eso convertia cada persona nueva en una tarea
+# manual mia. Eso no escala y no era la intencion.
+
 # Permiso necesario segun lo que la accion vaya a escribir.
 IMPORT_PERMISSIONS = ("reports.change_dailychannelsale", "reports.change_dailyproductcategorysale")
 
@@ -31,8 +45,28 @@ def write_group_exists():
 
 
 def can_import_data(user):
-    """Si esta persona puede cargar datos desde un archivo."""
-    return in_write_group(user) and all(user.has_perm(p) for p in IMPORT_PERMISSIONS)
+    """Si esta persona puede cargar datos desde un archivo.
+
+    Solo los permisos de Django: el alcance por marca lo revisa el propio importador con
+    la marca destino del archivo.
+    """
+    return all(user.has_perm(p) for p in IMPORT_PERMISSIONS)
+
+
+def can_enter_data(user):
+    """Si puede registrar algun dato hablando. El permiso exacto se revisa por tipo."""
+    return user.has_perm("reports.change_dailyadspend") or user.has_perm(
+        "reports.change_dailychannelsale"
+    )
+
+
+def why_not_enter_data(user):
+    if can_enter_data(user):
+        return ""
+    return (
+        "Tu usuario no tiene permiso para editar ventas ni inversion en Axis, asi que no "
+        "puedo registrar datos por ti. Puedo consultarte lo que necesites."
+    )
 
 
 def can_change_config(user):
@@ -57,14 +91,11 @@ def why_not_config(user):
 
 def why_not_import(user):
     """El motivo, para decirselo a la persona en vez de un 403 pelado."""
-    if not write_group_exists():
-        return f"El grupo '{WRITE_GROUP}' no existe todavia en este entorno."
-    if not in_write_group(user):
-        return (
-            f"Solo quien este en el grupo '{WRITE_GROUP}' puede cargar datos. "
-            "Puedo revisar el archivo y mostrarte que cambiaria, pero no escribirlo."
-        )
     faltantes = [p for p in IMPORT_PERMISSIONS if not user.has_perm(p)]
     if faltantes:
-        return f"Estas en el grupo pero te faltan permisos de Django: {', '.join(faltantes)}."
+        return (
+            "Tu usuario no tiene permiso para cargar datos en Axis "
+            f"(faltan: {', '.join(faltantes)}). Puedo revisar el archivo y mostrarte que "
+            "cambiaria, pero no escribirlo."
+        )
     return ""

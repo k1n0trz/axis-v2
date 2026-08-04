@@ -135,6 +135,29 @@ def describe_entry_types(user):
     }
 
 
+def _resolve_country(marca, nombre):
+    """El pais del dato. Si la marca solo vende en uno, no se pregunta.
+
+    Bali vende solo en Colombia: preguntarle a Estefy "¿de que pais?" todos los dias es
+    ruido, y el ruido entrena a la gente a contestar sin leer. Se pregunta cuando hay mas
+    de una respuesta posible, no por costumbre.
+    """
+    paises = list(marca.countries.filter(is_active=True))
+    if not nombre and len(paises) == 1:
+        return paises[0]
+    if not nombre and paises:
+        raise MissingData(
+            f"{marca.name} vende en {', '.join(p.name for p in paises)}. Preguntale de cual es."
+        )
+    pais = _resolve(Country, nombre, "pais")
+    if paises and pais.pk not in {p.pk for p in paises}:
+        raise EntryError(
+            f"{marca.name} no tiene {pais.name} entre sus paises "
+            f"({', '.join(p.name for p in paises)}). Confirmalo antes de registrar."
+        )
+    return pais
+
+
 def _check_brand(user, marca):
     from .tools import allowed_business_units
 
@@ -154,7 +177,7 @@ def plan_entry(user, kind, **datos):
 
     marca = _resolve(BusinessUnit, datos.get("marca"), "marca")
     _check_brand(user, marca)
-    pais = _resolve(Country, datos.get("pais"), "pais")
+    pais = _resolve_country(marca, datos.get("pais"))
     dia = _day(datos.get("fecha"))
     monto = _amount(datos.get("monto"), "el monto")
 
