@@ -119,6 +119,16 @@ consultas ni latencia en el render de cada pagina.
   .axis-ai__msg--assistant { align-self: flex-start; background: #1e293b; color: #e2e8f0; border-bottom-left-radius: 4px; }
   .axis-ai__msg--error { align-self: stretch; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35); color: #fca5a5; }
   .axis-ai__msg--hint { align-self: stretch; background: rgba(148,163,184,.08); color: #94a3b8; font-size: .76rem; }
+  .axis-ai__msg--assistant { white-space: normal; }
+  .axis-ai__msg p { margin: 0 0 8px; }
+  .axis-ai__msg p:last-child { margin-bottom: 0; }
+  .axis-ai__msg .axis-ai__h { font-weight: 700; color: #f1f5f9; margin-top: 4px; }
+  .axis-ai__msg strong { color: #f1f5f9; font-weight: 700; }
+  .axis-ai__msg em { font-style: italic; }
+  .axis-ai__msg code { background: rgba(148,163,184,.15); border-radius: 4px; padding: 1px 4px;
+    font-family: ui-monospace, monospace; font-size: .95em; }
+  .axis-ai__msg ul, .axis-ai__msg ol { margin: 0 0 8px; padding-left: 18px; }
+  .axis-ai__msg li { margin-bottom: 3px; }
   .axis-ai__form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid rgba(255,255,255,.08); }
   .axis-ai__form textarea { flex: 1; resize: none; background: #131c2e; border: 1px solid rgba(255,255,255,.1);
     border-radius: 10px; padding: 9px 11px; color: #e2e8f0; font-size: .82rem; font-family: inherit; }
@@ -150,10 +160,64 @@ consultas ni latencia en el render de cada pagina.
       return match ? decodeURIComponent(match[1]) : '';
     }
 
-    function bubble(role, text) {
+    // El texto viene del modelo, asi que se escapa el HTML ANTES de aplicar formato.
+    // Sin ese orden, una respuesta con <img onerror=...> se ejecutaria en la pagina.
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function renderMarkdown(text) {
+      const lineas = escapeHtml(text).split(/\r?\n/);
+      const salida = [];
+      let enLista = null;
+      function cerrarLista() {
+        if (enLista) { salida.push('</' + enLista + '>'); enLista = null; }
+      }
+      lineas.forEach(function (linea) {
+        const encabezado = linea.match(/^\s*#{1,6}\s+(.*)$/);
+        const punto = linea.match(/^\s*[-*]\s+(.*)$/);
+        const numero = linea.match(/^\s*\d+[.)]\s+(.*)$/);
+        if (encabezado) {
+          cerrarLista();
+          salida.push('<p class="axis-ai__h">' + inline(encabezado[1]) + '</p>');
+        } else if (punto) {
+          if (enLista !== 'ul') { cerrarLista(); salida.push('<ul>'); enLista = 'ul'; }
+          salida.push('<li>' + inline(punto[1]) + '</li>');
+        } else if (numero) {
+          if (enLista !== 'ol') { cerrarLista(); salida.push('<ol>'); enLista = 'ol'; }
+          salida.push('<li>' + inline(numero[1]) + '</li>');
+        } else if (!linea.trim()) {
+          cerrarLista();
+        } else {
+          cerrarLista();
+          salida.push('<p>' + inline(linea) + '</p>');
+        }
+      });
+      cerrarLista();
+      return salida.join('');
+    }
+
+    function inline(texto) {
+      return texto
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+        // El asterisco simple va despues del doble, o se comeria las negritas.
+        .replace(/(^|[\s(])\*([^*]+)\*/g, '$1<em>$2</em>');
+    }
+
+    function bubble(role, text, formato) {
       const el = document.createElement('div');
       el.className = 'axis-ai__msg axis-ai__msg--' + role;
-      el.textContent = text;
+      if (formato === 'markdown') {
+        el.innerHTML = renderMarkdown(text);
+      } else {
+        el.textContent = text;
+      }
       log.appendChild(el);
       log.scrollTop = log.scrollHeight;
       return el;
@@ -249,8 +313,9 @@ consultas ni latencia en el render de cada pagina.
           return;
         }
         (data.messages || []).forEach(function (m) {
-          const el = bubble(m.role === 'user' ? 'user' : 'assistant', m.content);
-          if (m.role === 'assistant') addVote(el, m.id, m.feedback);
+          const esIa = m.role !== 'user';
+          const el = bubble(esIa ? 'assistant' : 'user', m.content, esIa ? 'markdown' : '');
+          if (esIa) addVote(el, m.id, m.feedback);
         });
         if (!(data.messages || []).length) {
           bubble('hint', 'Puedo explicarte como funciona Axis, que significa una metrica o como se calcula algo. Todavia no puedo consultar cifras: si te doy un numero, no confies en el.');
@@ -629,7 +694,7 @@ consultas ni latencia en el render de cada pagina.
         if (!response.ok) {
           bubble('error', data.detail || 'El asistente no pudo responder.');
         } else {
-          const el = bubble('assistant', (data.reply && data.reply.content) || '(sin respuesta)');
+          const el = bubble('assistant', (data.reply && data.reply.content) || '(sin respuesta)', 'markdown');
           addVote(el, data.reply && data.reply.id, '');
           if (data.remembered) bubble('hint', 'Anotado: ' + data.remembered);
           if (data.pending_change) askConfigConfirm(data.pending_change);

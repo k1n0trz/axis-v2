@@ -35,7 +35,7 @@ from ..models import (
     DailyProductCategorySale,
     Website,
 )
-from ..services.common import ZERO, safe_ratio
+from ..services.common import ZERO, normalize_text, safe_ratio
 
 # Ventana maxima por consulta. Sin techo, "compara todo el historico" barre la tabla
 # entera y devuelve un payload que no cabe en el contexto.
@@ -85,6 +85,28 @@ def _money(value):
     return f"{entero:,}".replace(",", ".") + " COP"
 
 
+def match_business_units(permitidas, consulta):
+    """Las marcas permitidas que coinciden con lo que pidio el modelo.
+
+    La comparacion era exacta contra nombre o slug, y eso dejaba fuera dos formas de
+    pedir lo mismo que la gente usa todos los dias: el plural ("Marketplaces") y el
+    apocope ("Distri"). Primero se busca exacto --asi "Uva" no arrastra "Comfama Uva"--
+    y solo si no hay nada se acepta que uno contenga al otro.
+    """
+    pedido = normalize_text(consulta)
+    if not pedido:
+        return list(permitidas)
+
+    exactas = [b for b in permitidas if pedido in (normalize_text(b.name), normalize_text(b.slug))]
+    if exactas:
+        return exactas
+    return [
+        b
+        for b in permitidas
+        if pedido in normalize_text(b.name) or normalize_text(b.name) in pedido
+    ]
+
+
 def _scope(queryset, user, business_unit="", country="", campo_unidad="business_unit"):
     """Aplica el filtro de permisos y los filtros que pidio el modelo."""
     permitidas = allowed_business_units(user)
@@ -92,13 +114,17 @@ def _scope(queryset, user, business_unit="", country="", campo_unidad="business_
     nota = ""
 
     if business_unit:
-        elegidas = [b for b in permitidas if business_unit.lower() in (b.name.lower(), b.slug.lower())]
+        elegidas = match_business_units(permitidas, business_unit)
         if not elegidas:
-            existe = BusinessUnit.objects.filter(name__iexact=business_unit).exists()
+            # `is_active=True` importa: sin eso, un duplicado desactivado que quedo en la
+            # base hacia decir "existe pero no tienes acceso", que es doblemente falso.
+            otra = BusinessUnit.objects.filter(name__iexact=business_unit, is_active=True).first()
+            disponibles = ", ".join(b.name for b in permitidas)
             nota = (
-                f"'{business_unit}' existe pero esta persona no tiene acceso."
-                if existe
-                else f"No hay ninguna marca llamada '{business_unit}'."
+                f"'{business_unit}' existe pero esta persona no tiene acceso. "
+                f"Solo ve: {disponibles}."
+                if otra
+                else f"No hay ninguna marca activa llamada '{business_unit}'. Hay: {disponibles}."
             )
             return queryset.none(), nota
         queryset = queryset.filter(**{f"{campo_unidad}__in": elegidas})

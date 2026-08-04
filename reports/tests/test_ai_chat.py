@@ -248,3 +248,13 @@ class ChatTests(TestCase):
 
         # El middleware corta antes de la vista: /api/ responde JSON.
         self.assertEqual(respuesta.status_code, 403)
+
+    def test_el_prompt_pide_markdown_y_prohibe_tablas(self):
+        # El widget renderiza negritas y listas, pero una tabla no cabe en 400 px.
+        usuario = _staff("formato")
+        UserProfile.objects.update_or_create(user=usuario, defaults={})
+
+        prompt = build_system_prompt(usuario)
+
+        self.assertIn("No uses tablas", prompt)
+        self.assertIn("negritas", prompt)

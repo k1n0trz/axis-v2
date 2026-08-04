@@ -330,3 +330,82 @@ class BucleDeHerramientasTests(DatosDePruebaMixin, TestCase):
         respuesta = self._enviar()
 
         self.assertEqual(respuesta.status_code, 200)
+
+
+class NombreDeMarcaTests(DatosDePruebaMixin, TestCase):
+    """Como se resuelve el nombre que pide el modelo.
+
+    Salio de un reporte real: el asistente le dijo a EdiTrafficker que no tenia acceso a
+    Marketplace, cuando su perfil si lo tenia. Dos causas: la comparacion era exacta
+    --"Marketplaces" en plural no coincidia-- y el chequeo de "existe" no filtraba por
+    activa, asi que un duplicado desactivado hacia decir "no tienes acceso".
+    """
+
+    def setUp(self):
+        self.crear_datos()
+        self.user = _staff("editrafficker")
+        self.marketplace, _ = BusinessUnit.objects.get_or_create(
+            name="Marketplace", defaults={"slug": "marketplace"}
+        )
+        self.distrisex, _ = BusinessUnit.objects.get_or_create(
+            name="DistriSex", defaults={"slug": "distrisex"}
+        )
+        self.user.profile.business_units.set([self.uva, self.marketplace, self.distrisex])
+
+    def _marcas(self, consulta):
+        from reports.ai.tools import match_business_units
+
+        return [b.name for b in match_business_units(allowed_business_units(self.user), consulta)]
+
+    def test_el_plural_encuentra_la_marca(self):
+        self.assertEqual(self._marcas("Marketplaces"), ["Marketplace"])
+
+    def test_el_apocope_encuentra_la_marca(self):
+        self.assertEqual(self._marcas("Distri"), ["DistriSex"])
+
+    def test_el_nombre_exacto_no_arrastra_los_parecidos(self):
+        comfama, _ = BusinessUnit.objects.get_or_create(
+            name="Comfama Uva", defaults={"slug": "comfama-uva"}
+        )
+        self.user.profile.business_units.add(comfama)
+
+        self.assertEqual(self._marcas("Uva"), ["Uva"])
+
+    def test_sin_acentos_ni_mayusculas_tambien(self):
+        self.assertEqual(self._marcas("DISTRISEX"), ["DistriSex"])
+
+    def test_un_duplicado_desactivado_no_dice_que_falta_acceso(self):
+        # El duplicado 'Marketplaces' quedo desactivado en la base y envenenaba el mensaje.
+        BusinessUnit.objects.create(name="Zombi", slug="zombi", is_active=False)
+
+        datos = run_tool(
+            self.user, "get_performance",
+            {"date_start": HOY.isoformat(), "date_end": HOY.isoformat(), "business_unit": "Zombi"},
+        )
+
+        self.assertIn("No hay ninguna marca activa", datos["nota"])
+        self.assertNotIn("no tiene acceso", datos["nota"])
+
+    def test_la_nota_dice_que_marcas_si_ve(self):
+        datos = run_tool(
+            self.user, "get_performance",
+            {"date_start": HOY.isoformat(), "date_end": HOY.isoformat(), "business_unit": "Inventada"},
+        )
+
+        self.assertIn("Marketplace", datos["nota"])
+
+    def test_pedir_marketplace_en_plural_devuelve_sus_datos(self):
+        DailyChannelSale.objects.create(
+            business_unit=self.marketplace, country=self.co, channel=self.web,
+            sale_date=HOY, sales_amount=Decimal("3000000"), order_count=5,
+        )
+
+        datos = run_tool(
+            self.user, "get_performance",
+            {"date_start": HOY.isoformat(), "date_end": HOY.isoformat(), "business_unit": "Marketplaces"},
+        )
+
+        self.assertEqual(datos["ventas"], 3000000.0)
+        # La nota que queda es la del ROAS (Marketplace no tiene pauta), no una de acceso.
+        self.assertNotIn("no tiene acceso", datos["nota"])
+        self.assertNotIn("No hay ninguna marca", datos["nota"])

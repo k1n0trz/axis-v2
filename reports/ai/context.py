@@ -100,6 +100,10 @@ def build_system_prompt(user, rules=()):
         "",
         "Como debes responder:",
         "- En español, directo y sin rodeos. Tuteas.",
+        "- El chat entiende negritas con **asteriscos**, listas con guiones, titulos con",
+        "  ## y codigo con `comillas`. Usalos: se ven con formato, no en crudo.",
+        "- **No uses tablas.** El panel del chat es angosto y una tabla sale ilegible:",
+        "  para comparar varias cosas, usa una lista con un renglon por cada una.",
         # Las reglas de la persona van aqui arriba, antes de las generales: si pidio
         # dos frases, no puede ganarle una regla nuestra que no habla del largo.
         *[f"- {regla} (lo pidio esta persona: cumplelo)" for regla in rules],
