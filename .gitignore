@@ -45,3 +45,8 @@ tmp_write_probe.txt
 .vscode/
 .idea/
 
+
+# Inventarios de credenciales generados a mano. Traen nombres de secretos, no valores,
+# pero no son parte del proyecto y no deben viajar en el repo.
+ml_auth_*.md
+ml_auth_*.json
