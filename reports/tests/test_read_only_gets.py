@@ -67,3 +67,33 @@ class GetSinEscriturasTests(TestCase):
                     and "axis_cache" not in consulta["sql"]
                 ]
                 self.assertEqual(escrituras, [], f"{ruta} escribio: {escrituras}")
+
+
+class AwnRetiradoTests(TestCase):
+    """Awn Internacional esta apagado por bandera, no borrado."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        self.user = User.objects.create_user(username="alejo", password="x", is_staff=True)
+        self.client.force_login(self.user)
+
+    def test_la_ruta_responde_404_cuando_esta_apagado(self):
+        from django.urls import reverse
+
+        respuesta = self.client.get(reverse("reports:awn_internacional"))
+
+        self.assertEqual(respuesta.status_code, 404)
+
+    def test_no_aparece_en_la_barra_lateral(self):
+        from django.urls import reverse
+
+        respuesta = self.client.get(reverse("reports:dashboard"))
+
+        self.assertNotContains(respuesta, "Awn Internacional")
+
+    def test_los_datos_de_seguidores_no_se_borraron(self):
+        # El modelo sigue existiendo: apagar no es borrar.
+        from reports.models import AwnInternationalFollowerMetric
+
+        self.assertEqual(AwnInternationalFollowerMetric.objects.count(), 0)

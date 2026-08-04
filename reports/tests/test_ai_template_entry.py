@@ -194,3 +194,46 @@ class RegistrarLaPlantillaTests(LeerLaPlantillaTests):
         corrida = IntegrationRun.objects.filter(source="IA plantilla").first()
         self.assertIsNotNone(corrida)
         self.assertIn("1 filas registradas", corrida.summary)
+
+
+class CatalogoDePlataformasTests(TestCase):
+    """`ensure_axis_ad_platforms` tambien corrige nombres, no solo crea."""
+
+    def _correr(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        salida = StringIO()
+        call_command("ensure_axis_ad_platforms", stdout=salida)
+        return salida.getvalue()
+
+    def test_crea_las_plataformas_de_marketplace(self):
+        self._correr()
+
+        activas = set(AdPlatform.objects.filter(is_active=True).values_list("name", flat=True))
+        self.assertTrue({"Mercadolibre", "Falabella", "Rappi", "Farmatodo"}.issubset(activas))
+
+    def test_renombra_una_plataforma_con_el_nombre_viejo(self):
+        # get_or_create encuentra por slug y no corrige el nombre: la primera version las
+        # dejo como "Mercado Libre Ads" y asi no las encontraba ni el archivo ni el chat.
+        AdPlatform.objects.create(name="Mercado Libre Ads", slug="mercadolibre-ads")
+
+        salida = self._correr()
+
+        self.assertEqual(AdPlatform.objects.get(slug="mercadolibre-ads").name, "Mercadolibre")
+        self.assertIn("-> 'Mercadolibre'", salida)
+
+    def test_reactiva_una_plataforma_desactivada(self):
+        AdPlatform.objects.create(name="Rappi", slug="rappi-ads", is_active=False)
+
+        self._correr()
+
+        self.assertTrue(AdPlatform.objects.get(slug="rappi-ads").is_active)
+
+    def test_correrlo_dos_veces_no_cambia_nada_la_segunda(self):
+        self._correr()
+
+        salida = self._correr()
+
+        self.assertNotIn("->", salida)

@@ -31,12 +31,24 @@ class Command(BaseCommand):
             plataforma, creada = AdPlatform.objects.get_or_create(
                 slug=slug, defaults={"name": nombre, "is_active": True}
             )
-            if not creada and not plataforma.is_active:
+            if creada:
+                self.stdout.write(f"  {nombre}: creada")
+                continue
+            # `get_or_create` encuentra por slug y no corrige el nombre. La primera version
+            # las creo como "Mercado Libre Ads" y ni el archivo ni el dictado las
+            # encontraban: hay que renombrarlas, no solo dejarlas pasar.
+            cambios = []
+            if plataforma.name != nombre:
+                cambios.append(f"'{plataforma.name}' -> '{nombre}'")
+                plataforma.name = nombre
+            if not plataforma.is_active:
+                cambios.append("reactivada")
                 plataforma.is_active = True
-                plataforma.save(update_fields=["is_active", "updated_at"])
-                self.stdout.write(f"  {nombre}: reactivada")
+            if cambios:
+                plataforma.save(update_fields=["name", "is_active", "updated_at"])
+                self.stdout.write(f"  {nombre}: {', '.join(cambios)}")
             else:
-                self.stdout.write(f"  {nombre}: {'creada' if creada else 'ya estaba'}")
+                self.stdout.write(f"  {nombre}: ya estaba")
         self.stdout.write(
             self.style.SUCCESS(
                 f"Plataformas activas: {', '.join(AdPlatform.objects.filter(is_active=True).values_list('name', flat=True))}"

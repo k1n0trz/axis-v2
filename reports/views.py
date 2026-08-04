@@ -59,6 +59,10 @@ EDITRAFFICKER_USERNAME = "editrafficker"
 # No se borra el modulo: son 8 modelos, 8 migraciones y ~1.100 lineas de plantillas
 # que el equipo construyo. Borrarlo es una decision de producto, no de limpieza.
 FEATURE_TASKS_GOALS_ENABLED = config("FEATURE_TASKS_GOALS_ENABLED", default=False, cast=bool)
+# Awn Internacional se retiro del tablero: no se usa por ahora. Los datos de seguidores
+# siguen en la base --meses de visitas y costo por seguidor-- asi que se apaga la vista,
+# no se borra nada. Encenderlo de nuevo no requiere desplegar codigo.
+FEATURE_AWN_ENABLED = config("FEATURE_AWN_ENABLED", default=False, cast=bool)
 
 
 def _bonus_tier(fulfillment):
@@ -199,7 +203,7 @@ def _sidebar_context(active, request=None):
             {"label": "Inicio", "url": reverse("reports:dashboard"), "key": "dashboard"},
             {"label": "Uva", "url": f"{reverse('reports:uva')}?{uva_default_query.urlencode()}", "key": "uva"},
             {"label": "Uva Comfama", "url": reverse("reports:uva_comfama"), "key": "uva_comfama", "parent": "uva"},
-            {"label": "Awn Internacional", "url": reverse("reports:awn_internacional"), "key": "awn_internacional", "parent": "uva"},
+            *([{"label": "Awn Internacional", "url": reverse("reports:awn_internacional"), "key": "awn_internacional", "parent": "uva"}] if FEATURE_AWN_ENABLED else []),
             {"label": "Bali", "url": reverse("reports:bali"), "key": "bali"},
             {"label": "Marketplace", "url": reverse("reports:marketplace"), "key": "marketplace"},
             {"label": "DistriSex", "url": reverse("reports:distrisex_ecuador"), "key": "distrisex"},
@@ -1740,6 +1744,9 @@ def uva_comfama_module(request):
 
 
 def awn_internacional_module(request):
+    if not FEATURE_AWN_ENABLED:
+        # Apagado, no borrado: la ruta responde 404 y los datos siguen en la base.
+        raise Http404("Awn Internacional esta retirado del tablero.")
     limited_redirect = _redirect_katerine_limited_user(request)
     if limited_redirect:
         return limited_redirect
